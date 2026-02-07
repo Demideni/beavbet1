@@ -1,59 +1,44 @@
-// app/page.tsx
+import BannerCarousel from "@/components/BannerCarousel";
 import Link from "next/link";
 import Image from "next/image";
-import BannerCarousel from "@/components/BannerCarousel";
 
 export default function HomePage() {
   return (
-    <div className="space-y-4 pb-4">
-      {/* 1. Большой верхний баннер (клик -> регистрация) */}
-      <div className="mx-4 mt-2">
-  <div className="overflow-hidden rounded-2xl border border-blue-400/20 shadow-[0_0_40px_rgba(59,130,246,0.15)]">
-    <img
-      src="/banners/hero_robinson.png"
-      alt="Robinson"
-      className="w-full object-cover"
-    />
-  </div>
-</div>
+    <div className="space-y-5">
+      <div className="px-0 lg:px-0">
+        <BannerCarousel />
+      </div>
 
+      <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Link href="/casino" className="card-glass rounded-3xl overflow-hidden group">
+          <div className="p-6 flex items-center justify-between gap-4">
+            <div>
+              <div className="text-2xl font-extrabold">Казино</div>
+              <div className="mt-1 text-white/55">
+                Наслаждайтесь оригинальными играми и играми от топ провайдеров.
+              </div>
+            </div>
+            <div className="relative size-24">
+              <Image src="/ui/dice.png" alt="Casino" fill className="object-contain group-hover:scale-105 transition" />
+            </div>
+          </div>
+          <div className="h-[2px] bg-gradient-to-r from-[rgb(var(--accent))]/70 to-transparent" />
+        </Link>
 
-      {/* 2. Два промо-баннера под hero */}
-      <section className="px-4">
-        <div className="flex gap-3">
-          {/* DEMO (без регистрации) */}
-          <Link
-            href="/go/robinson-demo"
-            className="promo-neon flex-1"
-          >
-            <span className="promo-spark promo-spark--a" />
-            <span className="promo-spark promo-spark--b" />
-            <Image
-              src="/banners/robinson_demo.png"
-              alt="ROBINSON Demo"
-              width={640}
-              height={360}
-              className="h-full w-full object-cover"
-              priority
-            />
-          </Link>
-
-          {/* PLAY (через регистрацию) */}
-          <Link
-            href="/go/robinson"
-            className="promo-neon promo-neon--green flex-1"
-          >
-            <span className="promo-spark promo-spark--a" />
-            <span className="promo-spark promo-spark--b" />
-            <Image
-              src="/banners/robinson_play.png"
-              alt="Play ROBINSON"
-              width={640}
-              height={360}
-              className="h-full w-full object-cover"
-            />
-          </Link>
-        </div>
+        <Link href="/sports" className="card-glass rounded-3xl overflow-hidden group">
+          <div className="p-6 flex items-center justify-between gap-4">
+            <div>
+              <div className="text-2xl font-extrabold">Спорт</div>
+              <div className="mt-1 text-white/55">
+                Делайте ставки на популярные события с высокими коэффициентами.
+              </div>
+            </div>
+            <div className="relative size-24">
+              <Image src="/ui/ball.png" alt="Sport" fill className="object-contain group-hover:scale-105 transition" />
+            </div>
+          </div>
+          <div className="h-[2px] bg-gradient-to-r from-sky-400/70 to-transparent" />
+        </Link>
       </section>
     </div>
   );

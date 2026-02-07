@@ -1,0 +1,305 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TxType {
+  DEPOSIT
+  BET
+  WIN
+  WITHDRAW
+  ADJUST
+}
+
+enum InvoiceStatus {
+  PENDING
+  PAID
+  EXPIRED
+  FAILED
+}
+
+// --- Sportsbook ---
+enum BetSlipType {
+  SINGLE
+  PARLAY
+}
+
+enum BetSlipStatus {
+  PENDING
+  WON
+  LOST
+  VOID
+  CASHED_OUT
+}
+
+enum BetLegStatus {
+  PENDING
+  WON
+  LOST
+  VOID
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  balanceCents Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  transactions Transaction[]
+  invoices     PaymentInvoice[]
+  withdrawals  WithdrawRequest[]
+
+  betSlips     BetSlip[]
+
+  affiliate Affiliate?
+  tournamentEntries TournamentEntry[]
+  tournamentRounds  TournamentRound[]
+
+}
+
+model Transaction {
+  id          String   @id @default(cuid())
+  userId      String
+  type        TxType
+  amountCents Int
+  meta        Json?
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+}
+
+model BetSlip {
+  id                  String        @id @default(cuid())
+  userId              String
+  type                BetSlipType
+  currency            String        @default("USDT")
+  stakeCents          Int
+  potentialPayoutCents Int
+  isLive              Boolean       @default(false)
+  status              BetSlipStatus @default(PENDING)
+  settledAt           DateTime?
+  meta                Json?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+  legs BetLeg[]
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+}
+
+model BetLeg {
+  id           String       @id @default(cuid())
+  slipId       String
+  eventId      String       // Odds API event id
+  sportKey     String
+  commenceTime DateTime
+  homeTeam     String
+  awayTeam     String
+
+  marketKey    String       // h2h | totals (MVP)
+  selection    String       // team name | "over" | "under"
+  oddsAmerican Int
+  line         Float?
+
+  status       BetLegStatus @default(PENDING)
+  settledAt    DateTime?
+  meta         Json?
+
+  slip BetSlip @relation(fields: [slipId], references: [id], onDelete: Cascade)
+
+  @@index([slipId])
+  @@index([eventId])
+  @@index([status, commenceTime])
+}
+
+model PaymentInvoice {
+  id          String        @id @default(cuid())
+  userId      String
+  provider    String        @default("PassimPay")
+  externalId  String?       @unique
+  currency    String        @default("USDT")
+  amountCents Int
+  status      InvoiceStatus @default(PENDING)
+  checkoutUrl String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+}
+
+model WithdrawRequest {
+  id          String   @id @default(cuid())
+  userId      String
+  currency    String   @default("USDT")
+  amountCents Int
+  address     String
+  status      String   @default("PENDING") // PENDING|APPROVED|REJECTED|PAID
+  externalId  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+}
+
+model Affiliate {
+  id          String  @id @default(cuid())
+  userId      String  @unique
+  code        String  @unique
+  revshareBps Int     @default(2500) // 25.00%
+  isActive    Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user           User                     @relation(fields: [userId], references: [id])
+  clicks         AffiliateClick[]
+  referrals      Referral[]
+  earnings       AffiliateEarning[]
+  payoutRequests AffiliatePayoutRequest[]
+}
+
+model AffiliateClick {
+  id          String   @id @default(cuid())
+  affiliateId String
+  ipHash      String
+  uaHash      String
+  landingPath String?
+  referrer    String?
+  createdAt   DateTime @default(now())
+
+  affiliate Affiliate @relation(fields: [affiliateId], references: [id])
+
+  @@index([affiliateId, createdAt])
+  @@index([ipHash, createdAt])
+}
+
+model Referral {
+  id             String   @id @default(cuid())
+  affiliateId    String
+  referredUserId String   @unique
+  firstClickId   String?
+  createdAt      DateTime @default(now())
+
+  affiliate Affiliate @relation(fields: [affiliateId], references: [id])
+}
+
+model AffiliateEarning {
+  id             String   @id @default(cuid())
+  affiliateId    String
+  referredUserId String
+  source         String // "deposit" | "ngr_daily" | "adjustment"
+  invoiceId      String? // for idempotency (e.g., PaymentInvoice.id)
+  amountCents    Int
+  currency       String   @default("USD")
+  meta           Json?
+  createdAt      DateTime @default(now())
+
+  affiliate Affiliate @relation(fields: [affiliateId], references: [id])
+
+  @@unique([affiliateId, source, invoiceId])
+  @@index([affiliateId, createdAt])
+  @@index([referredUserId, createdAt])
+}
+
+model AffiliatePayoutRequest {
+  id          String   @id @default(cuid())
+  affiliateId String
+  amountCents Int
+  currency    String   @default("USD")
+  destination String
+  status      String   @default("PENDING")
+  note        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  affiliate Affiliate @relation(fields: [affiliateId], references: [id])
+
+  @@index([affiliateId, createdAt])
+}
+// --- Tournaments ---
+enum TournamentType {
+  DAILY_SPRINT
+
+  @@map("TournamentType")
+}
+
+enum TournamentStatus {
+  ACTIVE
+  COMPLETED
+  UPCOMING
+
+  @@map("TournamentStatus")
+}
+
+model Tournament {
+  id             String           @id @db.Text
+  slug           String           @unique @db.Text
+  name           String           @db.Text
+  type           TournamentType
+  status         TournamentStatus @default(ACTIVE)
+  startsAt       DateTime         @db.Timestamp(3)
+  endsAt         DateTime         @db.Timestamp(3)
+  kFactor        Int              @default(10)
+  prizePoolCents Int              @default(0)
+  createdAt      DateTime         @default(now()) @db.Timestamp(3)
+
+  entries        TournamentEntry[]
+  rounds         TournamentRound[]
+
+  @@index([status, endsAt])
+  @@map("Tournament")
+}
+
+model TournamentEntry {
+  id           String    @id @default(cuid())
+  tournamentId String    @db.Text
+  userId       String
+  points       Float     @default(0)
+  bestMultiplier Float   @default(1)
+  roundsCount  Int       @default(0)
+  lastRoundAt  DateTime? @db.Timestamp(3)
+  createdAt    DateTime  @default(now()) @db.Timestamp(3)
+  updatedAt    DateTime  @updatedAt @db.Timestamp(3)
+
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, userId])
+  @@index([tournamentId, points])
+  @@index([userId, updatedAt])
+  @@map("TournamentEntry")
+}
+
+model TournamentRound {
+  id           String    @id @default(cuid())
+  tournamentId String    @db.Text
+  userId       String
+  roundId      String    @db.Text
+  stakeCents   Int
+  multiplier   Float
+  points       Float
+  createdAt    DateTime  @default(now()) @db.Timestamp(3)
+
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, userId, roundId])
+  @@unique([tournamentId, roundId])
+  @@index([tournamentId, createdAt])
+  @@index([userId, createdAt])
+  @@map("TournamentRound")
+}

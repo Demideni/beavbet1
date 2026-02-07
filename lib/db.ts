@@ -14,4 +14,5 @@ export const prisma =
 
 if (process.env.NODE_ENV !== "production") global.prisma = prisma;
 
+// Back-compat alias (some routes import { db })
 export const db = prisma;

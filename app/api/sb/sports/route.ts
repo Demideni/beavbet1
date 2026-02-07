@@ -1,17 +1,17 @@
 import { NextResponse } from "next/server";
 import { oddsGet } from "@/lib/oddsApi";
 
-export const dynamic = "force-dynamic"; // важно: не даём Next пытаться "пререндерить" API
+export const dynamic = "force-dynamic";
 
 // Returns list of sports (dynamic) from The Odds API
 export async function GET() {
-  if (!process.env.ODDS_API_KEY) {
+  try {
+    const { data, usage } = await oddsGet<any[]>("/sports", { all: "false" });
+    return NextResponse.json({ usage, data });
+  } catch (e: any) {
     return NextResponse.json(
-      { ok: false, error: "ODDS_API_KEY is not set", data: [] },
-      { status: 503 }
+      { error: e?.message ?? "Failed to fetch sports" },
+      { status: 500 }
     );
   }
-
-  const { data, usage } = await oddsGet<any[]>("/sports", { all: "false" });
-  return NextResponse.json({ ok: true, usage, data });
 }

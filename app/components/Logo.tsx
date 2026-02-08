@@ -5,7 +5,7 @@ export function Logo() {
   return (
     <Link href="/" className="flex items-center gap-3 select-none">
       <div className="relative h-10 w-10">
-        <Image src="/brand/logo-mark.svg" alt="BeavBet" fill className="object-contain" priority />
+        <Image src="/brand/logo-mark.png" alt="BeavBet" fill className="object-contain" priority />
       </div>
       <div className="leading-none">
         <div className="text-lg font-extrabold tracking-tight">

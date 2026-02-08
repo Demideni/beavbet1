@@ -21,7 +21,7 @@ export function HeroCarousel() {
 
   return (
     <section className="w-full rounded-3xl overflow-hidden card-glass gradient-hero">
-      <div className="relative min-h-[360px] lg:min-h-[420px]">
+      <div className="relative min-h-[320px] sm:min-h-[360px] lg:min-h-[420px]">
         {/* Background art */}
         <Image
           src={b.art}
@@ -33,7 +33,7 @@ export function HeroCarousel() {
         <div className="absolute inset-0 bg-gradient-to-r from-bg/95 via-bg/70 to-transparent" />
         <div className="absolute inset-0 bg-gradient-to-t from-bg/65 via-transparent to-transparent" />
 
-        <div className="relative z-10 p-6 lg:p-10 flex flex-col gap-6 lg:gap-8 min-h-[360px] lg:min-h-[420px]">
+        <div className="relative z-10 p-6 lg:p-10 flex flex-col gap-6 lg:gap-8 min-h-[320px] sm:min-h-[360px] lg:min-h-[420px]">
           <div className="max-w-[520px]">
             <div className="text-accent font-extrabold tracking-tight text-4xl lg:text-5xl leading-none">
               {b.title}
@@ -47,25 +47,15 @@ export function HeroCarousel() {
               </div>
             )}
 
-            <div className="mt-6 flex items-center gap-3">
+            <div className="mt-6 flex flex-col sm:flex-row sm:items-center gap-3">
               <Link
                 href={b.href}
-                className="inline-flex items-center justify-center px-6 py-3 rounded-2xl btn-accent font-semibold"
+                className="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3 rounded-2xl btn-accent font-semibold"
               >
                 {b.cta}
               </Link>
 
-              <div className="hidden sm:flex items-center gap-2">
-                {["G", "🐾", "✈️", "🔷", "🛡️"].map((x, i) => (
-                  <div
-                    key={i}
-                    className="w-11 h-10 rounded-2xl icon-pill flex items-center justify-center text-white/85"
-                    title="icon"
-                  >
-                    {x}
-                  </div>
-                ))}
-              </div>
+              {/* Quick-login icons removed (requested) */}
             </div>
           </div>
 

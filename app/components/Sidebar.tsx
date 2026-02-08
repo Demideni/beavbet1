@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { Home, Dice5, Trophy, Gift, Wallet, BarChart3, Users, Shield, Crown } from "lucide-react";
+import { Home, Dice5, Trophy, Gift, Wallet, BarChart3, Users, Shield, Crown, User } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { cn } from "@/components/utils/cn";
 
 const items = [
   { href: "/", icon: Home, label: "Главная" },
+  { href: "/account", icon: User, label: "Кабинет" },
   { href: "/casino", icon: Dice5, label: "Казино" },
   { href: "/tournaments", icon: Trophy, label: "Турниры" },
   { href: "/bonuses", icon: Gift, label: "Бонусы" },

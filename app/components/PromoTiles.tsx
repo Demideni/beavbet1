@@ -1,28 +1,51 @@
 import Image from "next/image";
 import Link from "next/link";
+import { ChevronRight } from "lucide-react";
 
 function Tile({
   title,
   desc,
   href,
   art,
+  mobileBg,
 }: {
   title: string;
   desc: string;
   href: string;
   art: string;
+  mobileBg?: string;
 }) {
   return (
     <Link
       href={href}
-      className="group relative overflow-hidden rounded-3xl card-glass p-6 lg:p-7 min-h-[150px] hover:translate-y-[-1px] transition"
+      className="group relative overflow-hidden rounded-3xl card-glass p-5 lg:p-7 min-h-[150px] hover:translate-y-[-1px] transition"
     >
+      {/* Mobile-only banner background */}
+      {mobileBg ? (
+        <div
+          className="absolute inset-0 bg-cover bg-center md:hidden"
+          style={{ backgroundImage: `url(${mobileBg})` }}
+        />
+      ) : null}
+
+      {/* Subtle dark overlay for text readability on mobile */}
+      {mobileBg ? <div className="absolute inset-0 bg-black/25 md:hidden" /> : null}
+
       <div className="relative z-10">
-        <div className="text-2xl font-extrabold">{title}</div>
-        <div className="mt-2 text-white/60 max-w-[420px]">{desc}</div>
+        <div className="flex items-center gap-2">
+          <div className="text-2xl font-extrabold">{title}</div>
+          <ChevronRight className="size-5 text-white/55 group-hover:text-white/80 transition" />
+        </div>
+        {/* Keep description on desktop only (mobile: hide) */}
+        {desc ? (
+          <div className="mt-2 text-white/60 max-w-[420px] hidden md:block">
+            {desc}
+          </div>
+        ) : null}
       </div>
 
-      <div className="absolute right-4 bottom-2 w-[160px] h-[160px] opacity-90 group-hover:opacity-100 transition">
+      {/* Desktop art (mobile uses banner) */}
+      <div className="absolute right-4 bottom-2 w-[160px] h-[160px] opacity-90 group-hover:opacity-100 transition hidden md:block">
         <Image src={art} alt={title} fill className="object-contain" />
       </div>
 
@@ -33,18 +56,20 @@ function Tile({
 
 export function PromoTiles() {
   return (
-    <section className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+    <section className="grid grid-cols-2 lg:grid-cols-2 gap-4 lg:gap-5">
       <Tile
         title="Казино"
-        desc="Наслаждайтесь оригинальными играми от BeavBet и другими играми от топ провайдеров."
+        desc=""
         href="/casino"
         art="/tiles/dice.webp"
+        mobileBg="/images/tiles/casino-tile-mobile.png"
       />
       <Tile
         title="Спорт"
-        desc="Делайте ставки на популярные спортивные события с высокими коэффициентами и другими функциями."
+        desc=""
         href="/sport"
         art="/tiles/ball.webp"
+        mobileBg="/images/tiles/sport-tile-mobile.png"
       />
     </section>
   );

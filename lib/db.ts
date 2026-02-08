@@ -204,7 +204,7 @@ function ensureSchema(db: SqliteDb) {
 
 declare global {
   // eslint-disable-next-line no-var
-  var __beavbet_db__: Database.Database | undefined;
+  var __beavbet_db__: SqliteDb | undefined;
 }
 
 export function getDb() {

@@ -20,13 +20,13 @@ export async function POST(req: Request) {
     // Record tournaments only for a clean WIN landing
     if (out.won) {
       const { daily, monthly } = getOrCreateActiveTournaments("robinson");
-      recordTournamentResult({ tournamentId: daily.id, userId: user.id, roundId, multiplier: out.multiplier, won: true });
-      recordTournamentResult({ tournamentId: monthly.id, userId: user.id, roundId, multiplier: out.multiplier, won: true });
+      recordTournamentResult({ tournamentId: daily.id, userId: user.id, roundId, multiplier: (out.multiplier ?? 0), won: true });
+      recordTournamentResult({ tournamentId: monthly.id, userId: user.id, roundId, multiplier: (out.multiplier ?? 0), won: true });
     } else {
       // still count rounds for both tournaments
       const { daily, monthly } = getOrCreateActiveTournaments("robinson");
-      recordTournamentResult({ tournamentId: daily.id, userId: user.id, roundId, multiplier: out.multiplier, won: false });
-      recordTournamentResult({ tournamentId: monthly.id, userId: user.id, roundId, multiplier: out.multiplier, won: false });
+      recordTournamentResult({ tournamentId: daily.id, userId: user.id, roundId, multiplier: (out.multiplier ?? 0), won: false });
+      recordTournamentResult({ tournamentId: monthly.id, userId: user.id, roundId, multiplier: (out.multiplier ?? 0), won: false });
     }
 
     return NextResponse.json({ balance: out.balance });

@@ -151,12 +151,10 @@ export default function SportOddsClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewTab]);
 
-  // read ?tab= and ?league= from shortcuts
+  // read ?league= from home shortcuts
   useEffect(() => {
     try {
       const url = new URL(window.location.href);
-      const t = url.searchParams.get("tab");
-      if (t === "esports" || t === "racing" || t === "sport") setTab(t);
       const league = url.searchParams.get("league") || url.searchParams.get("sport");
       if (league) setSportKey(league);
     } catch {
@@ -574,7 +572,7 @@ export default function SportOddsClient() {
                         disabled={!h2h.home}
                         onClick={() =>
                           h2h.home &&
-                          openSlip({ ev, pick: "home", odds: h2h.home, bookTitle: h2h.bookmaker })
+                          openSlip({ ev, pick: "home", odds: h2h.home, bookTitle: h2h.book })
                         }
                         className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-center text-sm text-white hover:bg-white/10 disabled:opacity-50 disabled:hover:bg-white/5"
                       >
@@ -586,7 +584,7 @@ export default function SportOddsClient() {
                         disabled={!h2h.draw}
                         onClick={() =>
                           h2h.draw &&
-                          openSlip({ ev, pick: "draw", odds: h2h.draw, bookTitle: h2h.bookmaker })
+                          openSlip({ ev, pick: "draw", odds: h2h.draw, bookTitle: h2h.book })
                         }
                         className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-center text-sm text-white hover:bg-white/10 disabled:opacity-50 disabled:hover:bg-white/5"
                       >
@@ -598,7 +596,7 @@ export default function SportOddsClient() {
                         disabled={!h2h.away}
                         onClick={() =>
                           h2h.away &&
-                          openSlip({ ev, pick: "away", odds: h2h.away, bookTitle: h2h.bookmaker })
+                          openSlip({ ev, pick: "away", odds: h2h.away, bookTitle: h2h.book })
                         }
                         className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-center text-sm text-white hover:bg-white/10 disabled:opacity-50 disabled:hover:bg-white/5"
                       >

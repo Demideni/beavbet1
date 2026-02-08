@@ -36,13 +36,4 @@ export const banners: Banner[] = [
     href: "/payments",
     art: "/banners/hero-3.png",
   },
-  {
-    id: "esports",
-    title: "Киберспорт?",
-    subtitle: "Ставим",
-    note: "CS2 • Dota 2 • LoL",
-    cta: "Открыть киберспорт",
-    href: "/sport?tab=esports",
-    art: "/banners/hero-esports.png",
-  },
 ];

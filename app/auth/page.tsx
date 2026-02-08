@@ -2,7 +2,13 @@ import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
 import AuthClient from "./ui";
 
-type SearchParams = Record<string, string | string[] | undefined>;
+type Props = {
+  // Next.js 15 may pass `searchParams` as a Promise in Server Components.
+  // Accept both sync and async forms to avoid runtime errors.
+  searchParams?:
+    | Record<string, string | string[] | undefined>
+    | Promise<Record<string, string | string[] | undefined>>;
+};
 
 function getParam(sp: Record<string, string | string[] | undefined> | undefined, key: string): string | null {
   const v = sp?.[key];
@@ -11,14 +17,8 @@ function getParam(sp: Record<string, string | string[] | undefined> | undefined,
   return null;
 }
 
-export default async function AuthPage({
-  searchParams,
-}: {
-  // In Next.js 15, `searchParams` is typed as a Promise in the App Router.
-  // Keep it aligned with Next's PageProps to avoid build-time type errors.
-  searchParams?: Promise<SearchParams>;
-}) {
-  const sp = searchParams ? await searchParams : undefined;
+export default async function AuthPage(props: Props) {
+  const sp = props.searchParams ? await Promise.resolve(props.searchParams) : undefined;
 
   const rawNext = getParam(sp, "next") || "/account";
   const next = rawNext.startsWith("/") ? rawNext : "/account";

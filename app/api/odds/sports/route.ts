@@ -18,22 +18,13 @@ type OddsSport = {
 export async function GET() {
   try {
     const cacheKey = "odds:sports:v1";
-    type OutSport = {
-  key: string;
-  group: string;
-  title: string;
-  description?: string;
-  active: boolean;
-  has_outrights?: boolean;
-};
-
-    const cached = getCached<OutSport[]>(cacheKey);
+    const cached = getCached<OddsSport[]>(cacheKey);
     if (cached) return NextResponse.json({ data: cached });
 
     const apiKey = getOddsApiKey();
 
     // https://api.the-odds-api.com/v4/sports/?apiKey=...
-    const { data: sports } = await oddsFetchJson<OddsSport[]>(
+    const sports = await oddsFetchJson<OddsSport[]>(
       `https://api.the-odds-api.com/v4/sports/?apiKey=${encodeURIComponent(apiKey)}`
     );
 

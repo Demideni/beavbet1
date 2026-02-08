@@ -495,42 +495,7 @@
 
 <!-- Robinson modules -->
 <script src="./bridge.js"></script>
-
-<script>
-  // BeavBet casino API bridge (same-origin). Uses auth cookies.
-  window.PULZ_GAME = {
-    async getBalance() {
-      const r = await fetch("/api/casino/robinson/balance", { credentials: "include" });
-      if (!r.ok) throw new Error("balance_failed");
-      const j = await r.json();
-      return j.balance ?? 0;
-    },
-    async placeBet(bet) {
-      const r = await fetch("/api/casino/robinson/placeBet", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ bet }),
-      });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(j.error || "placeBet_failed");
-      return { balance: j.balance ?? 0, roundId: j.roundId };
-    },
-    async finishRound(payload) {
-      const r = await fetch("/api/casino/robinson/finishRound", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(payload),
-      });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(j.error || "finishRound_failed");
-      return { balance: j.balance ?? 0 };
-    },
-  };
-</script>
-
-  <script src="./ui.js"></script>
+<script src="./ui.js"></script>
 <script src="./game.js"></script>
 
 </body>

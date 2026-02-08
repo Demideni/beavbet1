@@ -1,6 +1,7 @@
 import Database from "better-sqlite3";
 import fs from "node:fs";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 
 // Simple local SQLite storage for demo/dev.
 // For production you can swap this with Postgres/Supabase, keeping the same API.
@@ -165,4 +166,11 @@ export function getDb() {
   ensureSchema(db);
   global.__beavbet_db__ = db;
   return db;
+}
+
+// Backwards-compatible exports used by some routes.
+// Prefer `getDb()` and `randomUUID()` directly in new code.
+export const initDb = getDb;
+export function uuid() {
+  return randomUUID();
 }

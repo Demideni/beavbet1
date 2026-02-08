@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
+import { randomUUID } from "node:crypto";
 
 import { getSessionUser } from "@/lib/auth";
-import { initDb, uuid } from "@/lib/db";
+import { getDb } from "@/lib/db";
 
 type PlaceBetBody = {
   currency?: string;
@@ -46,12 +47,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid selection" }, { status: 400 });
   }
 
-  const db = initDb();
+  const db = getDb();
 
-  // Ensure wallet exists
-  db.prepare(
-    "INSERT OR IGNORE INTO wallets (user_id, currency, balance, updated_at) VALUES (?, ?, 0, ?)"
-  ).run(user.id, currency, Date.now());
+  // Ensure wallet exists (schema: wallets(id, user_id, currency, balance, created_at))
+  const existing = db
+    .prepare("SELECT id, balance FROM wallets WHERE user_id = ? AND currency = ?")
+    .get(user.id, currency) as { id: string; balance: number } | undefined;
+  if (!existing) {
+    db.prepare(
+      "INSERT INTO wallets (id, user_id, currency, balance, created_at) VALUES (?, ?, ?, 0, ?)"
+    ).run(randomUUID(), user.id, currency, Date.now());
+  }
 
   const w = db
     .prepare("SELECT balance FROM wallets WHERE user_id = ? AND currency = ?")
@@ -62,13 +68,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Insufficient funds" }, { status: 400 });
   }
 
-  const betId = uuid();
+  const betId = randomUUID();
   const now = Date.now();
   const potential = Number((stake * odds).toFixed(2));
 
   const tx = db.transaction(() => {
-    db.prepare("UPDATE wallets SET balance = balance - ?, updated_at = ? WHERE user_id = ? AND currency = ?")
-      .run(stake, now, user.id, currency);
+    db.prepare("UPDATE wallets SET balance = balance - ? WHERE user_id = ? AND currency = ?")
+      .run(stake, user.id, currency);
 
     db.prepare(
       `INSERT INTO bets (
@@ -100,7 +106,7 @@ export async function POST(req: Request) {
 
     db.prepare(
       "INSERT INTO transactions (id, user_id, type, amount, currency, status, created_at, meta) VALUES (?, ?, 'bet', ?, ?, 'done', ?, ?)"
-    ).run(uuid(), user.id, stake, currency, now, JSON.stringify({ betId }));
+    ).run(randomUUID(), user.id, stake, currency, now, JSON.stringify({ betId }));
   });
 
   try {

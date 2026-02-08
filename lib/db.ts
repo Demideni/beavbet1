@@ -213,3 +213,19 @@ export function getDb() {
   global.__beavbet_db__ = db;
   return db;
 }
+
+// Backwards-compatible aliases used across route handlers.
+// Some parts of the codebase import `initDb` and `uuid` from here.
+export const initDb = getDb;
+
+export function uuid(): string {
+  // Node 18+ supports crypto.randomUUID(). Keep a small fallback for safety.
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const crypto = require("node:crypto") as typeof import("node:crypto");
+    if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  } catch {
+    // ignore
+  }
+  return `id_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+}

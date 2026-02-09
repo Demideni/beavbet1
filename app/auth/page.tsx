@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
 import AuthClient from "./ui";
+import { Suspense } from "react";
 
 type Props = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -25,5 +26,10 @@ export default async function AuthPage(props: Props) {
     redirect(next);
   }
 
-  return <AuthClient />;
+  // AuthClient uses useSearchParams(), so wrap it in Suspense to avoid CSR bailout errors during prerender.
+  return (
+    <Suspense fallback={null}>
+      <AuthClient />
+    </Suspense>
+  );
 }

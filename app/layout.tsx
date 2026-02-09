@@ -4,6 +4,7 @@ import { Sidebar } from "@/app/components/Sidebar";
 import { Topbar } from "@/app/components/Topbar";
 import { MobileNav } from "@/app/components/MobileNav";
 import RefCapture from "@/app/components/RefCapture";
+import { Suspense } from "react";
 
 export const metadata: Metadata = {
   title: "BeavBet — Crypto Casino",
@@ -14,7 +15,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="ru">
       <body>
-        <RefCapture />
+        {/* RefCapture uses useSearchParams(), so it must be wrapped in Suspense */}
+        <Suspense fallback={null}>
+          <RefCapture />
+        </Suspense>
         <div className="min-h-screen flex">
           <Sidebar />
           <div className="flex-1 min-w-0">

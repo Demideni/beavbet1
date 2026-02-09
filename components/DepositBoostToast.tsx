@@ -3,9 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 
 type Props = {
-  minutes?: number;      // по умолчанию 30
-  percent?: number;      // по умолчанию 170
-  storageKey?: string;   // чтобы можно было менять кампании
+  minutes?: number;
+  percent?: number;
+  storageKey?: string;
 };
 
 function pad2(n: number) {
@@ -23,91 +23,79 @@ export default function DepositBoostToast({
   const [endAt, setEndAt] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
 
-  // Загружаем/инициализируем кампанию
   useEffect(() => {
     try {
       const raw = localStorage.getItem(storageKey);
       if (raw) {
-        const parsed = JSON.parse(raw) as { endAt: number; dismissed?: boolean };
-        if (parsed.dismissed) {
-          setHidden(true);
-          return;
-        }
+        const parsed = JSON.parse(raw);
+        if (parsed.dismissed) return;
         setEndAt(parsed.endAt);
         setHidden(false);
         return;
       }
-
-      const newEndAt = Date.now() + ttlMs;
-      localStorage.setItem(storageKey, JSON.stringify({ endAt: newEndAt, dismissed: false }));
-      setEndAt(newEndAt);
+      const e = Date.now() + ttlMs;
+      localStorage.setItem(storageKey, JSON.stringify({ endAt: e }));
+      setEndAt(e);
       setHidden(false);
     } catch {
-      // если localStorage недоступен — просто покажем на текущую сессию
       setEndAt(Date.now() + ttlMs);
       setHidden(false);
     }
   }, [storageKey, ttlMs]);
 
-  // Тик таймера
   useEffect(() => {
     if (hidden || !endAt) return;
-    const id = setInterval(() => setNow(Date.now()), 250);
+    const id = setInterval(() => setNow(Date.now()), 300);
     return () => clearInterval(id);
   }, [hidden, endAt]);
 
-  const remainingMs = useMemo(() => {
-    if (!endAt) return 0;
-    return Math.max(0, endAt - now);
-  }, [endAt, now]);
+  const remainingMs = useMemo(
+    () => (endAt ? Math.max(0, endAt - now) : 0),
+    [endAt, now]
+  );
 
-  const remainingSec = Math.floor(remainingMs / 1000);
-  const mm = Math.floor(remainingSec / 60);
-  const ss = remainingSec % 60;
+  const sec = Math.floor(remainingMs / 1000);
+  const mm = Math.floor(sec / 60);
+  const ss = sec % 60;
 
-  // Автоскрытие по окончанию
-  useEffect(() => {
-    if (!endAt) return;
-    if (remainingMs <= 0 && !hidden) {
-      setHidden(true);
-    }
-  }, [remainingMs, endAt, hidden]);
+  if (hidden || remainingMs <= 0) return null;
 
   const dismiss = () => {
     setHidden(true);
-    try {
-      const raw = localStorage.getItem(storageKey);
-      const parsed = raw ? JSON.parse(raw) : {};
-      localStorage.setItem(storageKey, JSON.stringify({ ...parsed, dismissed: true }));
-    } catch {}
+    localStorage.setItem(
+      storageKey,
+      JSON.stringify({ endAt, dismissed: true })
+    );
   };
-
-  if (hidden || !endAt || remainingMs <= 0) return null;
 
   return (
     <div
       className="
         fixed z-[60]
-        bottom-3 right-3
+        right-3
+        bottom-[15vh]        /* ⬅️ подняли выше на ~15% экрана */
         max-sm:left-3 max-sm:right-3
       "
     >
       <div
         className="
-          flex items-center justify-between gap-3
-          rounded-2xl px-4 py-3
-          border border-white/10
-          bg-gradient-to-r from-sky-600/40 via-sky-500/30 to-sky-400/20
+          flex items-center justify-between gap-2
+          rounded-xl
+          px-3 py-2           /* ⬅️ меньше на ~30% */
+          border border-blue-300/20
+          bg-gradient-to-r from-blue-700/50 via-blue-600/40 to-blue-500/30
           backdrop-blur
-          shadow-lg
+          shadow-xl
         "
       >
         <div className="flex items-center gap-3">
-          <div className="text-sm font-semibold text-white">
-            Буст депозита 🔥 <span className="text-white/90">{percent}%</span>
+          {/* текст больше */}
+          <div className="text-base font-semibold text-white">
+            Буст депозита 🔥 {percent}%
           </div>
 
-          <div className="text-sm font-semibold text-white/90 tabular-nums">
+          {/* таймер больше */}
+          <div className="text-base font-bold text-white/95 tabular-nums">
             {pad2(mm)}:{pad2(ss)}
           </div>
         </div>
@@ -115,12 +103,11 @@ export default function DepositBoostToast({
         <button
           onClick={dismiss}
           className="
-            h-8 w-8 rounded-xl
+            h-7 w-7 rounded-lg
             grid place-items-center
             text-white/70 hover:text-white
-            hover:bg-white/10
+            hover:bg-white/15
           "
-          aria-label="Закрыть"
         >
           ✕
         </button>

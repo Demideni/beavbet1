@@ -3,9 +3,11 @@ import { getSessionUser } from "@/lib/auth";
 import AuthClient from "./ui";
 
 type Props = {
-  // Next.js App Router server pages receive `searchParams` as a Promise.
-  // (Typing it as Promise keeps compatibility with Next.js 15+ PageProps.)
-  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+  // Next.js 15 may pass `searchParams` as a Promise in Server Components.
+  // Accept both sync and async forms to avoid runtime errors.
+  searchParams?:
+    | Record<string, string | string[] | undefined>
+    | Promise<Record<string, string | string[] | undefined>>;
 };
 
 function getParam(sp: Record<string, string | string[] | undefined> | undefined, key: string): string | null {
@@ -16,7 +18,7 @@ function getParam(sp: Record<string, string | string[] | undefined> | undefined,
 }
 
 export default async function AuthPage(props: Props) {
-  const sp = props.searchParams ? await props.searchParams : undefined;
+  const sp = props.searchParams ? await Promise.resolve(props.searchParams) : undefined;
 
   const rawNext = getParam(sp, "next") || "/account";
   const next = rawNext.startsWith("/") ? rawNext : "/account";

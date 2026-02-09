@@ -1,7 +1,6 @@
 import Database from "better-sqlite3";
 import fs from "node:fs";
 import path from "node:path";
-import { randomUUID } from "node:crypto";
 
 // Simple local SQLite storage for demo/dev.
 // For production you can swap this with Postgres/Supabase, keeping the same API.
@@ -14,12 +13,12 @@ function hasColumn(db: any, table: string, column: string) {
   return cols.some((c) => c.name === column);
 }
 
-function ensureColumn(db: Database.Database, table: string, column: string, ddl: string) {
+function ensureColumn(db: any, table: string, column: string, ddl: string) {
   if (hasColumn(db, table, column)) return;
   db.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl};`);
 }
 
-function ensureSchema(db: Database.Database) {
+function ensureSchema(db: any) {
   db.exec(`
     PRAGMA journal_mode=WAL;
     PRAGMA foreign_keys=ON;
@@ -155,7 +154,7 @@ function ensureSchema(db: Database.Database) {
 
 declare global {
   // eslint-disable-next-line no-var
-  var __beavbet_db__: Database.Database | undefined;
+  var __beavbet_db__: any | undefined;
 }
 
 export function getDb() {
@@ -166,11 +165,4 @@ export function getDb() {
   ensureSchema(db);
   global.__beavbet_db__ = db;
   return db;
-}
-
-// Backwards-compatible exports used by some routes.
-// Prefer `getDb()` and `randomUUID()` directly in new code.
-export const initDb = getDb;
-export function uuid() {
-  return randomUUID();
 }

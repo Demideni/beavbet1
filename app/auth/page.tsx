@@ -3,11 +3,7 @@ import { getSessionUser } from "@/lib/auth";
 import AuthClient from "./ui";
 
 type Props = {
-  // Next.js 15 may pass `searchParams` as a Promise in Server Components.
-  // Accept both sync and async forms to avoid runtime errors.
-  searchParams?:
-    | Record<string, string | string[] | undefined>
-    | Promise<Record<string, string | string[] | undefined>>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
 function getParam(sp: Record<string, string | string[] | undefined> | undefined, key: string): string | null {

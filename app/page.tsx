@@ -5,6 +5,10 @@ import { TopSports } from "@/app/components/TopSports"; // если TopSports т
 import EsportsPromoBanner from "@/app/components/EsportsPromoBanner";
 import TopTournaments from "@/app/components/TopTournaments";
 
+// These are named exports in their modules.
+import { CryptoHeroBanner } from "@/app/components/CryptoHeroBanner";
+import { BeavbetOriginal } from "@/app/components/BeavbetOriginal";
+
 
 
 export default function HomePage() {

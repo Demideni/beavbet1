@@ -1,12 +1,26 @@
 import { NextResponse } from "next/server";
 import { getOddsApiKey, oddsFetchJson } from "@/app/lib/oddsApi";
+export const runtime = "nodejs";
 
 export const dynamic = "force-dynamic";
 
 // GET /api/odds/odds?sport=soccer_epl&regions=us&markets=h2h&oddsFormat=decimal
 export async function GET(req: Request) {
   const apiKey = getOddsApiKey();
-  if (!apiKey) return NextResponse.json({ error: "ODDS_API_KEY is not set" }, { status: 500 });
+  if (!apiKey) {
+    return NextResponse.json(
+      {
+        error: "ODDS_API_KEY is not set on the server runtime.",
+        hint:
+          "Set ODDS_API_KEY in Render -> Service -> Environment, then restart/redeploy. If you set it after a deploy, trigger a new deploy or restart the service.",
+        envSeen: {
+          ODDS_API_KEY: Boolean(process.env.ODDS_API_KEY),
+          NEXT_PUBLIC_ODDS_API_KEY: Boolean(process.env.NEXT_PUBLIC_ODDS_API_KEY),
+        },
+      },
+      { status: 500 }
+    );
+  }
 
   const { searchParams } = new URL(req.url);
 

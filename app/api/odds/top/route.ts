@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCached, getOddsApiKey, oddsFetchJson, setCached } from "@/app/lib/oddsApi";
+export const runtime = "nodejs";
 
 
 // GET /api/odds/top
@@ -58,7 +59,20 @@ async function fetchLeague(apiKey: string, sportKey: string): Promise<ApiEvent[]
 
 export async function GET() {
   const apiKey = getOddsApiKey();
-  if (!apiKey) return NextResponse.json({ error: "ODDS_API_KEY is not set" }, { status: 500 });
+  if (!apiKey) {
+    return NextResponse.json(
+      {
+        error: "ODDS_API_KEY is not set on the server runtime.",
+        hint:
+          "Set ODDS_API_KEY in Render -> Service -> Environment, then restart/redeploy. If you set it after a deploy, trigger a new deploy or restart the service.",
+        envSeen: {
+          ODDS_API_KEY: Boolean(process.env.ODDS_API_KEY),
+          NEXT_PUBLIC_ODDS_API_KEY: Boolean(process.env.NEXT_PUBLIC_ODDS_API_KEY),
+        },
+      },
+      { status: 500 }
+    );
+  }
 
   const cacheKey = "odds:home-top:us:h2h";
   const cached = getCached<any>(cacheKey);

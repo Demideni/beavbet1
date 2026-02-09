@@ -1,6 +1,12 @@
 // app/lib/oddsApi.ts
 export function getOddsApiKey() {
-  return process.env.ODDS_API_KEY || process.env.NEXT_PUBLIC_ODDS_API_KEY || "";
+  const key =
+    process.env.ODDS_API_KEY ??
+    process.env.NEXT_PUBLIC_ODDS_API_KEY ??
+    process.env.THE_ODDS_API_KEY ??
+    process.env.ODDSAPI_KEY ??
+    "";
+  return typeof key === "string" ? key.trim() : "";
 }
 
 type CacheEntry = { expiresAt: number; value: any };

@@ -99,6 +99,17 @@ export default function SportOddsClient() {
   const [sports, setSports] = useState<SportItem[]>([]);
   const [sportKey, setSportKey] = useState<string>("soccer_epl");
   const [tab, setTab] = useState<"sport" | "esports" | "racing">("sport");
+
+  // Allow opening a specific tab via URL, e.g. /sport?tab=esports
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const sp = new URLSearchParams(window.location.search);
+    const t = sp.get("tab");
+    if (t === "esports" || t === "racing" || t === "sport") {
+      setTab(t);
+    }
+  }, []);
+
   const [viewTab, setViewTab] = useState<ViewTab>("line");
   const [selectedGroup, setSelectedGroup] = useState<string>("");
   const [regions, setRegions] = useState<string>("us");

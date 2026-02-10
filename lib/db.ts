@@ -6,8 +6,25 @@ import { randomUUID } from "node:crypto";
 // Simple local SQLite storage for demo/dev.
 // For production you can swap this with Postgres/Supabase, keeping the same API.
 
-const DATA_DIR = (process.env.RENDER_DISK_PATH || process.env.BEAVBET_DATA_DIR || path.join(process.cwd(), "data"));
-const DB_PATH = path.join(DATA_DIR, "beavbet.db");
+/**
+ * PATH RULES (важно для Render):
+ * 1) Если задан DB_PATH — используем его (полный путь к .db файлу).
+ * 2) Иначе выбираем DATA_DIR:
+ *    - RENDER_DISK_PATH (если вдруг используешь)
+ *    - BEAVBET_DATA_DIR
+ *    - на Render по умолчанию /var/data (persistent disk mount)
+ *    - локально ./data
+ * 3) DB_PATH = DATA_DIR/beavbet.db
+ */
+const DATA_DIR =
+  process.env.DB_PATH
+    ? path.dirname(process.env.DB_PATH)
+    : (process.env.RENDER_DISK_PATH ||
+        process.env.BEAVBET_DATA_DIR ||
+        (process.env.RENDER ? "/var/data" : path.join(process.cwd(), "data")));
+
+const DB_PATH =
+  process.env.DB_PATH || path.join(DATA_DIR, "beavbet.db");
 
 function hasColumn(db: any, table: string, column: string) {
   const cols = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
@@ -149,20 +166,17 @@ function ensureSchema(db: any) {
     CREATE INDEX IF NOT EXISTS idx_withdraw_user_created ON withdrawal_requests(user_id, created_at DESC);
   `);
 
-    // Lightweight migrations for older DBs
-  ensureColumn(db, 'users', 'role', "role TEXT NOT NULL DEFAULT 'user'");
+  // Lightweight migrations for older DBs
+  ensureColumn(db, "users", "role", "role TEXT NOT NULL DEFAULT 'user'");
 
   // Wallets: older code paths expect updated_at; keep it optional for backwards compatibility
-  ensureColumn(db, 'wallets', 'updated_at', "updated_at INTEGER");
+  ensureColumn(db, "wallets", "updated_at", "updated_at INTEGER");
 
   // Transactions: Passimpay / providers support
-  ensureColumn(db, 'transactions', 'provider', "provider TEXT");
-  ensureColumn(db, 'transactions', 'provider_ref', "provider_ref TEXT");
-  ensureColumn(db, 'transactions', 'order_id', "order_id TEXT");
-  ensureColumn(db, 'transactions', 'updated_at', "updated_at INTEGER");
-
-  // Wallets: some routes and providers expect updated_at
-  ensureColumn(db, 'wallets', 'updated_at', "updated_at INTEGER");
+  ensureColumn(db, "transactions", "provider", "provider TEXT");
+  ensureColumn(db, "transactions", "provider_ref", "provider_ref TEXT");
+  ensureColumn(db, "transactions", "order_id", "order_id TEXT");
+  ensureColumn(db, "transactions", "updated_at", "updated_at INTEGER");
 }
 
 declare global {
@@ -174,10 +188,13 @@ export function getDb() {
   if (global.__beavbet_db__) return global.__beavbet_db__;
 
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+
+  // Очень полезно для проверки: в логах Render увидишь куда реально пишет база
+  console.log("[DB] Using", DB_PATH);
+
   const db = new Database(DB_PATH);
   ensureSchema(db);
-  global.__beavbet_db__ = db;
-  
+
   // Game aggregator sessions (session_id -> user_id mapping for callbacks)
   db.exec(`
     CREATE TABLE IF NOT EXISTS ga_sessions (
@@ -187,11 +204,13 @@ export function getDb() {
     );
   `);
 
-return db;
+  global.__beavbet_db__ = db;
+  return db;
 }
 
 // Backwards-compatible exports used by some routes
 export const initDb = getDb;
+
 export function uuid() {
   return randomUUID();
 }

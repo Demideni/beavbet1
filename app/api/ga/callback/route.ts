@@ -1,36 +1,15 @@
+import { NextResponse } from "next/server";
 import crypto from "node:crypto";
+import { getDb } from "@/lib/db";
+import { getGaConfig, gaCurrency } from "@/lib/gaClient";
 
-export type GaConfig = {
-  apiUrl: string;
-  merchantId: string;
-  merchantKey: string;
-};
+export const runtime = "nodejs";
 
-function envFirst(...keys: string[]): string | undefined {
-  for (const k of keys) {
-    const v = process.env[k];
-    if (v && v.trim()) return v.trim();
-  }
-  return undefined;
-}
-
-export function getGaConfig(): GaConfig {
-  const apiUrl =
-    envFirst("GA_API_URL", "GAME_API_URL", "GAMEROUTER_API_URL") ??
-    "https://staging.gamerouter.pw/api/index.php/v1";
-
-  const merchantId = envFirst("GA_MERCHANT_ID", "MERCHANT_ID", "GAMEROUTER_MERCHANT_ID");
-  const merchantKey = envFirst("GA_MERCHANT_KEY", "MERCHANT_KEY", "GAMEROUTER_MERCHANT_KEY");
-
-  if (!merchantId) throw new Error("GA_MERCHANT_ID is not set");
-  if (!merchantKey) throw new Error("GA_MERCHANT_KEY is not set");
-
-  return { apiUrl, merchantId, merchantKey };
-}
-
-export function gaCurrency(): string {
-  return envFirst("GA_CURRENCY", "GAME_CURRENCY", "CURRENCY") ?? "EUR";
-}
+/**
+ * IMPORTANT:
+ * - This file MUST NOT export anything except route handlers (GET/POST/...) and Next route config fields.
+ * - Do NOT export getGaConfig from here.
+ */
 
 function buildQuery(params: Record<string, string | number | boolean | null | undefined>): string {
   const entries: Array<[string, string]> = [];
@@ -44,111 +23,220 @@ function buildQuery(params: Record<string, string | number | boolean | null | un
   return usp.toString();
 }
 
-function signSha1(queryString: string, merchantKey: string): string {
-  return crypto.createHmac("sha1", merchantKey).update(queryString).digest("hex");
+function signSha1(queryString: string, key: string): string {
+  return crypto.createHmac("sha1", key).update(queryString).digest("hex");
 }
 
-async function gaRequest<T>(
-  cfg: GaConfig,
-  path: string,
-  params: Record<string, any>,
-  method: "GET" | "POST",
-): Promise<T> {
-  const nonce = crypto.randomBytes(8).toString("hex");
-  const timestamp = Math.floor(Date.now() / 1000);
+/**
+ * Parse params from either:
+ * - GET query string
+ * - POST x-www-form-urlencoded
+ * - POST JSON (fallback)
+ */
+async function readParams(req: Request): Promise<Record<string, string>> {
+  const url = new URL(req.url);
 
-  // auth headers
-  const auth = {
-    "X-Merchant-Id": cfg.merchantId,
-    "X-Nonce": nonce,
-    "X-Timestamp": timestamp,
-  };
-
-  // signature string = (params + auth headers) as query string (sorted)
-  const signQuery = buildQuery({ ...params, ...auth });
-  const xSign = signSha1(signQuery, cfg.merchantKey);
-
-  const url = new URL(cfg.apiUrl.replace(/\/$/, "") + path);
-
-  const headers: Record<string, string> = {
-    "X-Merchant-Id": cfg.merchantId,
-    "X-Nonce": nonce,
-    "X-Timestamp": String(timestamp),
-    "X-Sign": xSign,
-  };
-
-  let res: Response;
-  const bodyOrQuery = buildQuery(params);
-
-  if (method === "GET") {
-    url.search = bodyOrQuery; // отправляем ТОЛЬКО params
-    res = await fetch(url, { method: "GET", headers, cache: "no-store" });
-  } else {
-    res = await fetch(url, {
-      method: "POST",
-      headers: { ...headers, "Content-Type": "application/x-www-form-urlencoded" },
-      body: bodyOrQuery, // отправляем ТОЛЬКО params
-      cache: "no-store",
-    });
+  // GET params
+  if (req.method === "GET") {
+    const out: Record<string, string> = {};
+    url.searchParams.forEach((v, k) => (out[k] = v));
+    return out;
   }
 
-  const text = await res.text();
+  // POST params
+  const ct = req.headers.get("content-type") || "";
 
-  let json: any;
+  if (ct.includes("application/x-www-form-urlencoded")) {
+    const bodyText = await req.text();
+    const sp = new URLSearchParams(bodyText);
+    const out: Record<string, string> = {};
+    sp.forEach((v, k) => (out[k] = v));
+    return out;
+  }
+
+  if (ct.includes("application/json")) {
+    const j = await req.json().catch(() => ({}));
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(j || {})) out[k] = String(v);
+    return out;
+  }
+
+  // fallback: try text as querystring
+  const raw = await req.text();
+  const sp = new URLSearchParams(raw);
+  const out: Record<string, string> = {};
+  sp.forEach((v, k) => (out[k] = v));
+  return out;
+}
+
+/**
+ * Optional signature check (if provider sends X-Sign headers)
+ * If provider sends sign in params (e.g. "sign"), adjust accordingly.
+ */
+function verifySignature(req: Request, params: Record<string, string>): { ok: boolean; error?: string } {
+  const cfg = getGaConfig();
+
+  const xMerchantId = req.headers.get("x-merchant-id") || req.headers.get("X-Merchant-Id") || "";
+  const xNonce = req.headers.get("x-nonce") || req.headers.get("X-Nonce") || "";
+  const xTimestamp = req.headers.get("x-timestamp") || req.headers.get("X-Timestamp") || "";
+  const xSign = req.headers.get("x-sign") || req.headers.get("X-Sign") || "";
+
+  // If provider does NOT send these headers, skip verification (don’t break callbacks)
+  if (!xMerchantId || !xNonce || !xTimestamp || !xSign) {
+    return { ok: true };
+  }
+
+  const signQuery = buildQuery({
+    ...params,
+    "X-Merchant-Id": xMerchantId,
+    "X-Nonce": xNonce,
+    "X-Timestamp": xTimestamp,
+  });
+
+  const expected = signSha1(signQuery, cfg.merchantKey);
+  if (expected !== xSign) {
+    return { ok: false, error: "BAD_SIGNATURE" };
+  }
+
+  return { ok: true };
+}
+
+/**
+ * Minimal wallet logic:
+ * - resolve user by session_id from ga_sessions
+ * - ensure EUR wallet exists
+ * - for "balance" requests respond with balance
+ *
+ * Provider-specific fields differ; we handle common ones:
+ * - session_id
+ * - action / method / type
+ * - amount (bet/win)
+ */
+async function handleCallback(req: Request) {
+  const params = await readParams(req);
+
+  const sig = verifySignature(req, params);
+  if (!sig.ok) {
+    return NextResponse.json({ ok: false, error: sig.error }, { status: 401 });
+  }
+
+  const db = getDb();
+
+  const sessionId = params.session_id || params.session || params.sid;
+  if (!sessionId) {
+    return NextResponse.json({ ok: false, error: "Missing session_id" }, { status: 400 });
+  }
+
+  const row = db
+    .prepare(`SELECT user_id FROM ga_sessions WHERE session_id = ? LIMIT 1`)
+    .get(sessionId) as any;
+
+  if (!row?.user_id) {
+    return NextResponse.json({ ok: false, error: "Unknown session_id" }, { status: 404 });
+  }
+
+  const userId = row.user_id;
+  const currency = gaCurrency(); // should be EUR for test
+
+  // ensure wallet exists
+  const w = db
+    .prepare(`SELECT balance FROM wallets WHERE user_id = ? AND currency = ? LIMIT 1`)
+    .get(userId, currency) as any;
+
+  if (!w) {
+    db.prepare(
+      `INSERT INTO wallets (user_id, currency, balance, created_at) VALUES (?, ?, ?, ?)`
+    ).run(userId, currency, 0, Date.now());
+  }
+
+  const wallet = db
+    .prepare(`SELECT balance FROM wallets WHERE user_id = ? AND currency = ? LIMIT 1`)
+    .get(userId, currency) as any;
+
+  const balance = Number(wallet?.balance ?? 0);
+
+  // Decide action
+  const actionRaw = (params.action || params.method || params.type || "balance").toLowerCase();
+
+  // If provider asks balance
+  if (
+    actionRaw.includes("balance") ||
+    actionRaw.includes("getbalance") ||
+    actionRaw === "balance"
+  ) {
+    return NextResponse.json(
+      {
+        success: true,
+        currency,
+        balance,
+      },
+      { status: 200 }
+    );
+  }
+
+  // If provider tries to debit/credit:
+  // NOTE: exact field names may differ; we support common "amount"
+  const amount = Number(params.amount ?? params.sum ?? params.value ?? 0);
+
+  if (!Number.isFinite(amount) || amount < 0) {
+    return NextResponse.json({ ok: false, error: "Bad amount" }, { status: 400 });
+  }
+
+  // Debit
+  if (actionRaw.includes("bet") || actionRaw.includes("debit")) {
+    if (balance < amount) {
+      return NextResponse.json(
+        { success: false, error: "INSUFFICIENT_FUNDS", currency, balance },
+        { status: 200 }
+      );
+    }
+    const newBal = balance - amount;
+    db.prepare(`UPDATE wallets SET balance = ? WHERE user_id = ? AND currency = ?`)
+      .run(newBal, userId, currency);
+
+    return NextResponse.json(
+      { success: true, currency, balance: newBal },
+      { status: 200 }
+    );
+  }
+
+  // Credit
+  if (actionRaw.includes("win") || actionRaw.includes("credit")) {
+    const newBal = balance + amount;
+    db.prepare(`UPDATE wallets SET balance = ? WHERE user_id = ? AND currency = ?`)
+      .run(newBal, userId, currency);
+
+    return NextResponse.json(
+      { success: true, currency, balance: newBal },
+      { status: 200 }
+    );
+  }
+
+  // Unknown action: return balance (don’t break provider)
+  return NextResponse.json(
+    { success: true, currency, balance, note: "UNKNOWN_ACTION_RETURN_BALANCE" },
+    { status: 200 }
+  );
+}
+
+export async function GET(req: Request) {
   try {
-    json = JSON.parse(text);
-  } catch {
-    throw new Error(`GA API non-JSON response (${res.status}): ${text.slice(0, 300)}`);
+    return await handleCallback(req);
+  } catch (e: any) {
+    return NextResponse.json(
+      { ok: false, error: e?.message ?? String(e) },
+      { status: 500 }
+    );
   }
-
-  if (!res.ok) {
-    throw new Error(`GA API HTTP ${res.status}: ${text.slice(0, 500)}`);
-  }
-  if (json?.error || json?.success === false) {
-    throw new Error(`GA API error: ${text.slice(0, 500)}`);
-  }
-
-  return json as T;
 }
 
-// /games => GET
-export async function gaGames() {
-  const cfg = getGaConfig();
-  return gaRequest<any>(cfg, "/games", {}, "GET");
-}
-
-// /games/init => POST
-export async function gaInit(params: {
-  game_uuid: string;
-  user_id: string;
-  session_id: string;
-  return_url: string;
-  currency: string;
-  language?: string;
-  is_mobile?: boolean;
-  player_id?: string;
-  player_name?: string;
-}) {
-  const cfg = getGaConfig();
-
-  const payload = {
-    game_uuid: params.game_uuid,
-    // provider-required
-    player_id: params.player_id ?? params.user_id,
-    player_name: params.player_name ?? `player_${params.user_id}`,
-    // keep also legacy fields (не мешают, иногда полезно)
-    user_id: params.user_id,
-    session_id: params.session_id,
-    return_url: params.return_url,
-    currency: params.currency,
-    language: params.language ?? "ru",
-    is_mobile: params.is_mobile ? 1 : 0,
-  };
-
-  return gaRequest<any>(cfg, "/games/init", payload, "POST");
-}
-
-export async function gaSelfValidate(session_id: string) {
-  const cfg = getGaConfig();
-  return gaRequest<any>(cfg, "/self-validate", { session_id }, "POST");
+export async function POST(req: Request) {
+  try {
+    return await handleCallback(req);
+  } catch (e: any) {
+    return NextResponse.json(
+      { ok: false, error: e?.message ?? String(e) },
+      { status: 500 }
+    );
+  }
 }

@@ -107,9 +107,9 @@ export default function CasinoClient() {
     <div className="space-y-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-white">Казино</h1>
+          <h1 className="text-xl font-semibold text-white"></h1>
           <div className="text-sm text-white/50">
-            Seamless-режим через iframe (тестовая валюта провайдера: <span className="font-semibold text-white/70">EUR</span>)
+             <span className="font-semibold text-white/70"></span>
           </div>
         </div>
 

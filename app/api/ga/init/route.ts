@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSessionUser } from "@/lib/auth";
 import { gaInit, gaCurrency } from "@/lib/gaClient";
@@ -11,9 +11,10 @@ const Body = z.object({
   is_mobile: z.boolean().optional(),
 });
 
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   try {
-    const user = await getSessionUser(req);
+    // getSessionUser reads cookies() from next/headers; no request param is needed.
+    const user = await getSessionUser();
     if (!user) return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });
 
     const body = Body.parse(await req.json());

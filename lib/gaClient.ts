@@ -139,14 +139,16 @@ export async function gaInit(params: {
     cfg,
     "/games/init",
     {
-      game_uuid: params.game_uuid,
-      user_id: params.user_id,
-      session_id: params.session_id,
-      return_url: params.return_url,
-      currency: params.currency,
-      language: params.language ?? "ru",
-      is_mobile: params.is_mobile ? 1 : 0,
-    },
+  game_uuid: params.game_uuid,
+  player_id: params.user_id,   // ✅ главное
+  // user_id можно оставить на всякий случай
+  user_id: params.user_id,
+  session_id: params.session_id,
+  return_url: params.return_url,
+  currency: params.currency,
+  language: params.language ?? "ru",
+  is_mobile: params.is_mobile ? 1 : 0,
+},
     "GET", // staging ждёт GET, fallback на POST если понадобится
   );
 }

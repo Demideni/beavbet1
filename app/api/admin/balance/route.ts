@@ -37,8 +37,20 @@ export async function POST(req: Request) {
   if (amount === 0) return NextResponse.json({ ok: false, error: "ZERO" }, { status: 400 });
 
   const db = getDb();
-  const now = Date.now();
+  // Store timestamps in seconds (more consistent across the project)
+  const now = Math.floor(Date.now() / 1000);
   const hasUpdatedAt = walletsHasUpdatedAt(db);
+
+  // ✅ Prevent FK crashes: make sure the user exists in *this* database.
+  const userExists = db
+    .prepare("SELECT 1 AS ok FROM users WHERE id = ?")
+    .get(userId) as { ok: 1 } | undefined;
+  if (!userExists) {
+    return NextResponse.json(
+      { ok: false, error: "USER_NOT_FOUND" },
+      { status: 404 }
+    );
+  }
 
   // Ensure wallet exists (support older/newer schemas)
   const w = db
@@ -97,7 +109,18 @@ export async function POST(req: Request) {
       now
     );
   });
-  trx();
+
+  try {
+    trx();
+  } catch (e: any) {
+    // Return a clearer error to the admin UI instead of a 500 without context.
+    const code = e?.code || e?.name || "SQLITE_ERROR";
+    const message = String(e?.message || e);
+    return NextResponse.json(
+      { ok: false, error: "DB_ERROR", code, message },
+      { status: 500 }
+    );
+  }
 
   const updated = db
     .prepare("SELECT currency, balance FROM wallets WHERE user_id = ? AND currency = ?")

@@ -13,7 +13,7 @@ const Body = z.object({
 
 export async function POST(req: Request) {
   try {
-    const user = await getSessionUser(req);
+    const user = await getSessionUser();
     if (!user) return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });
 
     const body = Body.parse(await req.json());

@@ -12,6 +12,15 @@ const Schema = z.object({
   reason: z.string().max(140).optional().or(z.literal("")),
 });
 
+function walletsHasUpdatedAt(db: any) {
+  try {
+    const cols = db.prepare("PRAGMA table_info(wallets)").all() as Array<{ name: string }>;
+    return cols.some((c) => c.name === "updated_at");
+  } catch {
+    return false;
+  }
+}
+
 export async function POST(req: Request) {
   const session = await getSessionUser();
   if (!session || !isAdminUser(session.id, session.email)) {
@@ -29,26 +38,41 @@ export async function POST(req: Request) {
 
   const db = getDb();
   const now = Date.now();
+  const hasUpdatedAt = walletsHasUpdatedAt(db);
 
-  // Ensure wallet exists
+  // Ensure wallet exists (support older/newer schemas)
   const w = db
     .prepare("SELECT id, balance FROM wallets WHERE user_id = ? AND currency = ?")
     .get(userId, currency) as { id: string; balance: number } | undefined;
+
   if (!w) {
-    db.prepare(
-      "INSERT INTO wallets (id, user_id, currency, balance, created_at) VALUES (?, ?, ?, ?, ?)"
-    ).run(randomUUID(), userId, currency, 0, now);
+    if (hasUpdatedAt) {
+      db.prepare(
+        "INSERT INTO wallets (id, user_id, currency, balance, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)"
+      ).run(randomUUID(), userId, currency, 0, now, now);
+    } else {
+      db.prepare(
+        "INSERT INTO wallets (id, user_id, currency, balance, created_at) VALUES (?, ?, ?, ?, ?)"
+      ).run(randomUUID(), userId, currency, 0, now);
+    }
   }
 
   // Apply update atomically
   const txId = randomUUID();
   const auditId = randomUUID();
   const trx = db.transaction(() => {
-    db.prepare("UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND currency = ?").run(
-      amount,
-      userId,
-      currency
-    );
+    if (hasUpdatedAt) {
+      db.prepare(
+        "UPDATE wallets SET balance = balance + ?, updated_at = ? WHERE user_id = ? AND currency = ?"
+      ).run(amount, now, userId, currency);
+    } else {
+      db.prepare("UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND currency = ?").run(
+        amount,
+        userId,
+        currency
+      );
+    }
+
     db.prepare(
       "INSERT INTO transactions (id, user_id, type, amount, currency, status, created_at, meta) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
     ).run(
@@ -61,6 +85,7 @@ export async function POST(req: Request) {
       now,
       JSON.stringify({ reason: parsed.data.reason || null, adminId: session.id })
     );
+
     db.prepare(
       "INSERT INTO admin_audit_log (id, admin_id, action, target_user_id, meta, created_at) VALUES (?, ?, ?, ?, ?, ?)"
     ).run(

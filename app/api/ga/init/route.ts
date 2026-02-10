@@ -14,7 +14,13 @@ const Body = z.object({
 export async function POST(req: Request) {
   try {
     const user = await getSessionUser();
-    if (!user) return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });
+if (!user) return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });
+
+const playerName =
+  (user as any).username ||
+  (user as any).login ||
+  (user as any).email ||
+  `player_${user.id}`;
 
     const body = Body.parse(await req.json());
     const db = getDb();
@@ -30,14 +36,16 @@ export async function POST(req: Request) {
 
     const currency = gaCurrency(); // must be EUR for test
     const resp = await gaInit({
-      game_uuid: body.game_uuid,
-      user_id: String(user.id),
-      session_id: sessionId,
-      return_url: returnUrl,
-      currency,
-      language: "ru",
-      is_mobile: !!body.is_mobile,
-    });
+  game_uuid: body.game_uuid,
+  user_id: String(user.id),
+  player_name: playerName, // ✅ вот это добавь
+  session_id: sessionId,
+  return_url: returnUrl,
+  currency,
+  language: "ru",
+  is_mobile: !!body.is_mobile,
+});
+
 
     // Most providers return { url: "..." } or { data: { url } }
     const url = resp?.url || resp?.data?.url || resp?.game_url || resp?.data?.game_url;

@@ -133,25 +133,32 @@ export async function gaInit(params: {
   currency: string;
   language?: string;
   is_mobile?: boolean;
+  player_name?: string; // ✅ добавили
 }) {
   const cfg = getGaConfig();
   return gaRequest<any>(
     cfg,
     "/games/init",
     {
-  game_uuid: params.game_uuid,
-  player_id: params.user_id,   // ✅ главное
-  // user_id можно оставить на всякий случай
-  user_id: params.user_id,
-  session_id: params.session_id,
-  return_url: params.return_url,
-  currency: params.currency,
-  language: params.language ?? "ru",
-  is_mobile: params.is_mobile ? 1 : 0,
-},
-    "GET", // staging ждёт GET, fallback на POST если понадобится
+      game_uuid: params.game_uuid,
+
+      // ✅ обязательные для их API
+      player_id: params.user_id,
+      player_name: params.player_name ?? `player_${params.user_id}`,
+
+      // оставляем на всякий
+      user_id: params.user_id,
+
+      session_id: params.session_id,
+      return_url: params.return_url,
+      currency: params.currency,
+      language: params.language ?? "ru",
+      is_mobile: params.is_mobile ? 1 : 0,
+    },
+    "GET",
   );
 }
+
 
 export async function gaSelfValidate(session_id: string) {
   const cfg = getGaConfig();

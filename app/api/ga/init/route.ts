@@ -32,6 +32,28 @@ export async function POST(req: Request) {
     const currency = gaCurrency(); // must be EUR for test
     const playerName = (user.email?.split("@")[0] || `player_${String(user.id).slice(0, 8)}`);
 
+    // Ensure EUR wallet exists & seed for test so spins are enabled
+const db2 = getDb();
+db2.exec(`
+  CREATE TABLE IF NOT EXISTS wallets (
+    user_id TEXT NOT NULL,
+    currency TEXT NOT NULL,
+    balance REAL NOT NULL DEFAULT 0,
+    updated_at INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, currency)
+  );
+`);
+const seed = Number(process.env.GA_SEED_EUR || 0);
+const cur = "EUR";
+const w = db2.prepare(`SELECT balance FROM wallets WHERE user_id = ? AND currency = ?`).get(String(user.id), cur) as any;
+if (!w) {
+  db2.prepare(`INSERT INTO wallets (user_id, currency, balance, updated_at) VALUES (?, ?, ?, ?)`)
+    .run(String(user.id), cur, seed > 0 ? seed : 0, Date.now());
+} else if (seed > 0 && Number(w.balance) <= 0) {
+  db2.prepare(`UPDATE wallets SET balance = ?, updated_at = ? WHERE user_id = ? AND currency = ?`)
+    .run(seed, Date.now(), String(user.id), cur);
+}
+
     const resp = await gaInit({
       game_uuid: body.game_uuid,
       user_id: String(user.id),

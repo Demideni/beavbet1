@@ -5,8 +5,7 @@ export const runtime = "nodejs";
 
 export async function GET() {
   try {
-    const data = await gaGames();
-    // Provider returns { success: true, games: [...] } or similar
+    const data = await gaGames(); // теперь /games => GET (как в PDF)
     return NextResponse.json({ ok: true, data }, { status: 200 });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e?.message ?? String(e) }, { status: 500 });

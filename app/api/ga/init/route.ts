@@ -11,17 +11,17 @@ const Body = z.object({
   is_mobile: z.boolean().optional(),
 });
 
-function baseUrlFromEnv() {
+function baseUrl(): string {
   return (
-    process.env.PUBLIC_BASE_URL ||
-    process.env.NEXT_PUBLIC_BASE_URL ||
+    process.env.PUBLIC_BASE_URL ??
+    process.env.NEXT_PUBLIC_BASE_URL ??
     "https://beavbet.com"
-  ).replace(/\/$/, "");
+  );
 }
 
 export async function POST(req: Request) {
   try {
-    const user = await getSessionUser();
+    const user = await getSessionUser(); // ВАЖНО: без аргументов
     if (!user) {
       return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });
     }
@@ -29,64 +29,33 @@ export async function POST(req: Request) {
     const body = Body.parse(await req.json());
     const db = getDb();
 
-    // --- ensure tables exist (NO updated_at anywhere) ---
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS ga_sessions (
-        session_id TEXT PRIMARY KEY,
-        user_id INTEGER NOT NULL,
-        created_at INTEGER NOT NULL
-      );
-    `);
-
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS wallets (
-        user_id INTEGER NOT NULL,
-        currency TEXT NOT NULL,
-        balance REAL NOT NULL DEFAULT 0,
-        PRIMARY KEY (user_id, currency)
-      );
-    `);
-
     const sessionId = uuid();
 
-    db.prepare(`
-      INSERT INTO ga_sessions (session_id, user_id, created_at)
-      VALUES (?, ?, ?)
-    `).run(sessionId, user.id, Date.now());
+    // 1) session mapping for callbacks
+    db.prepare(
+      `INSERT INTO ga_sessions (session_id, user_id, created_at) VALUES (?, ?, ?)`
+    ).run(sessionId, user.id, Date.now());
 
-    const currency = gaCurrency(); // provider test expects EUR
-    const baseUrl = baseUrlFromEnv();
-    const returnUrl = `${baseUrl}/casino?ga=return`;
+    // 2) ensure EUR wallet exists (created_at обязателен, updated_at НЕ используем)
+    const currency = gaCurrency(); // must be EUR in test
+    const exists = db
+      .prepare(`SELECT 1 FROM wallets WHERE user_id = ? AND currency = ? LIMIT 1`)
+      .get(user.id, currency);
 
-    // If wallet row doesn't exist, create it (balance may be seeded separately)
-    const existing = db.prepare(`
-      SELECT balance FROM wallets WHERE user_id = ? AND currency = ?
-    `).get(user.id, currency) as { balance: number } | undefined;
-
-    if (!existing) {
-      db.prepare(`
-        INSERT INTO wallets (user_id, currency, balance)
-        VALUES (?, ?, ?)
-      `).run(user.id, currency, 0);
+    if (!exists) {
+      db.prepare(
+        `INSERT INTO wallets (user_id, currency, balance, created_at) VALUES (?, ?, ?, ?)`
+      ).run(user.id, currency, 0, Date.now());
     }
 
-    // Optional: seed test balance for EUR so slots are not disabled
-    // (If you already credit via Passimpay, you can set GA_SEED_EUR=0)
-    const seed = Number(process.env.GA_SEED_EUR ?? "50");
-    if (seed > 0) {
-      // Only seed if current is 0 to avoid infinite top-ups
-      const row = db.prepare(`
-        SELECT balance FROM wallets WHERE user_id = ? AND currency = ?
-      `).get(user.id, currency) as { balance: number } | undefined;
+    const returnUrl = `${baseUrl()}/casino?ga=return`;
 
-      if (row && Number(row.balance) <= 0) {
-        db.prepare(`
-          UPDATE wallets
-          SET balance = ?
-          WHERE user_id = ? AND currency = ?
-        `).run(seed, user.id, currency);
-      }
-    }
+    // 3) player_name
+    const playerName =
+      (user as any)?.username ??
+      (user as any)?.name ??
+      (user as any)?.email ??
+      `player_${user.id}`;
 
     const resp = await gaInit({
       game_uuid: body.game_uuid,
@@ -96,14 +65,11 @@ export async function POST(req: Request) {
       currency,
       language: "ru",
       is_mobile: !!body.is_mobile,
+      player_id: String(user.id),
+      player_name: String(playerName).slice(0, 50),
     });
 
-    const url =
-      (resp as any)?.url ||
-      (resp as any)?.data?.url ||
-      (resp as any)?.game_url ||
-      (resp as any)?.data?.game_url;
-
+    const url = resp?.url ?? resp?.data?.url ?? resp?.game_url ?? resp?.data?.game_url;
     if (!url) {
       return NextResponse.json(
         { ok: false, error: "No url in GA init response", resp },

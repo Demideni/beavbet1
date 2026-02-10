@@ -28,7 +28,10 @@ export function getGaConfig(): GaConfig {
 }
 
 export function gaCurrency(): string {
-  return envFirst("GA_CURRENCY", "GAME_CURRENCY", "CURRENCY") ?? "EUR";
+  return (
+    envFirst("GA_CURRENCY", "GAME_CURRENCY", "CURRENCY") ??
+    "EUR"
+  );
 }
 
 function buildQuery(params: Record<string, string | number | boolean | null | undefined>): string {
@@ -47,29 +50,11 @@ function sign(query: string, merchantKey: string): string {
   return crypto.createHmac("sha1", merchantKey).update(query).digest("hex");
 }
 
-async function fetchGA(
-  url: URL,
-  headers: Record<string, string>,
-  query: string,
-  method: "GET" | "POST",
-): Promise<Response> {
-  if (method === "GET") {
-    url.search = query;
-    return fetch(url, { method: "GET", headers, cache: "no-store" });
-  }
-  return fetch(url, {
-    method: "POST",
-    headers: { ...headers, "Content-Type": "application/x-www-form-urlencoded" },
-    body: query,
-    cache: "no-store",
-  });
-}
-
 async function gaRequest<T>(
   cfg: GaConfig,
   path: string,
   params: Record<string, any>,
-  prefer: "GET" | "POST" = "GET",
+  method: "GET" | "POST" = "POST",
 ): Promise<T> {
   const nonce = crypto.randomBytes(8).toString("hex");
   const timestamp = Math.floor(Date.now() / 1000);
@@ -93,13 +78,17 @@ async function gaRequest<T>(
     "X-Sign": xSign,
   };
 
-  // 1) пробуем prefer (на staging это GET)
-  let res = await fetchGA(new URL(url.toString()), headers, query, prefer);
-
-  // 2) если 405 — пробуем второй метод (чтобы не падало на проде, если там POST)
-  if (res.status === 405) {
-    const fallback: "GET" | "POST" = prefer === "GET" ? "POST" : "GET";
-    res = await fetchGA(new URL(url.toString()), headers, query, fallback);
+  let res: Response;
+  if (method === "GET") {
+    url.search = query;
+    res = await fetch(url, { method: "GET", headers, cache: "no-store" });
+  } else {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/x-www-form-urlencoded" },
+      body: query,
+      cache: "no-store",
+    });
   }
 
   const text = await res.text();
@@ -109,7 +98,6 @@ async function gaRequest<T>(
   } catch {
     throw new Error(`GA API non-JSON response (${res.status}): ${text.slice(0, 300)}`);
   }
-
   if (!res.ok) {
     throw new Error(`GA API HTTP ${res.status}: ${text.slice(0, 300)}`);
   }
@@ -121,47 +109,51 @@ async function gaRequest<T>(
 
 export async function gaGames() {
   const cfg = getGaConfig();
-  // staging у них отвечает 405 на POST, разрешает GET -> предпочитаем GET
-  return gaRequest<any>(cfg, "/games", {}, "GET");
+  // Some docs use /games (POST). We'll call POST with no params.
+  return gaRequest<any>(cfg, "/games", {}, "POST");
 }
 
 export async function gaInit(params: {
   game_uuid: string;
-  user_id: string;
+  user_id: string; // internal id
+  // Seamless docs often require these exact fields
+  player_id?: string;
+  player_name?: string;
   session_id: string;
   return_url: string;
   currency: string;
   language?: string;
   is_mobile?: boolean;
-  player_name?: string; // ✅ добавили
 }) {
   const cfg = getGaConfig();
-  return gaRequest<any>(
-    cfg,
-    "/games/init",
-    {
-      game_uuid: params.game_uuid,
 
-      // ✅ обязательные для их API
-      player_id: params.user_id,
-      player_name: params.player_name ?? `player_${params.user_id}`,
+  const payload = {
+    game_uuid: params.game_uuid,
+    // provider-required aliases
+    player_id: params.player_id ?? params.user_id,
+    player_name: params.player_name ?? `player_${params.user_id}`,
+    // keep legacy fields as well (some backends accept either)
+    user_id: params.user_id,
+    session_id: params.session_id,
+    return_url: params.return_url,
+    currency: params.currency,
+    language: params.language ?? "ru",
+    is_mobile: params.is_mobile ? 1 : 0,
+  };
 
-      // оставляем на всякий
-      user_id: params.user_id,
-
-      session_id: params.session_id,
-      return_url: params.return_url,
-      currency: params.currency,
-      language: params.language ?? "ru",
-      is_mobile: params.is_mobile ? 1 : 0,
-    },
-    "GET",
-  );
+  // Staging often expects GET. We'll try GET first, then fallback to POST.
+  try {
+    return await gaRequest<any>(cfg, "/games/init", payload, "GET");
+  } catch (e: any) {
+    const msg = String(e?.message ?? e);
+    if (msg.includes("HTTP 405") || msg.includes("Method Not Allowed")) {
+      return await gaRequest<any>(cfg, "/games/init", payload, "POST");
+    }
+    throw e;
+  }
 }
-
 
 export async function gaSelfValidate(session_id: string) {
   const cfg = getGaConfig();
-  // обычно self-validate POST, но оставляем fallback на GET через gaRequest
   return gaRequest<any>(cfg, "/self-validate", { session_id }, "POST");
 }

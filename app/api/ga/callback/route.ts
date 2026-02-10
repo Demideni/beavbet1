@@ -37,40 +37,47 @@ function ensureGaTables() {
     CREATE TABLE IF NOT EXISTS ga_transactions (
       ga_tx_id TEXT PRIMARY KEY,
       type TEXT NOT NULL,
-      user_id INTEGER NOT NULL,
+      user_id TEXT NOT NULL,
       amount REAL NOT NULL,
       created_at INTEGER NOT NULL
     );
   `);
 }
 
-function resolveUserId(playerId?: string | null): number | null {
+function resolveUserId(playerId?: string | null): string | null {
   if (!playerId) return null;
   const db = getDb();
   const u1 = db.prepare(`SELECT id FROM users WHERE id = ?`).get(playerId) as any;
-  if (u1?.id) return u1.id;
+  if (u1?.id) return String(u1.id);
   const u2 = db.prepare(`SELECT id FROM users WHERE email = ?`).get(playerId) as any;
-  if (u2?.id) return u2.id;
+  if (u2?.id) return String(u2.id);
   const u3 = db.prepare(`SELECT id FROM users WHERE username = ?`).get(playerId) as any;
-  if (u3?.id) return u3.id;
+  if (u3?.id) return String(u3.id);
   return null;
 }
 
-function resolveUserIdBySession(sessionId?: string | null): number | null {
+function resolveUserIdBySession(sessionId?: string | null): string | null {
   if (!sessionId) return null;
   const db = getDb();
   const row = db.prepare(`SELECT user_id FROM ga_sessions WHERE session_id = ?`).get(sessionId) as any;
-  return row?.user_id ?? null;
+  return row?.user_id ? String(row.user_id) : null;
 }
 
-function ensureWallet(userId: number, currency: string) {
+function ensureWallet(userId: string, currency: string) {
   const db = getDb();
   const w = db.prepare(`SELECT id, balance FROM wallets WHERE user_id = ? AND currency = ?`).get(userId, currency) as any;
   if (w?.id) return;
 
   // If user already has a wallet (e.g. USD), mirror its balance for test convenience
   const anyW = db.prepare(`SELECT balance FROM wallets WHERE user_id = ? ORDER BY id ASC LIMIT 1`).get(userId) as any;
-  const seed = typeof anyW?.balance === "number" ? anyW.balance : 0;
+  let seed = typeof anyW?.balance === "number" ? anyW.balance : 0;
+
+  // For GA test environment (EUR-only), give a small seed if user has no funds,
+  // so the game UI is not locked with disabled spin.
+  if (seed <= 0 && currency.toUpperCase() === "EUR") {
+    const envSeed = Number(process.env.GA_SEED_EUR ?? "100");
+    if (Number.isFinite(envSeed) && envSeed > 0) seed = envSeed;
+  }
 
   db.prepare(`INSERT INTO wallets (user_id, currency, balance, created_at) VALUES (?, ?, ?, ?)`).run(
     userId,
@@ -80,14 +87,14 @@ function ensureWallet(userId: number, currency: string) {
   );
 }
 
-function getBalance(userId: number, currency: string): number {
+function getBalance(userId: string, currency: string): number {
   const db = getDb();
   ensureWallet(userId, currency);
   const row = db.prepare(`SELECT balance FROM wallets WHERE user_id = ? AND currency = ?`).get(userId, currency) as any;
   return row?.balance ?? 0;
 }
 
-function addBalance(userId: number, currency: string, delta: number) {
+function addBalance(userId: string, currency: string, delta: number) {
   const db = getDb();
   ensureWallet(userId, currency);
   db.prepare(`UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND currency = ?`).run(delta, userId, currency);
@@ -98,7 +105,7 @@ function findTx(gaTxId: string) {
   return db.prepare(`SELECT ga_tx_id, type, amount FROM ga_transactions WHERE ga_tx_id = ?`).get(gaTxId) as any;
 }
 
-function saveTx(gaTxId: string, type: string, userId: number, amount: number) {
+function saveTx(gaTxId: string, type: string, userId: string, amount: number) {
   const db = getDb();
   db.prepare(
     `INSERT INTO ga_transactions (ga_tx_id, type, user_id, amount, created_at) VALUES (?, ?, ?, ?, ?)`,

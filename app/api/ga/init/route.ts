@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getSessionUser } from "@/lib/auth";
 import { gaInit, gaCurrency } from "@/lib/gaClient";
@@ -11,16 +11,10 @@ const Body = z.object({
   is_mobile: z.boolean().optional(),
 });
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
-    const user = await getSessionUser();
-if (!user) return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });
-
-const playerName =
-  (user as any).username ||
-  (user as any).login ||
-  (user as any).email ||
-  `player_${user.id}`;
+    const user = await getSessionUser(req);
+    if (!user) return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });
 
     const body = Body.parse(await req.json());
     const db = getDb();
@@ -35,17 +29,20 @@ const playerName =
     const returnUrl = `${baseUrl}/casino?ga=return`;
 
     const currency = gaCurrency(); // must be EUR for test
-    const resp = await gaInit({
-  game_uuid: body.game_uuid,
-  user_id: String(user.id),
-  player_name: playerName, // ✅ вот это добавь
-  session_id: sessionId,
-  return_url: returnUrl,
-  currency,
-  language: "ru",
-  is_mobile: !!body.is_mobile,
-});
+    const playerName = (user.email?.split("@")[0] || `player_${String(user.id).slice(0, 8)}`);
 
+    const resp = await gaInit({
+      game_uuid: body.game_uuid,
+      user_id: String(user.id),
+      // Provider requires these fields
+      player_id: String(user.id),
+      player_name: playerName,
+      session_id: sessionId,
+      return_url: returnUrl,
+      currency,
+      language: "ru",
+      is_mobile: !!body.is_mobile,
+    });
 
     // Most providers return { url: "..." } or { data: { url } }
     const url = resp?.url || resp?.data?.url || resp?.game_url || resp?.data?.game_url;

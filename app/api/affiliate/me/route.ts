@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { headers } from "next/headers";
 import { getSessionUser } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { ensureAffiliateProfile } from "@/lib/affiliate";
@@ -14,10 +13,16 @@ export async function GET(req: Request) {
   // IMPORTANT:
   // On Render / reverse-proxy setups `req.url` may be an internal URL like http://localhost:10000/...
   // Build a public origin from forwarded headers (or an explicit env), so affiliate links are real.
-  const envOrigin = (process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL || "").trim().replace(/\/$/, "");
-  const h = headers();
-  const proto = (h.get("x-forwarded-proto") || "https").split(",")[0].trim();
-  const host = (h.get("x-forwarded-host") || h.get("host") || "").split(",")[0].trim();
+  const envOrigin = (process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL || "")
+    .trim()
+    .replace(/\/$/, "");
+
+  // ✅ Next.js 15: don't use `headers()` here; use Request headers directly
+  const proto = (req.headers.get("x-forwarded-proto") || "https").split(",")[0].trim();
+  const host = (req.headers.get("x-forwarded-host") || req.headers.get("host") || "")
+    .split(",")[0]
+    .trim();
+
   const origin = envOrigin || (host ? `${proto}://${host}` : new URL(req.url).origin);
   const link = `${origin}/?ref=${profile.code}`;
 
@@ -79,7 +84,10 @@ export async function GET(req: Request) {
     )
     .get(session.id) as { reserved: number; paid: number };
 
-  const available = Math.max(0, Number((commAgg.approved - withdrawalsAgg.reserved - withdrawalsAgg.paid).toFixed(2)));
+  const available = Math.max(
+    0,
+    Number((commAgg.approved - withdrawalsAgg.reserved - withdrawalsAgg.paid).toFixed(2))
+  );
 
   return NextResponse.json({
     ok: true,

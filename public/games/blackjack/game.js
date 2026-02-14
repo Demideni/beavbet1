@@ -462,3 +462,21 @@
   setControls({ deal:true, hit:false, stand:false, dbl:false, betAdjust:true });
   renderHands();
 })();
+
+
+// --- Tapbar spacer: keep content above fixed bottom bar (iOS safe-area friendly)
+function syncTapbarHeight(){
+  const tb = document.querySelector('.tapbar');
+  if(!tb) return;
+  const h = Math.ceil(tb.getBoundingClientRect().height);
+  document.documentElement.style.setProperty('--tapbarH', h + 'px');
+}
+window.addEventListener('resize', syncTapbarHeight);
+window.addEventListener('orientationchange', syncTapbarHeight);
+document.addEventListener('DOMContentLoaded', () => {
+  // slight delay helps after iOS address bar settles
+  syncTapbarHeight();
+  setTimeout(syncTapbarHeight, 50);
+  setTimeout(syncTapbarHeight, 250);
+});
+

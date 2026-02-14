@@ -20,7 +20,7 @@ body{
   background: #0a0a0a;
   color:var(--text);
   padding-top: var(--safeTop);
-  padding-bottom: var(--safeBottom);
+  padding-bottom: max(var(--safeBottom), var(--tapbarH, 0px));
 }
 
 .wrap{
@@ -28,7 +28,7 @@ body{
   margin: 0 auto;
   padding: 18px;
   padding-top: calc(14px + var(--safeTop));
-  padding-bottom: calc(14px + var(--safeBottom));
+  padding-bottom: calc(18px + max(var(--safeBottom), var(--tapbarH, 0px)));
 }
 
 .top{
@@ -223,8 +223,9 @@ h2{margin:0; font-size:16px; color:#fff}
   align-items:flex-end;
   justify-content:space-between;
   gap: 12px;
-  height: calc(var(--tapH) + var(--safeBottom));
-  z-index: 50;
+  height: auto;
+  min-height: calc(var(--tapH) + var(--safeBottom));
+z-index: 50;
 }
 
 .tapbar .tb{

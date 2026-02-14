@@ -10,6 +10,9 @@
   --safeTop: env(safe-area-inset-top);
   --safeBottom: env(safe-area-inset-bottom);
   --tapH: 84px;
+  --tapbarH: 84px;
+  --statusH: 56px;
+  --bottomGutter: calc(var(--tapbarH) + var(--statusH));
 }
 
 *{box-sizing:border-box}
@@ -28,7 +31,7 @@ body{
   margin: 0 auto;
   padding: 18px;
   padding-top: calc(14px + var(--safeTop));
-  padding-bottom: calc(18px + max(var(--safeBottom), var(--tapbarH, 0px)));
+  padding-bottom: calc(18px + var(--bottomGutter, 0px) + var(--safeBottom));
 }
 
 .top{
@@ -75,7 +78,7 @@ body{
   border-radius:16px;
   position: relative;
   overflow: hidden;
-  padding-bottom: calc(var(--tapH) + 16px + var(--safeBottom));
+  padding-bottom: calc(16px + var(--bottomGutter, 0px) + var(--safeBottom));
   background: linear-gradient(180deg, #0f0f0f, #0b0b0b);
 }
 
@@ -169,6 +172,44 @@ h2{margin:0; font-size:16px; color:#fff}
   margin-bottom:12px;
 }
 
+.srOnly{
+  position:absolute;
+  width:1px;height:1px;
+  padding:0;margin:-1px;
+  overflow:hidden;
+  clip:rect(0,0,0,0);
+  white-space:nowrap;
+  border:0;
+}
+
+.statusBar{
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(980px, calc(100% - 24px));
+  bottom: calc(var(--tapbarH, var(--tapH)) + var(--safeBottom));
+  padding: 10px 14px;
+  background: linear-gradient(180deg, rgba(10,10,10,0.10), rgba(10,10,10,0.55));
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-bottom: 0;
+  border-radius: 16px 16px 0 0;
+  z-index: 45;
+}
+
+@media (max-width: 640px){
+  .statusBar{
+    left: 0;
+    right: 0;
+    transform: none;
+    width: 100%;
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+  }
+}
+
+
 .miniInfo{
   display:flex;
   justify-content:space-between;
@@ -212,20 +253,22 @@ h2{margin:0; font-size:16px; color:#fff}
 /* Tapbar */
 .tapbar{
   position: fixed;
-  left: 0;
-  right: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(980px, calc(100% - 24px));
   bottom: 0;
-  padding: 10px 14px calc(10px + var(--safeBottom));
+  padding: 6px 12px calc(6px + var(--safeBottom));
   background: linear-gradient(180deg, rgba(10,10,10,0.10), rgba(10,10,10,0.92));
   backdrop-filter: blur(10px);
   border-top: 1px solid rgba(255,255,255,0.10);
+  border-radius: 16px 16px 0 0;
   display:flex;
   align-items:flex-end;
   justify-content:space-between;
   gap: 12px;
   height: auto;
   min-height: calc(var(--tapH) + var(--safeBottom));
-z-index: 50;
+  z-index: 50;
 }
 
 .tapbar .tb{
@@ -474,3 +517,14 @@ z-index: 50;
 /* Ensure hidden attribute always wins */
 [hidden]{ display:none !important; }
 .modalOverlay[hidden]{ display:none !important; }
+
+
+@media (max-width: 640px){
+  .tapbar{
+    left: 0;
+    right: 0;
+    transform: none;
+    width: 100%;
+    border-radius: 0;
+  }
+}

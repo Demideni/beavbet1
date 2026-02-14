@@ -17,16 +17,14 @@
 
   const balanceEl = el("balance");
   const betEl = el("bet");
+  const betTopEl = el("betTop");
+  const betSlider = el("betSlider");
 
   const dealBtn = el("dealBtn");
   const hitBtn = el("hitBtn");
   const standBtn = el("standBtn");
   const doubleBtn = el("doubleBtn");
   const newBtn = el("newBtn");
-
-  const betMinus = el("betMinus");
-  const betPlus = el("betPlus");
-  const chipBtns = Array.from(document.querySelectorAll(".chip"));
 
   // ====== State ======
   let shoe = [];
@@ -100,7 +98,11 @@
   function renderCard(card, faceDown=false) {
     const div = document.createElement("div");
     div.className = "card" + (faceDown ? " back" : "");
-    if (faceDown) return div;
+    if (faceDown) {
+      div.style.background = `url("./assets/card-back.png") center/cover no-repeat`;
+      div.style.borderColor = "#2c2c2c";
+      return div;
+    }
 
     const isRed = (card.s === "♥" || card.s === "♦");
     if (isRed) div.classList.add("red");
@@ -146,6 +148,7 @@
 
     balanceEl.textContent = `$${balance}`;
     betEl.textContent = `$${bet}`;
+    if (betTopEl) betTopEl.textContent = `$${bet}`;
   }
 
   function setMessage(txt) {
@@ -158,9 +161,7 @@
     standBtn.disabled = !stand;
     doubleBtn.disabled = !dbl;
 
-    betMinus.disabled = !betControls;
-    betPlus.disabled = !betControls;
-    chipBtns.forEach(b => b.disabled = !betControls);
+    if (betSlider) betSlider.disabled = !betControls;
   }
 
   // ====== Betting ======
@@ -180,6 +181,7 @@
   function startRound() {
     if (inRound) return;
     clampBet();
+    if (betSlider) betSlider.value = String(bet);
     if (bet > balance) {
       setMessage("Недостаточно баланса для ставки.");
       return;
@@ -327,6 +329,7 @@
     // reset bet back to reasonable if it exceeds balance
     bet = Math.min(bet, Math.max(MIN_BET, balance || MIN_BET));
     clampBet();
+    if (betSlider) betSlider.value = String(bet);
 
     setControls({ deal:true, hit:false, stand:false, dbl:false, betControls:true });
     renderHands();
@@ -341,6 +344,7 @@
     shoe = buildShoe();
     balance = 1000;
     bet = 10;
+    if (betSlider) betSlider.value = String(bet);
     dealerHand = [];
     playerHand = [];
     inRound = false;
@@ -359,10 +363,16 @@
   doubleBtn.addEventListener("click", doubleDown);
   newBtn.addEventListener("click", newGame);
 
-  betMinus.addEventListener("click", () => changeBet(-5));
-  betPlus.addEventListener("click", () => changeBet(+5));
-  chipBtns.forEach(btn => {
-    btn.addEventListener("click", () => changeBet(parseInt(btn.dataset.chip, 10)));
+  // Slider bet
+  if (betSlider) {
+    betSlider.addEventListener("input", () => {
+      if (inRound) return;
+      bet = parseInt(betSlider.value, 10);
+      clampBet();
+      betSlider.value = String(bet);
+      renderHands();
+    });
+  }
   });
 
   // ====== Init ======

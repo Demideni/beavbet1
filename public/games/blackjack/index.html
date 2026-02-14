@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>BeavBet Blackjack</title>
   <link rel="stylesheet" href="./style.css" />
 </head>
@@ -10,8 +10,8 @@
   <div class="wrap">
     <header class="top">
       <div class="brand">
-        <div class="logo">BeavBet</div>
-        <div class="sub">Blackjack</div>
+        <div class="logo"><span class="beav">Beav</span><span class="bet">Bet</span></div>
+        <div class="sub blackjack">Blackjack</div>
       </div>
 
       <div class="stats">
@@ -21,7 +21,7 @@
         </div>
         <div class="stat">
           <div class="label">Ставка</div>
-          <div class="value" id="bet">$10</div>
+          <div class="value" id="betTop">$10</div>
         </div>
       </div>
     </header>
@@ -48,24 +48,33 @@
       <section class="panel">
         <div class="message" id="message">Выберите ставку и нажмите Deal.</div>
 
-        <div class="betbar">
-          <button class="btn ghost" id="betMinus">−</button>
-          <div class="chipline">
-            <button class="chip" data-chip="5">+5</button>
-            <button class="chip" data-chip="10">+10</button>
-            <button class="chip" data-chip="25">+25</button>
-            <button class="chip" data-chip="50">+50</button>
-            <button class="chip" data-chip="100">+100</button>
+        <div class="betSliderWrap">
+          <div class="betLine">
+            <div class="betLeft">Ставка</div>
+            <div class="betRight" id="bet">$10</div>
           </div>
-          <button class="btn ghost" id="betPlus">+</button>
+
+          <input id="betSlider" class="betSlider" type="range" min="5" max="500" step="5" value="10" />
+
+          <div class="betTicks">
+            <span>$5</span><span>$50</span><span>$100</span><span>$250</span><span>$500</span>
+          </div>
         </div>
 
-        <div class="controls">
-          <button class="btn primary" id="dealBtn">Deal</button>
-          <button class="btn" id="hitBtn" disabled>Hit</button>
-          <button class="btn" id="standBtn" disabled>Stand</button>
-          <button class="btn" id="doubleBtn" disabled>Double</button>
-          <button class="btn danger" id="newBtn">New Game</button>
+        <div class="tapbar">
+          <button class="tb btn" id="newBtn">New</button>
+
+          <div class="dealDock">
+            <div class="arc">
+              <button class="arcBtn btn" id="hitBtn" disabled>Hit</button>
+              <button class="arcBtn btn" id="standBtn" disabled>Stand</button>
+              <button class="arcBtn btn" id="doubleBtn" disabled>Double</button>
+            </div>
+
+            <button class="dealBtn btn primary" id="dealBtn">Deal</button>
+          </div>
+
+          <div class="tbSpacer"></div>
         </div>
 
         <div class="rules">

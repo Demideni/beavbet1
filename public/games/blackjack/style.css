@@ -201,3 +201,181 @@ h2{margin:0; font-size:16px; color:#fff}
   color:var(--muted);
   font-size:12px;
 }
+
+
+
+:root{
+  --safeTop: env(safe-area-inset-top);
+  --safeBottom: env(safe-area-inset-bottom);
+  --tapH: 84px;
+}
+
+/* Safe-area + адаптив */
+body{
+  padding-top: var(--safeTop);
+  padding-bottom: var(--safeBottom);
+}
+
+.wrap{
+  padding-top: calc(14px + var(--safeTop));
+  padding-bottom: calc(14px + var(--safeBottom));
+}
+
+.top{
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.stat{
+  min-width: 110px;
+}
+
+/* Брендинг */
+.brand .logo{
+  font-weight: 900;
+  letter-spacing: .5px;
+  font-size: clamp(18px, 2.2vw, 22px);
+}
+.brand .logo .beav{ color: var(--red); }
+.brand .logo .bet{ color: #fff; }
+.brand .sub.blackjack{
+  color: var(--red);
+  font-weight: 900;
+}
+
+/* Фон игры (ваша картинка) */
+.table{
+  position: relative;
+  overflow: hidden;
+  padding-bottom: calc(var(--tapH) + 16px + var(--safeBottom)); /* место под fixed tapbar */
+}
+.table::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  background: url("./assets/bg-layer-1.png") center/cover no-repeat;
+  opacity: .85;
+  filter: saturate(1.05) contrast(1.05);
+  z-index:0;
+}
+.table::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  background: radial-gradient(900px 500px at 50% 0%, rgba(0,0,0,.15), rgba(0,0,0,.75));
+  z-index:1;
+}
+
+/* Контент поверх фона */
+.hand, .panel, .divider, header.top{
+  position: relative;
+  z-index: 2;
+}
+
+/* Слайдер ставки */
+.betSliderWrap{
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(0,0,0,.25);
+}
+.betLine{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  margin-bottom: 10px;
+}
+.betLeft{ color: var(--muted); font-weight:800; }
+.betRight{ font-weight: 900; font-size: 18px; }
+
+.betSlider{
+  width:100%;
+  accent-color: var(--red);
+}
+.betTicks{
+  display:flex;
+  justify-content:space-between;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* Tapbar fixed внизу */
+.tapbar{
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 10px 14px calc(10px + var(--safeBottom));
+  background: linear-gradient(180deg, rgba(10,10,10,0.10), rgba(10,10,10,0.92));
+  backdrop-filter: blur(10px);
+  border-top: 1px solid var(--line);
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap: 12px;
+  height: calc(var(--tapH) + var(--safeBottom));
+  z-index: 50;
+}
+
+.tapbar .tb{
+  min-width: 72px;
+  height: 44px;
+  border-radius: 14px;
+}
+
+.tapbar .tbSpacer{
+  min-width: 72px;
+  height: 44px;
+}
+
+/* Центр: Deal + дуга */
+.dealDock{
+  position: relative;
+  width: min(340px, 62vw);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+
+.dealBtn{
+  width: min(190px, 44vw);
+  height: 56px;
+  border-radius: 18px;
+  font-size: 18px;
+}
+
+/* Дугообразная раскладка кнопок */
+.arc{
+  position:absolute;
+  left: 50%;
+  bottom: 54px; /* над deal */
+  transform: translateX(-50%);
+  width: min(360px, 80vw);
+  height: 110px;
+  pointer-events: none;
+}
+
+.arcBtn{
+  position:absolute;
+  width: 96px;
+  height: 44px;
+  border-radius: 14px;
+  pointer-events: auto;
+}
+
+#hitBtn{ left: 0; bottom: 8px; transform: rotate(-8deg); }
+#standBtn{ left: 50%; bottom: 44px; transform: translateX(-50%); }
+#doubleBtn{ right: 0; bottom: 8px; transform: rotate(8deg); }
+
+@media (max-width: 380px){
+  .arcBtn{ width: 88px; }
+  .dealBtn{ height: 54px; }
+}
+
+/* Карты: чуть адаптивнее */
+.card{
+  width: clamp(62px, 16vw, 72px);
+  height: calc(clamp(62px, 16vw, 72px) * 1.35);
+}

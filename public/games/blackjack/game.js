@@ -4,9 +4,8 @@
   const MIN_BET = 5;
   const MAX_BET = 500;
   const DEALER_STANDS_SOFT_17 = true;
-  const BLACKJACK_PAYOUT = 1.5;
+  const BLACKJACK_PAYOUT = 1.5; // 3:2
 
-  // ====== Safe DOM helper ======
   const el = (id) => document.getElementById(id);
 
   // ====== UI (must exist) ======
@@ -25,18 +24,23 @@
   const standBtn = el("standBtn");
   const doubleBtn = el("doubleBtn");
 
-  // Bet modal
+  // Bet modal (optional but expected)
   const betAdjustBtn = el("betAdjustBtn");
   const betModal = el("betModal");
   const betApply = el("betApply");
   const betCancel = el("betCancel");
-  const pickDeltaEl = el("pickDelta");
+  const betCloseBtn = el("betCloseBtn"); // ✕
+  const pickDeltaEl = el("pickDelta");   // if present
   const carList = el("carList");
   const carLeft = el("carLeft");
   const carRight = el("carRight");
 
-  // ====== HARD GUARD: if something critical missing, stop early ======
-  const required = [dealerCardsEl, playerCardsEl, dealerScoreEl, playerScoreEl, messageEl, balanceEl, betEl, betTopEl, dealBtn, hitBtn, standBtn, doubleBtn];
+  // ====== HARD GUARD ======
+  const required = [
+    dealerCardsEl, playerCardsEl, dealerScoreEl, playerScoreEl, messageEl,
+    balanceEl, betEl, betTopEl,
+    dealBtn, hitBtn, standBtn, doubleBtn
+  ];
   if (required.some(x => !x)) {
     console.error("Blackjack: missing required DOM elements. Check ids in index.html");
     return;
@@ -187,6 +191,9 @@
   // ====== Round Flow ======
   function startRound() {
     if (inRound) return;
+
+    // если модалка открыта — не стартуем
+    if (betModal && betModal.hidden === false) return;
 
     clampBet();
     if (bet > balance) {
@@ -347,18 +354,26 @@
 
     pendingDelta = 0;
     if (pickDeltaEl) pickDeltaEl.textContent = "+0";
+
     if (carList) {
       carList.querySelectorAll(".chip").forEach(b => b.classList.remove("active"));
-      // прокрутим к плюсовой зоне для удобства
+      // к плюсовой зоне
       carList.scrollLeft = Math.max(0, carList.scrollWidth / 2 - carList.clientWidth / 2);
     }
 
     betModal.hidden = false;
+
+    // пока модалка открыта — не даём стартовать раунд
+    dealBtn.disabled = true;
   }
 
   function closeBetModal() {
     if (!betModal) return;
     betModal.hidden = true;
+    pendingDelta = 0;
+
+    // возвращаем доступность Deal (если не в раунде)
+    if (!inRound) dealBtn.disabled = false;
   }
 
   function setPendingDelta(v) {
@@ -368,8 +383,7 @@
 
   function applyDelta() {
     if (inRound) return;
-    const next = bet + pendingDelta;
-    bet = next;
+    bet = bet + pendingDelta;
     clampBet();
     renderHands();
     closeBetModal();
@@ -381,39 +395,32 @@
   standBtn.addEventListener("click", stand);
   doubleBtn.addEventListener("click", doubleDown);
 
-  if (betAdjustBtn) betAdjustBtn.addEventListener("click", openBetModal);
+  if (betAdjustBtn) betAdjustBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    openBetModal();
+  });
 
-if (betModal) {
-  const sheet = betModal.querySelector(".modalSheet");
+  // ЖЕЛЕЗНОЕ закрытие по ✕ / Отмена / Добавить
+  if (betCloseBtn) betCloseBtn.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    closeBetModal();
+  });
 
-  // Внутри sheet — НЕ закрываем
-  if (sheet) {
-    sheet.addEventListener("pointerdown", (e) => e.stopPropagation());
-    sheet.addEventListener("click", (e) => e.stopPropagation());
-    sheet.addEventListener("touchstart", (e) => e.stopPropagation(), { passive: true });
-  }
+  if (betCancel) betCancel.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    closeBetModal();
+  });
 
-  // Тап/клик по затемнению (вне sheet) — закрываем
-  const tryClose = (e) => {
-    const target = e.target;
-    if (!sheet) return closeBetModal();
-    if (!sheet.contains(target)) closeBetModal();
-  };
+  if (betApply) betApply.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    applyDelta();
+  });
 
-  betModal.addEventListener("pointerdown", tryClose);
-  betModal.addEventListener("click", tryClose);
-  betModal.addEventListener("touchstart", tryClose, { passive: true });
-}
-
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") closeBetModal();
-});
-
-
-
-  if (betCancel) betCancel.addEventListener("click", closeBetModal);
-  if (betApply) betApply.addEventListener("click", applyDelta);
-
+  // Выбор дельты
   if (carList) {
     carList.addEventListener("click", (e) => {
       const btn = e.target.closest(".chip");

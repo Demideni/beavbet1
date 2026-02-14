@@ -3,12 +3,13 @@
   const NUM_DECKS = 6;
   const MIN_BET = 5;
   const MAX_BET = 500;
-  const DEALER_STANDS_SOFT_17 = true; // common rule in many casinos
-  const BLACKJACK_PAYOUT = 1.5;       // 3:2
+  const DEALER_STANDS_SOFT_17 = true;
+  const BLACKJACK_PAYOUT = 1.5;
 
-  // ====== UI ======
+  // ====== Safe DOM helper ======
   const el = (id) => document.getElementById(id);
 
+  // ====== UI (must exist) ======
   const dealerCardsEl = el("dealerCards");
   const playerCardsEl = el("playerCards");
   const dealerScoreEl = el("dealerScore");
@@ -18,13 +19,28 @@
   const balanceEl = el("balance");
   const betEl = el("bet");
   const betTopEl = el("betTop");
-  const betSlider = el("betSlider");
 
   const dealBtn = el("dealBtn");
   const hitBtn = el("hitBtn");
   const standBtn = el("standBtn");
   const doubleBtn = el("doubleBtn");
-  const newBtn = el("newBtn");
+
+  // Bet modal
+  const betAdjustBtn = el("betAdjustBtn");
+  const betModal = el("betModal");
+  const betApply = el("betApply");
+  const betCancel = el("betCancel");
+  const pickDeltaEl = el("pickDelta");
+  const carList = el("carList");
+  const carLeft = el("carLeft");
+  const carRight = el("carRight");
+
+  // ====== HARD GUARD: if something critical missing, stop early ======
+  const required = [dealerCardsEl, playerCardsEl, dealerScoreEl, playerScoreEl, messageEl, balanceEl, betEl, betTopEl, dealBtn, hitBtn, standBtn, doubleBtn];
+  if (required.some(x => !x)) {
+    console.error("Blackjack: missing required DOM elements. Check ids in index.html");
+    return;
+  }
 
   // ====== State ======
   let shoe = [];
@@ -37,6 +53,9 @@
   let dealerHoleHidden = true;
   let canDouble = false;
 
+  // Bet modal state
+  let pendingDelta = 0;
+
   // ====== Deck / Shoe ======
   const SUITS = ["♠", "♥", "♦", "♣"];
   const RANKS = ["A","2","3","4","5","6","7","8","9","10","J","Q","K"];
@@ -44,11 +63,8 @@
   function buildShoe() {
     const cards = [];
     for (let d = 0; d < NUM_DECKS; d++) {
-      for (const s of SUITS) {
-        for (const r of RANKS) cards.push({ r, s });
-      }
+      for (const s of SUITS) for (const r of RANKS) cards.push({ r, s });
     }
-    // Fisher–Yates shuffle
     for (let i = cards.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [cards[i], cards[j]] = [cards[j], cards[i]];
@@ -57,7 +73,6 @@
   }
 
   function ensureShoe() {
-    // if low, reshuffle (simple)
     if (shoe.length < 52) shoe = buildShoe();
   }
 
@@ -74,19 +89,18 @@
   }
 
   function handTotals(hand) {
-    // return best total <=21 if possible, and info about soft
     let total = 0;
     let aces = 0;
     for (const c of hand) {
       total += cardValue(c);
       if (c.r === "A") aces++;
     }
-    // downgrade aces from 11 to 1 while bust
     while (total > 21 && aces > 0) {
       total -= 10;
       aces--;
     }
-    const isSoft = hand.some(c => c.r === "A") && total <= 21 && (hand.reduce((sum,c)=>sum+cardValue(c),0) !== total);
+    const raw = hand.reduce((sum,c)=>sum+cardValue(c),0);
+    const isSoft = hand.some(c => c.r === "A") && raw !== total;
     return { total, isSoft };
   }
 
@@ -98,6 +112,7 @@
   function renderCard(card, faceDown=false) {
     const div = document.createElement("div");
     div.className = "card" + (faceDown ? " back" : "");
+
     if (faceDown) {
       div.style.background = `url("./assets/card-back.png") center/cover no-repeat`;
       div.style.borderColor = "#2c2c2c";
@@ -134,12 +149,12 @@
     });
     playerHand.forEach(c => playerCardsEl.appendChild(renderCard(c)));
 
-    const dealerShown = dealerHoleHidden
-      ? [dealerHand[0]] // show only upcard value
-      : dealerHand;
+    const dealerShown = dealerHoleHidden ? [dealerHand[0]] : dealerHand;
 
     dealerScoreEl.textContent = dealerHand.length
-      ? (dealerHoleHidden ? `${handTotals(dealerShown).total} + ?` : `${handTotals(dealerHand).total}${handTotals(dealerHand).isSoft ? " (soft)" : ""}`)
+      ? (dealerHoleHidden
+          ? `${handTotals(dealerShown).total} + ?`
+          : `${handTotals(dealerHand).total}${handTotals(dealerHand).isSoft ? " (soft)" : ""}`)
       : "—";
 
     playerScoreEl.textContent = playerHand.length
@@ -148,40 +163,32 @@
 
     balanceEl.textContent = `$${balance}`;
     betEl.textContent = `$${bet}`;
-    if (betTopEl) betTopEl.textContent = `$${bet}`;
+    betTopEl.textContent = `$${bet}`;
   }
 
   function setMessage(txt) {
     messageEl.textContent = txt;
   }
 
-  function setControls({ deal, hit, stand, dbl, betControls }) {
+  function setControls({ deal, hit, stand, dbl, betAdjust }) {
     dealBtn.disabled = !deal;
     hitBtn.disabled = !hit;
     standBtn.disabled = !stand;
     doubleBtn.disabled = !dbl;
-
-    if (betSlider) betSlider.disabled = !betControls;
+    if (betAdjustBtn) betAdjustBtn.disabled = !betAdjust;
   }
 
-  // ====== Betting ======
+  // ====== Betting clamp ======
   function clampBet() {
     bet = Math.max(MIN_BET, Math.min(MAX_BET, bet));
     if (bet > balance) bet = Math.max(MIN_BET, Math.min(balance, bet));
   }
 
-  function changeBet(delta) {
-    if (inRound) return;
-    bet += delta;
-    clampBet();
-    renderHands();
-  }
-
   // ====== Round Flow ======
   function startRound() {
     if (inRound) return;
+
     clampBet();
-    if (betSlider) betSlider.value = String(bet);
     if (bet > balance) {
       setMessage("Недостаточно баланса для ставки.");
       return;
@@ -196,10 +203,9 @@
 
     balance -= bet;
 
-    setControls({ deal:false, hit:true, stand:true, dbl:true, betControls:false });
+    setControls({ deal:false, hit:true, stand:true, dbl:true, betAdjust:false });
     renderHands();
 
-    // Check immediate outcomes
     const pBJ = isBlackjack(playerHand);
     const dBJ = isBlackjack(dealerHand);
 
@@ -214,14 +220,11 @@
   }
 
   function settleBlackjack(pBJ, dBJ) {
-    // If both BJ: push (return bet)
     if (pBJ && dBJ) {
       balance += bet;
       setMessage("Push: у обоих Blackjack. Ставка возвращена.");
     } else if (pBJ) {
-      // payout 3:2 -> win bet + 1.5*bet, plus return bet already taken? we took bet from balance, so add back bet + profit
-      const win = bet + bet * BLACKJACK_PAYOUT;
-      balance += win;
+      balance += (bet + bet * BLACKJACK_PAYOUT);
       setMessage(`Blackjack! Выплата 3:2. Вы выиграли $${(bet * BLACKJACK_PAYOUT).toFixed(0)}.`);
     } else {
       setMessage("У дилера Blackjack. Вы проиграли.");
@@ -231,6 +234,7 @@
 
   function hit() {
     if (!inRound) return;
+
     playerHand.push(draw());
     canDouble = false;
     renderHands();
@@ -243,14 +247,15 @@
       endRound();
       return;
     }
+
     setMessage("Ваш ход: Hit / Stand.");
-    setControls({ deal:false, hit:true, stand:true, dbl:false, betControls:false });
+    setControls({ deal:false, hit:true, stand:true, dbl:false, betAdjust:false });
   }
 
   function stand() {
     if (!inRound) return;
     canDouble = false;
-    setControls({ deal:false, hit:false, stand:false, dbl:false, betControls:false });
+    setControls({ deal:false, hit:false, stand:false, dbl:false, betAdjust:false });
     dealerPlay();
   }
 
@@ -258,14 +263,13 @@
     if (!inRound) return;
     if (!canDouble || playerHand.length !== 2) return;
 
-    // need extra bet
     if (balance < bet) {
       setMessage("Недостаточно баланса для Double.");
       return;
     }
 
-    balance -= bet;      // take additional bet
-    bet *= 2;            // total bet
+    balance -= bet;
+    bet *= 2;
     canDouble = false;
 
     playerHand.push(draw());
@@ -279,8 +283,9 @@
       endRound();
       return;
     }
+
     setMessage("Double: авто Stand.");
-    setControls({ deal:false, hit:false, stand:false, dbl:false, betControls:false });
+    setControls({ deal:false, hit:false, stand:false, dbl:false, betAdjust:false });
     dealerPlay();
   }
 
@@ -290,7 +295,6 @@
 
     let { total: dt, isSoft } = handTotals(dealerHand);
 
-    // Dealer hits until 17+, with rule for soft 17
     while (dt < 17 || (!DEALER_STANDS_SOFT_17 && dt === 17 && isSoft)) {
       dealerHand.push(draw());
       ({ total: dt, isSoft } = handTotals(dealerHand));
@@ -305,7 +309,6 @@
     const dt = handTotals(dealerHand).total;
 
     if (dt > 21) {
-      // dealer bust
       balance += bet * 2;
       setMessage(`Дилер перебрал (${dt}). Вы выиграли $${bet}.`);
       endRound();
@@ -318,7 +321,7 @@
     } else if (pt < dt) {
       setMessage(`Вы проиграли. ${pt} vs ${dt}.`);
     } else {
-      balance += bet; // push returns stake
+      balance += bet;
       setMessage(`Push. ${pt} vs ${dt}. Ставка возвращена.`);
     }
     endRound();
@@ -326,34 +329,50 @@
 
   function endRound() {
     inRound = false;
-    // reset bet back to reasonable if it exceeds balance
-    bet = Math.min(bet, Math.max(MIN_BET, balance || MIN_BET));
     clampBet();
-    if (betSlider) betSlider.value = String(bet);
 
-    setControls({ deal:true, hit:false, stand:false, dbl:false, betControls:true });
+    setControls({ deal:true, hit:false, stand:false, dbl:false, betAdjust:true });
     renderHands();
 
     if (balance <= 0) {
-      setMessage("Баланс 0. Нажмите New Game, чтобы начать заново.");
-      setControls({ deal:false, hit:false, stand:false, dbl:false, betControls:false });
+      setMessage("Баланс 0. Перезагрузите страницу или пополните баланс.");
+      setControls({ deal:false, hit:false, stand:false, dbl:false, betAdjust:false });
     }
   }
 
-  function newGame() {
-    shoe = buildShoe();
-    balance = 1000;
-    bet = 10;
-    if (betSlider) betSlider.value = String(bet);
-    dealerHand = [];
-    playerHand = [];
-    inRound = false;
-    dealerHoleHidden = true;
-    canDouble = false;
+  // ====== Bet Modal ======
+  function openBetModal() {
+    if (inRound) return;
+    if (!betModal) return;
 
-    setMessage("Выберите ставку и нажмите Deal.");
-    setControls({ deal:true, hit:false, stand:false, dbl:false, betControls:true });
+    pendingDelta = 0;
+    if (pickDeltaEl) pickDeltaEl.textContent = "+0";
+    if (carList) {
+      carList.querySelectorAll(".chip").forEach(b => b.classList.remove("active"));
+      // прокрутим к плюсовой зоне для удобства
+      carList.scrollLeft = Math.max(0, carList.scrollWidth / 2 - carList.clientWidth / 2);
+    }
+
+    betModal.hidden = false;
+  }
+
+  function closeBetModal() {
+    if (!betModal) return;
+    betModal.hidden = true;
+  }
+
+  function setPendingDelta(v) {
+    pendingDelta = v;
+    if (pickDeltaEl) pickDeltaEl.textContent = (pendingDelta >= 0 ? `+${pendingDelta}` : `${pendingDelta}`);
+  }
+
+  function applyDelta() {
+    if (inRound) return;
+    const next = bet + pendingDelta;
+    bet = next;
+    clampBet();
     renderHands();
+    closeBetModal();
   }
 
   // ====== Events ======
@@ -361,20 +380,42 @@
   hitBtn.addEventListener("click", hit);
   standBtn.addEventListener("click", stand);
   doubleBtn.addEventListener("click", doubleDown);
-  newBtn.addEventListener("click", newGame);
 
-  // Slider bet
-  if (betSlider) {
-    betSlider.addEventListener("input", () => {
-      if (inRound) return;
-      bet = parseInt(betSlider.value, 10);
-      clampBet();
-      betSlider.value = String(bet);
-      renderHands();
+  if (betAdjustBtn) betAdjustBtn.addEventListener("click", openBetModal);
+
+  if (betModal) {
+    // click outside sheet closes
+    betModal.addEventListener("click", (e) => {
+      if (e.target === betModal) closeBetModal();
     });
   }
-  });
+
+  if (betCancel) betCancel.addEventListener("click", closeBetModal);
+  if (betApply) betApply.addEventListener("click", applyDelta);
+
+  if (carList) {
+    carList.addEventListener("click", (e) => {
+      const btn = e.target.closest(".chip");
+      if (!btn) return;
+      const delta = parseInt(btn.dataset.delta, 10);
+
+      carList.querySelectorAll(".chip").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+
+      setPendingDelta(delta);
+      btn.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+    });
+  }
+
+  function scrollCarousel(dir) {
+    if (!carList) return;
+    carList.scrollBy({ left: dir * 220, behavior: "smooth" });
+  }
+  if (carLeft) carLeft.addEventListener("click", () => scrollCarousel(-1));
+  if (carRight) carRight.addEventListener("click", () => scrollCarousel(1));
 
   // ====== Init ======
-  newGame();
+  shoe = buildShoe();
+  setControls({ deal:true, hit:false, stand:false, dbl:false, betAdjust:true });
+  renderHands();
 })();

@@ -46,23 +46,20 @@
       </section>
 
       <section class="panel">
-        <div class="message" id="message">Выберите ставку и нажмите Deal.</div>
+        <div class="message" id="message">Нажмите Deal, чтобы начать.</div>
 
-        <div class="betSliderWrap">
-          <div class="betLine">
-            <div class="betLeft">Ставка</div>
-            <div class="betRight" id="bet">$10</div>
-          </div>
-
-          <input id="betSlider" class="betSlider" type="range" min="5" max="500" step="5" value="10" />
-
-          <div class="betTicks">
-            <span>$5</span><span>$50</span><span>$100</span><span>$250</span><span>$500</span>
-          </div>
+        <div class="miniInfo">
+          <div class="miniLeft">Текущая ставка</div>
+          <div class="miniRight" id="bet">$10</div>
         </div>
 
+        <!-- Tapbar -->
         <div class="tapbar">
-          <button class="tb btn" id="newBtn">New</button>
+          <!-- вместо New Game: кнопка изменения ставки -->
+          <button class="tb btn betAdjust" id="betAdjustBtn" type="button" aria-label="Изменить ставку">
+            <span class="pm">±</span>
+            <span class="pmText">Bet</span>
+          </button>
 
           <div class="dealDock">
             <div class="arc">
@@ -82,6 +79,53 @@
         </div>
       </section>
     </main>
+  </div>
+
+  <!-- Bet modal -->
+  <div class="modalOverlay" id="betModal" hidden>
+    <div class="modalSheet">
+      <div class="modalHead">
+        <div class="mhTitle">Изменить ставку</div>
+        <div class="mhSub">Выберите сумму и нажмите “Добавить”</div>
+      </div>
+
+      <div class="carouselWrap">
+        <button class="carNav btn" id="carLeft" type="button" aria-label="Влево">‹</button>
+
+        <div class="carousel" id="carList" role="listbox" aria-label="Карусель ставок">
+          <!-- минусы -->
+          <button class="chip" data-delta="-200" type="button">-200</button>
+          <button class="chip" data-delta="-100" type="button">-100</button>
+          <button class="chip" data-delta="-50" type="button">-50</button>
+          <button class="chip" data-delta="-25" type="button">-25</button>
+          <button class="chip" data-delta="-10" type="button">-10</button>
+          <button class="chip" data-delta="-5" type="button">-5</button>
+
+          <div class="sep">|</div>
+
+          <!-- плюсы -->
+          <button class="chip" data-delta="5" type="button">+5</button>
+          <button class="chip" data-delta="10" type="button">+10</button>
+          <button class="chip" data-delta="25" type="button">+25</button>
+          <button class="chip" data-delta="50" type="button">+50</button>
+          <button class="chip" data-delta="100" type="button">+100</button>
+          <button class="chip" data-delta="200" type="button">+200</button>
+        </div>
+
+        <button class="carNav btn" id="carRight" type="button" aria-label="Вправо">›</button>
+      </div>
+
+      <div class="modalPick">
+        <div class="pickLabel">Выбрано:</div>
+        <div class="pickValue" id="pickDelta">+0</div>
+        <div class="pickHint">Новая ставка покажется сразу после “Добавить”.</div>
+      </div>
+
+      <div class="modalActions">
+        <button class="btn ghost" id="betCancel" type="button">Отмена</button>
+        <button class="btn primary" id="betApply" type="button">Добавить</button>
+      </div>
+    </div>
   </div>
 
   <script src="./game.js"></script>

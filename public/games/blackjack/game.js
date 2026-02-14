@@ -383,12 +383,19 @@
 
   if (betAdjustBtn) betAdjustBtn.addEventListener("click", openBetModal);
 
-  if (betModal) {
-    // click outside sheet closes
-    betModal.addEventListener("click", (e) => {
-      if (e.target === betModal) closeBetModal();
-    });
-  }
+if (betModal) {
+  betModal.addEventListener("click", (e) => {
+    const sheet = betModal.querySelector(".modalSheet");
+    // если тап НЕ внутри модалки — закрываем
+    if (sheet && !sheet.contains(e.target)) closeBetModal();
+  });
+}
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") closeBetModal();
+});
+
+
 
   if (betCancel) betCancel.addEventListener("click", closeBetModal);
   if (betApply) betApply.addEventListener("click", applyDelta);

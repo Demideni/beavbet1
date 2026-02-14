@@ -1,3 +1,7 @@
+.modalOverlay { pointer-events: auto; }
+.modalSheet { pointer-events: auto; }
+
+
 :root{
   --bg:#0a0a0a;
   --panel:#121212;

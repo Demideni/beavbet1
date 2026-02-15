@@ -16,6 +16,26 @@ export type ArenaTournament = {
   created_at: number;
 };
 
+function parseServers(envVal: string | undefined): string[] {
+  if (!envVal) return [];
+  return envVal
+    .split(/[;\n]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function genPassword(len = 10) {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+  let out = "";
+  for (let i = 0; i < len; i++) out += alphabet[Math.floor(Math.random() * alphabet.length)];
+  return out;
+}
+
+function pickCs2Map() {
+  const maps = ["de_mirage", "de_inferno", "de_ancient", "de_nuke", "de_anubis", "de_overpass", "de_vertigo"];
+  return maps[Math.floor(Math.random() * maps.length)];
+}
+
 function shuffle<T>(arr: T[]) {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
@@ -100,14 +120,30 @@ export function listMatchesForTournament(tournamentId: string) {
     .all(tournamentId);
 }
 
-function createRoundMatches(tournamentId: string, round: number, players: string[]) {
+function createRoundMatches(tournamentId: string, round: number, players: string[], game: string) {
   const db = getDb();
   const now = Date.now();
+  const cs2Servers = parseServers(process.env.ARENA_CS2_SERVERS);
   const ins = db.prepare(
-    "INSERT INTO arena_matches (id, tournament_id, round, p1_user_id, p2_user_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'open', ?, ?)"
+    "INSERT INTO arena_matches (id, tournament_id, round, game, map, server, server_password, join_link, p1_ready, p2_ready, started_at, p1_user_id, p2_user_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, NULL, ?, ?, 'open', ?, ?)"
   );
   for (let i = 0; i < players.length; i += 2) {
-    ins.run(randomUUID(), tournamentId, round, players[i], players[i + 1], now, now);
+    let map: string | null = null;
+    let server: string | null = null;
+    let pass: string | null = null;
+    let joinLink: string | null = null;
+
+    if (game.toUpperCase() === "CS2") {
+      map = pickCs2Map();
+      pass = genPassword(10);
+      if (cs2Servers.length > 0) {
+        server = cs2Servers[(i / 2) % cs2Servers.length]; // simple rotation
+        // Steam connect deep link works best with a server address.
+        joinLink = `steam://connect/${server}`;
+      }
+    }
+
+    ins.run(randomUUID(), tournamentId, round, game, map, server, pass, joinLink, players[i], players[i + 1], now, now);
   }
 }
 
@@ -130,7 +166,7 @@ export function startTournamentIfFull(tournamentId: string) {
 
   // Round 1 bracket
   const shuffled = shuffle(users.map((u) => u.user_id));
-  createRoundMatches(tournamentId, 1, shuffled);
+  createRoundMatches(tournamentId, 1, shuffled, t.game);
 }
 
 function maybeAdvance(tournamentId: string, round: number) {
@@ -161,7 +197,42 @@ function maybeAdvance(tournamentId: string, round: number) {
     .get(tournamentId, round + 1) as { n: number };
   if ((nextExists?.n ?? 0) > 0) return;
 
-  createRoundMatches(tournamentId, round + 1, winners);
+  createRoundMatches(tournamentId, round + 1, winners, t.game);
+}
+
+export function setMatchReady(matchId: string, userId: string, ready: boolean) {
+  const db = getDb();
+  const m = db
+    .prepare(
+      "SELECT id, tournament_id, p1_user_id, p2_user_id, p1_ready, p2_ready, status FROM arena_matches WHERE id = ?"
+    )
+    .get(matchId) as any;
+  if (!m) return { ok: false as const, error: "NOT_FOUND" };
+  if (userId !== m.p1_user_id && userId !== m.p2_user_id) return { ok: false as const, error: "FORBIDDEN" };
+  if (m.status === "done") return { ok: true as const };
+
+  const now = Date.now();
+  const val = ready ? 1 : 0;
+  if (userId === m.p1_user_id) {
+    db.prepare("UPDATE arena_matches SET p1_ready = ?, updated_at = ? WHERE id = ?").run(val, now, matchId);
+  } else {
+    db.prepare("UPDATE arena_matches SET p2_ready = ?, updated_at = ? WHERE id = ?").run(val, now, matchId);
+  }
+
+  const updated = db
+    .prepare("SELECT p1_ready, p2_ready, status FROM arena_matches WHERE id = ?")
+    .get(matchId) as any;
+
+  // When both ready, mark match in_progress (MVP). We don't auto-resolve; users still report results.
+  if (updated?.p1_ready === 1 && updated?.p2_ready === 1 && updated?.status === "open") {
+    db.prepare("UPDATE arena_matches SET status = 'in_progress', started_at = COALESCE(started_at, ?), updated_at = ? WHERE id = ?").run(
+      now,
+      now,
+      matchId
+    );
+    return { ok: true as const, status: "in_progress" as const, bothReady: true };
+  }
+  return { ok: true as const, status: updated?.status as string, bothReady: updated?.p1_ready === 1 && updated?.p2_ready === 1 };
 }
 
 function finishTournament(tournamentId: string, winnerUserId: string) {

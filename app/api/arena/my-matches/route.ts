@@ -10,6 +10,9 @@ export async function GET() {
   const rows = db
     .prepare(
       `SELECT m.id, m.tournament_id, m.round, m.status, m.winner_user_id,
+              m.p1_user_id, m.p2_user_id,
+              m.game, m.map, m.server, m.server_password, m.join_link,
+              m.p1_ready, m.p2_ready, m.started_at,
               t.title, t.game, t.entry_fee, t.currency,
               p1.nickname as p1_nick,
               p2.nickname as p2_nick

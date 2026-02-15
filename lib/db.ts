@@ -222,10 +222,18 @@ function ensureSchema(db: any) {
       id TEXT PRIMARY KEY,
       tournament_id TEXT NOT NULL REFERENCES arena_tournaments(id) ON DELETE CASCADE,
       round INTEGER NOT NULL,
+      game TEXT,
+      map TEXT,
+      server TEXT,
+      server_password TEXT,
+      join_link TEXT,
+      p1_ready INTEGER NOT NULL DEFAULT 0,
+      p2_ready INTEGER NOT NULL DEFAULT 0,
+      started_at INTEGER,
       p1_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       p2_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       winner_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
-      status TEXT NOT NULL DEFAULT 'open', -- open | reported | pending_review | done
+      status TEXT NOT NULL DEFAULT 'open', -- open | in_progress | reported | pending_review | done
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
@@ -241,6 +249,16 @@ function ensureSchema(db: any) {
     );
     CREATE INDEX IF NOT EXISTS idx_arena_reports_match ON arena_match_reports(match_id);
   `);
+
+  // Arena matches: add newer columns for CS2 (and other games) matchmaking/launch info.
+  ensureColumn(db, "arena_matches", "game", "game TEXT");
+  ensureColumn(db, "arena_matches", "map", "map TEXT");
+  ensureColumn(db, "arena_matches", "server", "server TEXT");
+  ensureColumn(db, "arena_matches", "server_password", "server_password TEXT");
+  ensureColumn(db, "arena_matches", "join_link", "join_link TEXT");
+  ensureColumn(db, "arena_matches", "p1_ready", "p1_ready INTEGER NOT NULL DEFAULT 0");
+  ensureColumn(db, "arena_matches", "p2_ready", "p2_ready INTEGER NOT NULL DEFAULT 0");
+  ensureColumn(db, "arena_matches", "started_at", "started_at INTEGER");
 
   // Transactions: Passimpay / providers support
   ensureColumn(db, "transactions", "provider", "provider TEXT");

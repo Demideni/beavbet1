@@ -15,5 +15,6 @@ export async function POST(req: Request) {
 
   const r = reportMatchResult(matchId, user.id, result as any);
   if (!r.ok) return NextResponse.json(r, { status: 400 });
-  return NextResponse.json({ ok: true, ...r });
+  // r already contains ok=true on success; spreading would duplicate the key and fail type-check.
+  return NextResponse.json(r);
 }

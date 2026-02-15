@@ -9,7 +9,7 @@ import DepositBoostToast from "@/components/DepositBoostToast";
 
 
 export const metadata: Metadata = {
-  title: "BeavBet — Crypto Casino",
+  title: "BeavBet — Crypto Only",
   description: "BeavBet lobby (MVP UI).",
 };
 

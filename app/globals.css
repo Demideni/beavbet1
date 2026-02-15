@@ -60,3 +60,28 @@ body {
 .tab-bounce {
   animation: tabBounce 260ms cubic-bezier(0.2, 0.9, 0.2, 1);
 }
+
+/* Desktop-only tile hover (lift + glow) */
+@media (min-width: 768px) {
+  .tile-hover {
+    transform: translateY(0);
+    transition: transform 180ms ease, box-shadow 180ms ease, filter 180ms ease;
+  }
+
+  .tile-hover:hover {
+    transform: translateY(-6px);
+    box-shadow:
+      0 18px 60px rgba(0,0,0,0.55),
+      0 0 0 1px rgba(255,255,255,0.10),
+      0 0 44px rgba(255,42,79,0.22);
+    filter: brightness(1.03);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tile-hover,
+  .tile-hover:hover {
+    transition: none;
+    transform: none;
+  }
+}

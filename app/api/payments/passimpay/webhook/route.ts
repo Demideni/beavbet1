@@ -2,6 +2,28 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { getDb } from "@/lib/db";
 
+/**
+ * Canonical JSON stringify with sorted keys (recursive),
+ * so it matches "sortedBodyJson" from PassimPay docs.
+ */
+function canonicalize(value: any): any {
+  if (Array.isArray(value)) return value.map(canonicalize);
+
+  if (value && typeof value === "object" && value.constructor === Object) {
+    const out: Record<string, any> = {};
+    for (const key of Object.keys(value).sort()) {
+      out[key] = canonicalize(value[key]);
+    }
+    return out;
+  }
+
+  return value;
+}
+
+function canonicalJsonString(body: any): string {
+  return JSON.stringify(canonicalize(body));
+}
+
 function safeEq(a: string, b: string) {
   const A = Buffer.from(a);
   const B = Buffer.from(b);
@@ -10,35 +32,54 @@ function safeEq(a: string, b: string) {
 }
 
 export async function POST(req: NextRequest) {
-  const buf = Buffer.from(await req.arrayBuffer());
-  const raw = buf.toString("utf8");
+  const raw = await req.text();
 
+  let body: any;
+  try {
+    body = JSON.parse(raw);
+  } catch {
+    console.log("[passimpay] invalid json");
+    return NextResponse.json({ ok: false }, { status: 400 });
+  }
+
+  // ---- SIGNATURE VERIFY (PassimPay 방식) ----
   const signatureHeader = (req.headers.get("x-signature") || "").trim();
+
+  // IMPORTANT: PassimPay secret = API key из кабинета (как тебе сказали)
   const secret = process.env.PASSIMPAY_API_KEY || "";
+  const platformId = process.env.PASSIMPAY_PLATFORM_ID || ""; // добавь в Render env
 
-  if (!secret) {
-    console.log("[passimpay] missing PASSIMPAY_API_KEY");
-    return NextResponse.json({ ok: false }, { status: 500 });
-  }
-
-  // PassimPay signs EXACT raw body using HMAC-SHA256 and returns HEX
-  const expected = crypto
-    .createHmac("sha256", secret)
-    .update(raw, "utf8")
-    .digest("hex")
-    .toLowerCase();
-
-  const received = signatureHeader.replace(/^sha256=/i, "").toLowerCase();
-
-  if (!safeEq(received, expected)) {
-    console.log("[passimpay] bad signature", {
-      received,
-      expected,
+  if (!secret || !platformId) {
+    // чтобы ты сразу видел проблему по env (но не ломал прод)
+    console.log("[passimpay] missing env", {
+      hasSecret: !!secret,
+      hasPlatformId: !!platformId,
     });
-    return NextResponse.json({ ok: false }, { status: 401 });
   }
 
-  const body = JSON.parse(raw);
+  if (signatureHeader) {
+    const sortedBodyJson = canonicalJsonString(body);
+    const signatureContract = `${platformId}:${sortedBodyJson}`;
+
+    const expected = crypto
+      .createHmac("sha256", secret)
+      .update(signatureContract, "utf8")
+      .digest("hex");
+
+    const ok = safeEq(signatureHeader.toLowerCase(), expected.toLowerCase());
+
+    if (!ok) {
+      console.log("[passimpay] bad signature", {
+        received: signatureHeader,
+        expected,
+        platformId,
+      });
+      return NextResponse.json({ ok: false }, { status: 401 });
+    }
+  }
+  // ------------------------------------------
+
+  const status = String(body.status ?? "").toLowerCase();
   console.log("[passimpay] webhook body:", body);
 
   const possibleIds = [
@@ -57,8 +98,8 @@ export async function POST(req: NextRequest) {
   }
 
   const db = getDb();
-  let tx: any = null;
 
+  let tx: any = null;
   for (const id of possibleIds) {
     tx = db
       .prepare(
@@ -78,28 +119,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
-  const type = String(body.type ?? "").toLowerCase();
-  const confirmations = Number(body.confirmations ?? 0);
-
-  // PassimPay sends deposit webhook on confirmations
   const isPaid =
-    type === "deposit" &&
-    confirmations >= 1;
+    status === "paid" || status === "success" || status === "confirmed";
 
   if (!isPaid) {
-    console.log("[passimpay] not confirmed yet:", { type, confirmations });
+    console.log("[passimpay] not paid yet:", status);
     return NextResponse.json({ ok: true });
   }
 
   const amount = Number(tx.amount);
 
-  db.prepare(
-    "UPDATE wallets SET balance = balance + ? WHERE user_id = ?"
-  ).run(amount, tx.user_id);
+  db.prepare("UPDATE wallets SET balance = balance + ? WHERE user_id = ?").run(
+    amount,
+    tx.user_id
+  );
 
-  db.prepare(
-    "UPDATE transactions SET status = 'done' WHERE id = ?"
-  ).run(tx.id);
+  db.prepare("UPDATE transactions SET status = 'done' WHERE id = ?").run(tx.id);
 
   console.log("[passimpay] credited:", amount);
 

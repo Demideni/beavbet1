@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 
 /**
  * Passimpay signature (per docs):
- * payload = platformId + ";" + JSON(body) + ";" + secret
+ * payload = platformId + ";" + JSON(body) + ";" + secret + ";"
  * signature = HMAC-SHA256(secret, payload) -> hex
  *
  * IMPORTANT:
@@ -10,12 +10,12 @@ import crypto from "node:crypto";
  * because re-serializing JSON can change key order/whitespace and break signature.
  */
 export function passimpaySignature(platformId: string, body: unknown, secret: string) {
-  const payload = platformId + ";" + JSON.stringify(body) + ";" + secret;
+  const payload = platformId + ";" + JSON.stringify(body) + ";" + secret + ";";
   return crypto.createHmac("sha256", secret).update(payload).digest("hex");
 }
 
 export function passimpaySignatureFromRaw(platformId: string, rawJson: string, secret: string) {
-  const payload = platformId + ";" + rawJson + ";" + secret;
+  const payload = platformId + ";" + rawJson + ";" + secret + ";";
   return crypto.createHmac("sha256", secret).update(payload).digest("hex");
 }
 

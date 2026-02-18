@@ -10,7 +10,13 @@ function safeEq(a: string, b: string) {
 }
 
 function normalizeSig(sigRaw: string) {
-  return sigRaw.replace(/^sha256=/i, "").trim().toLowerCase();
+  // Some providers prefix signatures with "sha256=".
+  // Do NOT lowercase here because signature may be base64 (case-sensitive).
+  return sigRaw.replace(/^sha256=/i, "").trim();
+}
+
+function isHex64(s: string) {
+  return /^[0-9a-fA-F]{64}$/.test(s);
 }
 
 export async function POST(req: NextRequest) {
@@ -34,9 +40,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false }, { status: 500 });
   }
 
-  // ✅ как сказал их интегратор:
-  // `${platformId}:${rawJson}:${secret}`
-  const signatureContract = `${platformId}:${rawJson}:${secret}`;
+  // ✅ как сказал их интегратор (из поддержки):
+  // `${platformId};${rawJson};${secret};`
+  // (обрати внимание на `;` и на завершающий `;`)
+  const signatureContract = `${platformId};${rawJson};${secret};`;
 
   // HMAC-SHA256 (key=secret, data=signatureContract)
   const expectedHex = crypto
@@ -49,15 +56,17 @@ export async function POST(req: NextRequest) {
     .createHmac("sha256", secret)
     .update(signatureContract, "utf8")
     .digest("base64")
-    .trim()
-    .toLowerCase();
+    .trim();
 
   if (!received) {
     console.log("[passimpay] missing signature header");
     return NextResponse.json({ ok: false }, { status: 401 });
   }
 
-  const ok = safeEq(received, expectedHex) || safeEq(received, expectedB64);
+  const receivedHex = isHex64(received) ? received.toLowerCase() : received;
+  const ok =
+    (isHex64(receivedHex) && safeEq(receivedHex, expectedHex)) ||
+    safeEq(received, expectedB64);
   if (!ok) {
     console.log("[passimpay] bad signature", {
       received,
@@ -124,8 +133,9 @@ export async function POST(req: NextRequest) {
 
   const amount = Number(tx.amount);
 
-  db.prepare("UPDATE wallets SET balance = balance + ? WHERE user_id = ?")
-    .run(amount, tx.user_id);
+  // Credit exactly the wallet currency of the transaction
+  db.prepare("UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND currency = ?")
+    .run(amount, tx.user_id, tx.currency);
 
   db.prepare("UPDATE transactions SET status = 'done' WHERE id = ?")
     .run(tx.id);

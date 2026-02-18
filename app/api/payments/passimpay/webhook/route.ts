@@ -12,7 +12,7 @@ function safeEq(a: string, b: string) {
 function normalizeSig(sigRaw: string) {
   // Some providers prefix signatures with "sha256=".
   // Do NOT lowercase here because signature may be base64 (case-sensitive).
-  return sigRaw.replace(/^sha256=/i, "").trim();
+  return (sigRaw || "").replace(/^sha256=/i, "").trim();
 }
 
 function isHex64(s: string) {
@@ -20,19 +20,28 @@ function isHex64(s: string) {
 }
 
 export async function POST(req: NextRequest) {
-  // raw bytes (важно)
-  const buf = Buffer.from(await req.arrayBuffer());
-  const rawJson = buf.toString("utf8");
+  // 1) читаем raw body ровно один раз
+  const raw = await req.text();
 
-  // header: поддерживаем оба варианта имени
-  const sigHeader =
-    (req.headers.get("x-signature") ||
-      req.headers.get("X-Signature") ||
-      "").trim();
+  // 2) signature header (поддерживаем разные имена)
+  const sigHeader = (
+    req.headers.get("x-signature") ||
+    req.headers.get("X-Signature") ||
+    req.headers.get("signature") ||
+    req.headers.get("Signature") ||
+    ""
+  ).trim();
 
   const received = normalizeSig(sigHeader);
 
-  const secret = (process.env.PASSIMPAY_API_KEY || "").trim();
+  // 3) PassimPay пишет, что других ключей нет — используем API KEY как secret.
+  // Оставляем fallback на PASSIMPAY_SECRET на будущее.
+  const secret = (
+    process.env.PASSIMPAY_SECRET ||
+    process.env.PASSIMPAY_API_KEY ||
+    ""
+  ).trim();
+
   const platformId = (process.env.PASSIMPAY_PLATFORM_ID || "").trim();
 
   if (!secret || !platformId) {
@@ -40,55 +49,62 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false }, { status: 500 });
   }
 
-  // ✅ как сказал их интегратор (из поддержки):
-  // `${platformId};${rawJson};${secret};`
-  // (обрати внимание на `;` и на завершающий `;`)
-  const signatureContract = `${platformId};${rawJson};${secret};`;
+  if (!received) {
+    console.log("[passimpay] missing signature header");
+    return NextResponse.json({ ok: false }, { status: 401 });
+  }
 
-  // HMAC-SHA256 (key=secret, data=signatureContract)
+  // 4) Нормализуем JSON БЕЗ сортировки ключей.
+  // Это убирает пробелы/переносы и приводит к типичному формату подписи провайдера.
+  // (Сортировку ключей мы НЕ делаем.)
+  let body: any = null;
+  let jsonString = raw;
+  try {
+    body = JSON.parse(raw);
+    jsonString = JSON.stringify(body);
+  } catch {
+    // Если пришло не JSON — подписываем raw
+  }
+
+  // По ТЗ поддержки: `${platformId};${json};${secret};`
+  const signatureContract = `${platformId};${jsonString};${secret};`;
+
+  // В логах PassimPay ты видишь HEX (64 символа), поэтому валидируем по hex.
   const expectedHex = crypto
     .createHmac("sha256", secret)
     .update(signatureContract, "utf8")
     .digest("hex")
     .toLowerCase();
 
-  const expectedB64 = crypto
-    .createHmac("sha256", secret)
-    .update(signatureContract, "utf8")
-    .digest("base64")
-    .trim();
-
-  if (!received) {
-    console.log("[passimpay] missing signature header");
-    return NextResponse.json({ ok: false }, { status: 401 });
-  }
-
   const receivedHex = isHex64(received) ? received.toLowerCase() : received;
-  const ok =
-    (isHex64(receivedHex) && safeEq(receivedHex, expectedHex)) ||
-    safeEq(received, expectedB64);
+  const ok = isHex64(receivedHex) && safeEq(receivedHex, expectedHex);
+
   if (!ok) {
     console.log("[passimpay] bad signature", {
       received,
       expectedHex,
-      expectedB64,
       platformId,
+      // Включай на 1 запрос, если нужно:
+      // signatureContract,
+      // raw,
+      // jsonString,
     });
     return NextResponse.json({ ok: false }, { status: 401 });
   }
 
-  // parse after signature OK
-  let body: any;
-  try {
-    body = JSON.parse(rawJson);
-  } catch {
-    console.log("[passimpay] invalid json");
-    return NextResponse.json({ ok: false }, { status: 400 });
+  // 5) Если body не распарсился выше — пробуем ещё раз (на случай не-JSON подписи)
+  if (body == null) {
+    try {
+      body = JSON.parse(raw);
+    } catch {
+      console.log("[passimpay] invalid json");
+      return NextResponse.json({ ok: false }, { status: 400 });
+    }
   }
 
   console.log("[passimpay] webhook body:", body);
 
-  // --- твоя логика как была ---
+  // --- твоя логика ---
   const status = String(body.status ?? "").toLowerCase();
 
   const possibleIds = [
@@ -125,7 +141,8 @@ export async function POST(req: NextRequest) {
 
   if (tx.status === "done") return NextResponse.json({ ok: true });
 
-  const isPaid = status === "paid" || status === "success" || status === "confirmed";
+  const isPaid =
+    status === "paid" || status === "success" || status === "confirmed";
   if (!isPaid) {
     console.log("[passimpay] not paid yet:", status);
     return NextResponse.json({ ok: true });
@@ -134,11 +151,11 @@ export async function POST(req: NextRequest) {
   const amount = Number(tx.amount);
 
   // Credit exactly the wallet currency of the transaction
-  db.prepare("UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND currency = ?")
-    .run(amount, tx.user_id, tx.currency);
+  db.prepare(
+    "UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND currency = ?"
+  ).run(amount, tx.user_id, tx.currency);
 
-  db.prepare("UPDATE transactions SET status = 'done' WHERE id = ?")
-    .run(tx.id);
+  db.prepare("UPDATE transactions SET status = 'done' WHERE id = ?").run(tx.id);
 
   console.log("[passimpay] credited:", amount);
   return NextResponse.json({ ok: true });

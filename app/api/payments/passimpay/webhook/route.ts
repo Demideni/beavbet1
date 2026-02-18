@@ -2,26 +2,37 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { getDb } from "@/lib/db";
 
+function safeEq(a: string, b: string) {
+  const A = Buffer.from(a);
+  const B = Buffer.from(b);
+  if (A.length !== B.length) return false;
+  return crypto.timingSafeEqual(A, B);
+}
+
 export async function POST(req: NextRequest) {
-  const raw = await req.text();
+  const buf = Buffer.from(await req.arrayBuffer()); // <-- важно: байты, а не текст
+  const raw = buf.toString("utf8");
 
   // Проверка подписи
-  const signature = req.headers.get("x-signature");
+  const signatureHeader = req.headers.get("x-signature") || "";
+  const sig = signatureHeader.replace(/^sha256=/i, "").trim().toLowerCase();
+
   const secret = process.env.PASSIMPAY_API_KEY || "";
 
-  if (signature) {
-    const expected = crypto
-      .createHmac("sha256", secret)
-      .update(raw)
-      .digest("hex");
+  // Считаем оба популярных варианта (hex и base64)
+  const hmacHex = crypto.createHmac("sha256", secret).update(buf).digest("hex").toLowerCase();
+  const hmacB64 = crypto.createHmac("sha256", secret).update(buf).digest("base64").trim().toLowerCase();
 
-    if (expected !== signature) {
-      console.log("[passimpay] bad signature");
+  if (sig) {
+    const ok = safeEq(sig, hmacHex) || safeEq(sig, hmacB64);
+    if (!ok) {
+      console.log("[passimpay] bad signature", { signatureHeader, hmacHex, hmacB64 });
       return NextResponse.json({ ok: false }, { status: 401 });
     }
   }
 
   const body = JSON.parse(raw);
+
 
   const status = String(body.status ?? "").toLowerCase();
 

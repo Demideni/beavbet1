@@ -71,7 +71,6 @@ export async function POST(req: Request) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-platform-id": platformId,
       "x-signature": signature,
     },
     body: bodyStr,

@@ -65,28 +65,55 @@ export async function POST(req: Request) {
     // ===== подпись валидна =====
     const body = JSON.parse(bodyStr);
 
+    // ✅ ЛОГ тела (можно убрать позже)
     console.log("[passimpay] body:", body);
-    
+
     const db = getDb();
 
+    // ✅ PassimPay присылает orderId / paymentId / txhash
     const externalId =
+      body.orderId ||
+      body.order_id ||
+      body.paymentId ||
+      body.payment_id ||
+      body.txhash ||
+      body.txHash ||
       body.transaction_id ||
       body.transactionId ||
       body.id ||
       body.tx_id ||
       body.txId;
 
-    if (!externalId) {
+    if (externalId == null || externalId === "") {
       console.log("[passimpay] no transaction id in body");
       return NextResponse.json({ ok: true });
     }
 
-    const tx: any = db
+    // 1) пробуем найти транзакцию по externalId
+    let tx: any = db
       .prepare("SELECT * FROM transactions WHERE external_id = ?")
-      .get(externalId);
+      .get(String(externalId));
+
+    // 2) fallback: иногда у тебя мог сохраниться paymentId
+    if (!tx && body.paymentId != null) {
+      tx = db
+        .prepare("SELECT * FROM transactions WHERE external_id = ?")
+        .get(String(body.paymentId));
+    }
+
+    // 3) fallback: иногда мог сохраниться txhash
+    if (!tx && body.txhash) {
+      tx = db
+        .prepare("SELECT * FROM transactions WHERE external_id = ?")
+        .get(String(body.txhash));
+    }
 
     if (!tx) {
-      console.log("[passimpay] tx not found:", externalId);
+      console.log("[passimpay] tx not found:", {
+        externalId: String(externalId),
+        paymentId: body.paymentId != null ? String(body.paymentId) : null,
+        txhash: body.txhash ? String(body.txhash) : null,
+      });
       return NextResponse.json({ ok: true });
     }
 

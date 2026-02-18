@@ -33,20 +33,51 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "bad_signature" }, { status: 401 });
   }
 
-  // We expect payment webhooks. Ignore other types safely.
-  const eventType = body.type;
-  if (eventType !== "payment") return NextResponse.json({ ok: true });
+  // PassimPay may send different "type" values depending on product/config.
+  // We'll log and try to resolve the transaction by multiple identifiers.
+  const eventType = String(body.type ?? "").toLowerCase();
 
-  const orderId = body.orderId || body.order_id;
-  if (!orderId) return NextResponse.json({ ok: true });
+  // Collect possible identifiers PassimPay might send
+  const ids = new Set<string>();
+  const add = (v: any) => {
+    if (!v) return;
+    const s = String(v).trim();
+    if (s) ids.add(s);
+  };
+
+  add(body.orderId); add(body.order_id);
+  add(body.paymentId); add(body.payment_id);
+  add(body.invoiceId); add(body.invoice_id);
+  add(body.id); add(body.transactionId); add(body.transaction_id);
+  add(body.providerRef); add(body.provider_ref);
+
+  // Render logs don't show request bodies unless we log them ourselves.
+  // IMPORTANT: do not log secrets; logging webhook payload is OK for debugging.
+  console.log("[passimpay:webhook] type=", eventType, "status=", status, "ids=", Array.from(ids));
+  console.log("[passimpay:webhook] raw=", raw);
+
+  if (ids.size === 0) {
+    console.log("[passimpay:webhook] no identifiers in payload; ack");
+    return NextResponse.json({ ok: true });
+  }
 
   const db = getDb();
-  const tx = db
-    .prepare(`SELECT * FROM transactions WHERE order_id = ? AND provider = 'passimpay' LIMIT 1`)
-    .get(orderId) as any;
+
+  // Try to find tx by order_id first, then by provider_ref
+  let tx: any = null;
+  for (const id of ids) {
+    tx =
+      (db
+        .prepare(`SELECT * FROM transactions WHERE order_id = ? AND provider = 'passimpay' LIMIT 1`)
+        .get(id) as any) ||
+      (db
+        .prepare(`SELECT * FROM transactions WHERE provider_ref = ? AND provider = 'passimpay' LIMIT 1`)
+        .get(id) as any);
+    if (tx) break;
+  }
 
   if (!tx) {
-    // Unknown orderId - still ack to avoid retries storm.
+    console.log("[passimpay:webhook] transaction not found; ack");
     return NextResponse.json({ ok: true });
   }
 
@@ -55,7 +86,6 @@ export async function POST(req: Request) {
 
   // Some providers send confirmations, some send status only.
   const confirmations = Number(body.confirmations ?? 0);
-  const status = String(body.status ?? "").toLowerCase();
   const minConfirmations = 1;
 
   const paidAmount = Number(body.amountReceive ?? body.amount ?? tx.amount);
@@ -79,6 +109,7 @@ export async function POST(req: Request) {
   // If webhook uses status model - credit on paid/success.
   const isPaidByStatus = status === "paid" || status === "success" || status === "completed";
   if (!isPaidByStatus && confirmations < minConfirmations) {
+    console.log("[passimpay:webhook] tx", tx.id, "still not paid. status=", status, "confirmations=", confirmations);
     return NextResponse.json({ ok: true });
   }
 
@@ -88,6 +119,8 @@ export async function POST(req: Request) {
     `INSERT OR IGNORE INTO wallets (id, user_id, currency, balance, created_at)
      VALUES (?, ?, ?, 0, ?)`
   ).run(randomUUID(), tx.user_id, tx.currency, now);
+
+  console.log("[passimpay:webhook] crediting tx", tx.id, "user", tx.user_id, "amount", paidAmount, tx.currency);
 
   // Credit wallet once
   db.prepare(`UPDATE wallets SET balance = balance + ? WHERE user_id = ? AND currency = ?`).run(

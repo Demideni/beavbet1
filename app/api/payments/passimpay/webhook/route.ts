@@ -131,17 +131,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true });
     }
 
-    const status = (body.status || "").toString().toLowerCase();
-    const isPaid =
-      status === "paid" ||
-      status === "success" ||
-      status === "confirmed" ||
-      status === "done";
+// PassimPay не присылает status.
+// Считаем оплатой если есть txhash и amountReceive > 0
 
-    if (!isPaid) {
-      console.log("[passimpay] not paid yet:", status);
-      return NextResponse.json({ ok: true });
-    }
+const hasTx = !!body.txhash;
+const receivedAmount = Number(body.amountReceive || 0);
+
+if (!hasTx || receivedAmount <= 0) {
+  console.log("[passimpay] not confirmed yet");
+  return NextResponse.json({ ok: true });
+}
+
 
     const amount = Number(tx.amount);
 

@@ -71,13 +71,15 @@ export async function POST(req: Request) {
     const db = getDb();
 
     // ✅ PassimPay присылает orderId / paymentId / txhash
+    const orderId = body.orderId || body.order_id || null;
+    const paymentId = body.paymentId != null ? String(body.paymentId) : null;
+    const txhash = body.txhash || body.txHash || null;
+
+    // externalId — то, что будем использовать как главный ключ сопоставления
     const externalId =
-      body.orderId ||
-      body.order_id ||
-      body.paymentId ||
-      body.payment_id ||
-      body.txhash ||
-      body.txHash ||
+      orderId ||
+      paymentId ||
+      txhash ||
       body.transaction_id ||
       body.transactionId ||
       body.id ||
@@ -89,30 +91,38 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true });
     }
 
-    // 1) пробуем найти транзакцию по externalId
+    // 1) пробуем найти транзакцию по external_id
     let tx: any = db
       .prepare("SELECT * FROM transactions WHERE external_id = ?")
       .get(String(externalId));
 
-    // 2) fallback: иногда у тебя мог сохраниться paymentId
-    if (!tx && body.paymentId != null) {
+    // 2) пробуем найти по order_id (самое важное — это orderId)
+    if (!tx && orderId) {
       tx = db
-        .prepare("SELECT * FROM transactions WHERE external_id = ?")
-        .get(String(body.paymentId));
+        .prepare("SELECT * FROM transactions WHERE order_id = ?")
+        .get(String(orderId));
     }
 
-    // 3) fallback: иногда мог сохраниться txhash
-    if (!tx && body.txhash) {
+    // 3) пробуем найти по provider_ref (часто туда кладут txhash)
+    if (!tx && txhash) {
       tx = db
-        .prepare("SELECT * FROM transactions WHERE external_id = ?")
-        .get(String(body.txhash));
+        .prepare("SELECT * FROM transactions WHERE provider_ref = ?")
+        .get(String(txhash));
+    }
+
+    // 4) пробуем найти по provider_ref = paymentId (на всякий случай)
+    if (!tx && paymentId) {
+      tx = db
+        .prepare("SELECT * FROM transactions WHERE provider_ref = ?")
+        .get(String(paymentId));
     }
 
     if (!tx) {
       console.log("[passimpay] tx not found:", {
         externalId: String(externalId),
-        paymentId: body.paymentId != null ? String(body.paymentId) : null,
-        txhash: body.txhash ? String(body.txhash) : null,
+        orderId: orderId ? String(orderId) : null,
+        paymentId,
+        txhash: txhash ? String(txhash) : null,
       });
       return NextResponse.json({ ok: true });
     }

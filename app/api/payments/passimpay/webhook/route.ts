@@ -64,6 +64,9 @@ export async function POST(req: Request) {
 
     // ===== подпись валидна =====
     const body = JSON.parse(bodyStr);
+
+    console.log("[passimpay] body:", body);
+    
     const db = getDb();
 
     const externalId =

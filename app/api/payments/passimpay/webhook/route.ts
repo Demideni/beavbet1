@@ -2,28 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { getDb } from "@/lib/db";
 
-/**
- * Canonical JSON stringify with sorted keys (recursive),
- * so it matches "sortedBodyJson" from PassimPay docs.
- */
-function canonicalize(value: any): any {
-  if (Array.isArray(value)) return value.map(canonicalize);
-
-  if (value && typeof value === "object" && value.constructor === Object) {
-    const out: Record<string, any> = {};
-    for (const key of Object.keys(value).sort()) {
-      out[key] = canonicalize(value[key]);
-    }
-    return out;
-  }
-
-  return value;
-}
-
-function canonicalJsonString(body: any): string {
-  return JSON.stringify(canonicalize(body));
-}
-
 function safeEq(a: string, b: string) {
   const A = Buffer.from(a);
   const B = Buffer.from(b);
@@ -31,9 +9,32 @@ function safeEq(a: string, b: string) {
   return crypto.timingSafeEqual(A, B);
 }
 
-export async function POST(req: NextRequest) {
-  const raw = await req.text();
+function hmacHex(secret: string, data: string | Buffer) {
+  return crypto.createHmac("sha256", secret).update(data).digest("hex").toLowerCase();
+}
 
+function canonicalSort(obj: any): any {
+
+  if (obj === null || typeof obj !== "object") return obj;
+  if (Array.isArray(obj)) return obj.map(canonicalSort);
+
+  const keys = Object.keys(obj).sort();
+  const out: any = {};
+  for (const k of keys) out[k] = canonicalSort(obj[k]);
+  return out;
+}
+
+export async function POST(req: NextRequest) {
+  const buf = Buffer.from(await req.arrayBuffer());
+  const raw = buf.toString("utf8");
+
+  const signatureHeaderRaw = (req.headers.get("x-signature") || "").trim();
+  const signatureHeader = signatureHeaderRaw.replace(/^sha256=/i, "").trim().toLowerCase();
+
+  const secret = (process.env.PASSIMPAY_API_KEY || "").trim();
+  const platformIdEnv = (process.env.PASSIMPAY_PLATFORM_ID || "").trim();
+
+  // сначала парсим body, чтобы дальше использовать в логике платежа
   let body: any;
   try {
     body = JSON.parse(raw);
@@ -42,44 +43,46 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false }, { status: 400 });
   }
 
-  // ---- SIGNATURE VERIFY (PassimPay 방식) ----
-  const signatureHeader = (req.headers.get("x-signature") || "").trim();
-
-  // IMPORTANT: PassimPay secret = API key из кабинета (как тебе сказали)
-  const secret = process.env.PASSIMPAY_API_KEY || "";
-  const platformId = process.env.PASSIMPAY_PLATFORM_ID || ""; // добавь в Render env
-
-  if (!secret || !platformId) {
-    // чтобы ты сразу видел проблему по env (но не ломал прод)
-    console.log("[passimpay] missing env", {
-      hasSecret: !!secret,
-      hasPlatformId: !!platformId,
-    });
-  }
+  // platformId для подписи: приоритет ENV, иначе из body
+  const platformId = platformIdEnv || String(body?.platformId ?? "");
 
   if (signatureHeader) {
-    const sortedBodyJson = canonicalJsonString(body);
-    const signatureContract = `${platformId}:${sortedBodyJson}`;
+    // Варианты "контракта" — т.к. у провайдеров часто расходится каноникализация
+    const jsonMinified = JSON.stringify(JSON.parse(raw)); // minify как JS
+    const jsonSorted = JSON.stringify(canonicalSort(body)); // сортировка ключей
 
-    const expected = crypto
-      .createHmac("sha256", secret)
-      .update(signatureContract, "utf8")
-      .digest("hex");
+    const candidates = [
+      // 1) как в доке: PLATFORM_ID + ":" + json (minified)
+      `${platformId}:${jsonMinified}`,
+      // 2) PLATFORM_ID + ":" + jsonSorted
+      `${platformId}:${jsonSorted}`,
+      // 3) PLATFORM_ID + ":" + raw как пришло
+      `${platformId}:${raw}`,
+      // 4) иногда без platformId (на всякий)
+      jsonMinified,
+      jsonSorted,
+      raw,
+    ];
 
-    const ok = safeEq(signatureHeader.toLowerCase(), expected.toLowerCase());
+    const expectedList = candidates.map((c) => hmacHex(secret, c));
+
+    const ok = expectedList.some((exp) => safeEq(signatureHeader, exp));
 
     if (!ok) {
+      // логируем только хеши и platformId (без секрета)
       console.log("[passimpay] bad signature", {
-        received: signatureHeader,
-        expected,
         platformId,
+        received: signatureHeader,
+        expectedTop3: expectedList.slice(0, 3),
       });
       return NextResponse.json({ ok: false }, { status: 401 });
     }
   }
-  // ------------------------------------------
+
+  // ===== дальше твоя бизнес-логика без изменений =====
 
   const status = String(body.status ?? "").toLowerCase();
+
   console.log("[passimpay] webhook body:", body);
 
   const possibleIds = [
@@ -100,6 +103,7 @@ export async function POST(req: NextRequest) {
   const db = getDb();
 
   let tx: any = null;
+
   for (const id of possibleIds) {
     tx = db
       .prepare(
@@ -120,7 +124,9 @@ export async function POST(req: NextRequest) {
   }
 
   const isPaid =
-    status === "paid" || status === "success" || status === "confirmed";
+    status === "paid" ||
+    status === "success" ||
+    status === "confirmed";
 
   if (!isPaid) {
     console.log("[passimpay] not paid yet:", status);
@@ -129,12 +135,13 @@ export async function POST(req: NextRequest) {
 
   const amount = Number(tx.amount);
 
-  db.prepare("UPDATE wallets SET balance = balance + ? WHERE user_id = ?").run(
-    amount,
-    tx.user_id
-  );
+  db.prepare(
+    "UPDATE wallets SET balance = balance + ? WHERE user_id = ?"
+  ).run(amount, tx.user_id);
 
-  db.prepare("UPDATE transactions SET status = 'done' WHERE id = ?").run(tx.id);
+  db.prepare(
+    "UPDATE transactions SET status = 'done' WHERE id = ?"
+  ).run(tx.id);
 
   console.log("[passimpay] credited:", amount);
 

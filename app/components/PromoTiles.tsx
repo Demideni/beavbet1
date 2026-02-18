@@ -20,6 +20,21 @@ function Tile({
       href={href}
       className="group tile-hover relative overflow-hidden rounded-3xl card-glass p-5 lg:p-7 min-h-[150px] transition min-w-[260px] md:min-w-0 snap-start"
     >
+      {/* Desktop full-width banner background */}
+      {desktopArt ? (
+        <div className="absolute inset-0 hidden md:block">
+          <Image
+            src={desktopArt}
+            alt={title}
+            fill
+            className="object-cover"
+            sizes="(min-width: 1024px) 50vw, (min-width: 768px) 50vw, 100vw"
+          />
+          {/* Slight dark overlay for readability */}
+          <div className="absolute inset-0 bg-black/25" />
+        </div>
+      ) : null}
+
       {/* Mobile-only banner background */}
       {mobileBg ? (
         <div
@@ -44,12 +59,8 @@ function Tile({
         ) : null}
       </div>
 
-      {/* Desktop art (mobile uses banner) */}
-      <div className="absolute right-4 bottom-2 w-[160px] h-[160px] opacity-90 group-hover:opacity-100 transition hidden md:block">
-        <Image src={desktopArt} alt={title} fill className="object-contain" />
-      </div>
-
-      <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/0 to-white/5" />
+      {/* Text legibility gradient */}
+      <div className="absolute inset-0 bg-gradient-to-r from-black/35 via-black/15 to-black/0" />
     </Link>
   );
 }

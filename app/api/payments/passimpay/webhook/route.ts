@@ -2,79 +2,45 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { getDb } from "@/lib/db";
 
-// Deep-sort object keys to match PassimPay "sortedBodyJson"
-function sortKeysDeep(value: any): any {
-  if (Array.isArray(value)) return value.map(sortKeysDeep);
-  if (value && typeof value === "object") {
-    return Object.keys(value)
-      .sort()
-      .reduce((acc: any, k) => {
-        acc[k] = sortKeysDeep(value[k]);
-        return acc;
-      }, {});
-  }
-  return value;
+function safeEq(a: string, b: string) {
+  const A = Buffer.from(a);
+  const B = Buffer.from(b);
+  if (A.length !== B.length) return false;
+  return crypto.timingSafeEqual(A, B);
 }
 
 export async function POST(req: NextRequest) {
-  // Read raw body
-  const raw = await req.text();
+  const buf = Buffer.from(await req.arrayBuffer());
+  const raw = buf.toString("utf8");
 
-  // Parse body (needed for signature + business logic)
-  let body: any;
-  try {
-    body = JSON.parse(raw);
-  } catch (e) {
-    console.log("[passimpay] invalid json");
-    return NextResponse.json({ ok: false }, { status: 400 });
-  }
-
-  // --- Signature verification (per PassimPay docs) ---
-  const signatureHeader = (req.headers.get("x-signature") || "").trim().toLowerCase();
-
-  // PassimPay uses API key as SECRET in docs
+  const signatureHeader = (req.headers.get("x-signature") || "").trim();
   const secret = process.env.PASSIMPAY_API_KEY || "";
+
   if (!secret) {
     console.log("[passimpay] missing PASSIMPAY_API_KEY");
     return NextResponse.json({ ok: false }, { status: 500 });
   }
 
-  const platformId = body.platformId ?? body.platform_id;
-  if (!platformId) {
-    console.log("[passimpay] missing platformId in body");
-    return NextResponse.json({ ok: false }, { status: 400 });
-  }
-
-  // sortedBodyJson
-  const sortedBody = sortKeysDeep(body);
-  const sortedBodyJson = JSON.stringify(sortedBody);
-
-  // signatureContract = PLATFORM_ID + ":" + sortedBodyJson
-  const signatureContract = `${platformId}:${sortedBodyJson}`;
-
-  // expected signature = hex(HMAC_SHA256(signatureContract, secret))
+  // PassimPay signs EXACT raw body using HMAC-SHA256 and returns HEX
   const expected = crypto
     .createHmac("sha256", secret)
-    .update(signatureContract, "utf8")
+    .update(raw, "utf8")
     .digest("hex")
     .toLowerCase();
 
-  if (signatureHeader && expected !== signatureHeader) {
+  const received = signatureHeader.replace(/^sha256=/i, "").toLowerCase();
+
+  if (!safeEq(received, expected)) {
     console.log("[passimpay] bad signature", {
-      signatureHeader,
+      received,
       expected,
-      platformId,
-      // signatureContract, // можно раскомментить для дебага, потом убрать
     });
     return NextResponse.json({ ok: false }, { status: 401 });
   }
-  // --- End signature verification ---
 
-  const status = String(body.status ?? "").toLowerCase();
-
+  const body = JSON.parse(raw);
   console.log("[passimpay] webhook body:", body);
 
-  // Собираем возможные ID
   const possibleIds = [
     body.orderId,
     body.order_id,
@@ -91,7 +57,6 @@ export async function POST(req: NextRequest) {
   }
 
   const db = getDb();
-
   let tx: any = null;
 
   for (const id of possibleIds) {
@@ -113,21 +78,28 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
-  const isPaid = status === "paid" || status === "success" || status === "confirmed";
+  const type = String(body.type ?? "").toLowerCase();
+  const confirmations = Number(body.confirmations ?? 0);
+
+  // PassimPay sends deposit webhook on confirmations
+  const isPaid =
+    type === "deposit" &&
+    confirmations >= 1;
 
   if (!isPaid) {
-    console.log("[passimpay] not paid yet:", status);
+    console.log("[passimpay] not confirmed yet:", { type, confirmations });
     return NextResponse.json({ ok: true });
   }
 
   const amount = Number(tx.amount);
 
-  db.prepare("UPDATE wallets SET balance = balance + ? WHERE user_id = ?").run(
-    amount,
-    tx.user_id
-  );
+  db.prepare(
+    "UPDATE wallets SET balance = balance + ? WHERE user_id = ?"
+  ).run(amount, tx.user_id);
 
-  db.prepare("UPDATE transactions SET status = 'done' WHERE id = ?").run(tx.id);
+  db.prepare(
+    "UPDATE transactions SET status = 'done' WHERE id = ?"
+  ).run(tx.id);
 
   console.log("[passimpay] credited:", amount);
 

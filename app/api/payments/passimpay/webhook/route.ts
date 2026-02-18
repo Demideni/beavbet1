@@ -2,37 +2,73 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { getDb } from "@/lib/db";
 
-function safeEq(a: string, b: string) {
-  const A = Buffer.from(a);
-  const B = Buffer.from(b);
-  if (A.length !== B.length) return false;
-  return crypto.timingSafeEqual(A, B);
+// Deep-sort object keys to match PassimPay "sortedBodyJson"
+function sortKeysDeep(value: any): any {
+  if (Array.isArray(value)) return value.map(sortKeysDeep);
+  if (value && typeof value === "object") {
+    return Object.keys(value)
+      .sort()
+      .reduce((acc: any, k) => {
+        acc[k] = sortKeysDeep(value[k]);
+        return acc;
+      }, {});
+  }
+  return value;
 }
 
 export async function POST(req: NextRequest) {
-  const buf = Buffer.from(await req.arrayBuffer()); // <-- важно: байты, а не текст
-  const raw = buf.toString("utf8");
+  // Read raw body
+  const raw = await req.text();
 
-  // Проверка подписи
-  const signatureHeader = req.headers.get("x-signature") || "";
-  const sig = signatureHeader.replace(/^sha256=/i, "").trim().toLowerCase();
-
-  const secret = process.env.PASSIMPAY_API_KEY || "";
-
-  // Считаем оба популярных варианта (hex и base64)
-  const hmacHex = crypto.createHmac("sha256", secret).update(buf).digest("hex").toLowerCase();
-  const hmacB64 = crypto.createHmac("sha256", secret).update(buf).digest("base64").trim().toLowerCase();
-
-  if (sig) {
-    const ok = safeEq(sig, hmacHex) || safeEq(sig, hmacB64);
-    if (!ok) {
-      console.log("[passimpay] bad signature", { signatureHeader, hmacHex, hmacB64 });
-      return NextResponse.json({ ok: false }, { status: 401 });
-    }
+  // Parse body (needed for signature + business logic)
+  let body: any;
+  try {
+    body = JSON.parse(raw);
+  } catch (e) {
+    console.log("[passimpay] invalid json");
+    return NextResponse.json({ ok: false }, { status: 400 });
   }
 
-  const body = JSON.parse(raw);
+  // --- Signature verification (per PassimPay docs) ---
+  const signatureHeader = (req.headers.get("x-signature") || "").trim().toLowerCase();
 
+  // PassimPay uses API key as SECRET in docs
+  const secret = process.env.PASSIMPAY_API_KEY || "";
+  if (!secret) {
+    console.log("[passimpay] missing PASSIMPAY_API_KEY");
+    return NextResponse.json({ ok: false }, { status: 500 });
+  }
+
+  const platformId = body.platformId ?? body.platform_id;
+  if (!platformId) {
+    console.log("[passimpay] missing platformId in body");
+    return NextResponse.json({ ok: false }, { status: 400 });
+  }
+
+  // sortedBodyJson
+  const sortedBody = sortKeysDeep(body);
+  const sortedBodyJson = JSON.stringify(sortedBody);
+
+  // signatureContract = PLATFORM_ID + ":" + sortedBodyJson
+  const signatureContract = `${platformId}:${sortedBodyJson}`;
+
+  // expected signature = hex(HMAC_SHA256(signatureContract, secret))
+  const expected = crypto
+    .createHmac("sha256", secret)
+    .update(signatureContract, "utf8")
+    .digest("hex")
+    .toLowerCase();
+
+  if (signatureHeader && expected !== signatureHeader) {
+    console.log("[passimpay] bad signature", {
+      signatureHeader,
+      expected,
+      platformId,
+      // signatureContract, // можно раскомментить для дебага, потом убрать
+    });
+    return NextResponse.json({ ok: false }, { status: 401 });
+  }
+  // --- End signature verification ---
 
   const status = String(body.status ?? "").toLowerCase();
 
@@ -77,10 +113,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
-  const isPaid =
-    status === "paid" ||
-    status === "success" ||
-    status === "confirmed";
+  const isPaid = status === "paid" || status === "success" || status === "confirmed";
 
   if (!isPaid) {
     console.log("[passimpay] not paid yet:", status);
@@ -89,13 +122,12 @@ export async function POST(req: NextRequest) {
 
   const amount = Number(tx.amount);
 
-  db.prepare(
-    "UPDATE wallets SET balance = balance + ? WHERE user_id = ?"
-  ).run(amount, tx.user_id);
+  db.prepare("UPDATE wallets SET balance = balance + ? WHERE user_id = ?").run(
+    amount,
+    tx.user_id
+  );
 
-  db.prepare(
-    "UPDATE transactions SET status = 'done' WHERE id = ?"
-  ).run(tx.id);
+  db.prepare("UPDATE transactions SET status = 'done' WHERE id = ?").run(tx.id);
 
   console.log("[passimpay] credited:", amount);
 

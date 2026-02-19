@@ -4,57 +4,49 @@ import { randomUUID } from "crypto";
 
 export async function POST(req: NextRequest) {
   try {
-    const {
-      amount,
-      currency,
-      userId,
-    }: { amount: number; currency: string; userId: string } =
-      await req.json();
+    const payload = await req.json();
 
-    if (!amount || amount <= 0) {
-      return NextResponse.json(
-        { error: "Invalid amount" },
-        { status: 400 }
-      );
+    const amount = Number(payload?.amount);
+    const currency = String(payload?.currency || "");
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return NextResponse.json({ error: "Invalid amount" }, { status: 400 });
     }
 
-    const platformId = process.env.PASSIMPAY_PLATFORM_ID!;
-    const apiKey = process.env.PASSIMPAY_API_KEY!;
-    const baseUrl =
-      process.env.PASSIMPAY_BASE_URL || "https://api.passimpay.io";
+    if (!currency) {
+      return NextResponse.json({ error: "Invalid currency" }, { status: 400 });
+    }
+
+    const platformId = process.env.PASSIMPAY_PLATFORM_ID || "";
+    const apiKey = process.env.PASSIMPAY_API_KEY || "";
+    const baseUrl = process.env.PASSIMPAY_BASE_URL || "https://api.passimpay.io";
 
     if (!platformId || !apiKey) {
-      console.error("Missing PassimPay env vars");
-      return NextResponse.json(
-        { error: "Server config error" },
-        { status: 500 }
-      );
+      console.error("Missing PASSIMPAY_PLATFORM_ID or PASSIMPAY_API_KEY");
+      return NextResponse.json({ error: "Server config error" }, { status: 500 });
     }
 
     const orderId = randomUUID();
 
-    // формируем домен (Render/production compatible)
+    // origin для продакшена/рендера (и для локалки)
     const origin =
       req.headers.get("origin") ||
-      (req.headers.get("host")
-        ? `https://${req.headers.get("host")}`
-        : "");
+      (req.headers.get("x-forwarded-host")
+        ? `https://${req.headers.get("x-forwarded-host")}`
+        : req.headers.get("host")
+          ? `https://${req.headers.get("host")}`
+          : "");
 
-    const callbackUrl = origin
-      ? `${origin}/api/payments/passimpay/webhook`
-      : undefined;
+    const callbackUrl = origin ? `${origin}/api/payments/passimpay/webhook` : undefined;
+    const successUrl = origin ? `${origin}/payments?pp=success&orderId=${orderId}` : undefined;
+    const failUrl = origin ? `${origin}/payments?pp=fail&orderId=${orderId}` : undefined;
 
-    const successUrl = origin
-      ? `${origin}/payments?pp=success&orderId=${orderId}`
-      : undefined;
-
-    const failUrl = origin
-      ? `${origin}/payments?pp=fail&orderId=${orderId}`
-      : undefined;
-
-    // тело запроса — EXACT JSON (важно для подписи)
+    /**
+     * ВАЖНО:
+     * - platformId НЕ кладём в body (иначе у тебя "incorrect signature")
+     * - amount отправляем СТРОКОЙ "12.34" (иначе "error format amount")
+     */
     const bodyObj: Record<string, any> = {
-      platformId,
       orderId,
       amount: amount.toFixed(2),
       symbol: currency,
@@ -65,26 +57,28 @@ export async function POST(req: NextRequest) {
 
     const bodyStr = JSON.stringify(bodyObj);
 
-    // подпись по документации PassimPay:
-    // signature = sha256(`${platformId};${bodyStr};${apiKey}`)
+    /**
+     * Подпись для createorder (по факту из твоих ошибок):
+     * sha256(bodyStr + apiKey)
+     */
     const signature = crypto
       .createHash("sha256")
-      .update(`${platformId};${bodyStr};${apiKey}`)
+      .update(bodyStr + apiKey)
       .digest("hex");
 
-    const response = await fetch(`${baseUrl}/v2/createorder`, {
+    const resp = await fetch(`${baseUrl}/v2/createorder`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-signature": signature,
         "x-platform-id": platformId,
+        "x-signature": signature,
       },
       body: bodyStr,
     });
 
-    const data = await response.json();
+    const data = await resp.json().catch(() => ({}));
 
-    if (!response.ok) {
+    if (!resp.ok) {
       console.error("PassimPay createorder failed:", data);
       return NextResponse.json(
         { error: "PassimPay error", details: data },
@@ -93,9 +87,9 @@ export async function POST(req: NextRequest) {
     }
 
     if (!data?.url) {
-      console.error("PassimPay response missing URL:", data);
+      console.error("PassimPay response missing url:", data);
       return NextResponse.json(
-        { error: "No redirect URL from PassimPay" },
+        { error: "No redirect URL from PassimPay", details: data },
         { status: 400 }
       );
     }
@@ -105,10 +99,7 @@ export async function POST(req: NextRequest) {
       orderId,
     });
   } catch (err) {
-    console.error("Deposit error:", err);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    console.error("Deposit route error:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

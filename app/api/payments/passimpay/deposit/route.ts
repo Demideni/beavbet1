@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
     const bodyObj: Record<string, any> = {
       platformId,
       orderId,
-      amount: Number(amount.toFixed(2)),
+      amount: amount.toFixed(2),
       symbol: currency,
       ...(callbackUrl ? { callbackUrl } : {}),
       ...(successUrl ? { successUrl } : {}),

@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { randomUUID, createHmac } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { getSessionUser } from "@/lib/auth";
 import { getDb } from "@/lib/db";
+import { passimpaySignature } from "@/lib/passimpay";
 
 export const runtime = "nodejs";
 
@@ -21,11 +22,23 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "INVALID_INPUT" }, { status: 400 });
   }
 
-  const platformId = (process.env.PASSIMPAY_PLATFORM_ID || "").trim();
-  const apiKey = (process.env.PASSIMPAY_API_KEY || "").trim(); // у PassimPay это key/secret
-  const baseUrl = (process.env.PASSIMPAY_BASE_URL || "https://api.passimpay.io").trim();
+  // IMPORTANT:
+  // - platformId в body лучше отправлять числом
+  // - подпись должна считаться по ТОЧНО той же строке body, которую мы отправляем
+  const platformIdRaw = (process.env.PASSIMPAY_PLATFORM_ID || "").trim();
+  const platformId = Number(platformIdRaw);
+  const secret = (process.env.PASSIMPAY_API_KEY || "").trim();
+  const baseUrl = (process.env.PASSIMPAY_BASE_URL || "https://api.passimpay.io")
+    .trim()
+    .replace(/\/$/, "");
 
-  if (!platformId || !apiKey) {
+  if (!platformIdRaw || !Number.isFinite(platformId) || !secret || !baseUrl) {
+    console.error("[passimpay][deposit] missing/invalid env", {
+      platformIdRaw,
+      platformId,
+      hasSecret: !!secret,
+      baseUrl,
+    });
     return NextResponse.json({ ok: false, error: "PASSIMPAY_NOT_CONFIGURED" }, { status: 500 });
   }
 
@@ -40,34 +53,32 @@ export async function POST(req: Request) {
     .get(session.id, currency) as { id: string } | undefined;
 
   if (!w) {
-    db.prepare("INSERT INTO wallets (id, user_id, currency, balance, created_at) VALUES (?, ?, ?, ?, ?)").run(
-      randomUUID(),
-      session.id,
-      currency,
-      0,
-      now
-    );
+    db.prepare("INSERT INTO wallets (id, user_id, currency, balance, created_at) VALUES (?, ?, ?, ?, ?)")
+      .run(randomUUID(), session.id, currency, 0, now);
   }
 
   const orderId = randomUUID();
 
-  // ВАЖНО: bodyStr — это EXACT JSON, который отправляем в PassimPay
-  // По инструкции PassimPay: signatureContract = `${platformId};${bodyStr};${apiKey}`
-  const bodyObj = {
+  const callbackUrl = `${
+    process.env.NEXT_PUBLIC_APP_URL || "https://www.beavbet.com"
+  }/api/payments/passimpay/webhook`;
+
+  // Формат под /api/createorder (не /v2/createorder)
+  const body = {
     orderId,
+    platformId,
+    paymentType: "crypto",
+    type: "deposit",
+    currency,
+    // строкой с 2 знаками — чаще всего так ожидают
     amount: amount.toFixed(2),
-    symbol: currency,
-  };
+    callbackUrl,
+  } as const;
 
-  const bodyStr = JSON.stringify(bodyObj);
-  const signatureContract = `${platformId};${bodyStr};${apiKey}`;
+  const bodyStr = JSON.stringify(body);
+  const signature = passimpaySignature(platformIdRaw, bodyStr, secret);
 
-  const signature = createHmac("sha256", apiKey)
-    .update(signatureContract, "utf8")
-    .digest("hex")
-    .toLowerCase();
-
-  const r = await fetch(`${baseUrl}/v2/createorder`, {
+  const r = await fetch(`${baseUrl}/api/createorder`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -79,20 +90,13 @@ export async function POST(req: Request) {
 
   const data = await r.json().catch(() => null);
 
-  if (!r.ok || !data?.url) {
-    console.error("[passimpay][deposit] createorder failed", {
-      status: r.status,
-      details: data,
-      // если надо прям дожать — можно временно раскомментить:
-      // bodyStr,
-      // signatureContract,
-      // signature,
-    });
+  // Поддержим оба формата ответа (у них встречаются разные)
+  const paymentUrl = data?.data?.paymentPageUrl || data?.url;
+  const paymentId = data?.data?.paymentId ?? data?.paymentId ?? null;
 
-    return NextResponse.json(
-      { ok: false, error: "PASSIMPAY_ERROR", status: r.status, details: data },
-      { status: 400 }
-    );
+  if (!r.ok || !paymentUrl) {
+    console.error("[passimpay][deposit] createorder failed", { status: r.status, details: data });
+    return NextResponse.json({ ok: false, error: "PASSIMPAY_ERROR", details: data }, { status: 400 });
   }
 
   // Save a pending transaction
@@ -107,12 +111,12 @@ export async function POST(req: Request) {
     currency,
     "pending",
     now,
-    JSON.stringify({ passimpay: { url: data.url, response: data } }),
+    JSON.stringify({ passimpay: { url: paymentUrl, response: data } }),
     "passimpay",
-    data.paymentId ?? null,
+    paymentId,
     orderId,
     now
   );
 
-  return NextResponse.json({ ok: true, url: data.url, orderId });
+  return NextResponse.json({ ok: true, url: paymentUrl, orderId });
 }

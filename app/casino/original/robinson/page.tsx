@@ -118,21 +118,27 @@ export default function Page() {
       },
     } as const;
 
-    function onLoad() {
-      if (cancelled) return;
-      try {
-        const w = iframe.contentWindow;
-        if (!w) return;
-        // Expose casino API inside the iframe
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (w as any).PULZ_GAME = api;
-        // Initial balance sync
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (w as any).RobinsonUI?.refreshBalance?.();
-      } catch {
-        // ignore
-      }
-    }
+function onLoad() {
+  if (cancelled) return;
+
+  const iframeEl = iframeRef.current;
+  if (!iframeEl || !iframeEl.contentWindow) return;
+
+  try {
+    const w = iframeEl.contentWindow;
+
+    // Expose casino API inside the iframe
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (w as any).PULZ_GAME = api;
+
+    // Initial balance sync
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (w as any).RobinsonUI?.refreshBalance?.();
+  } catch {
+    // ignore
+  }
+}
+
 
     iframe.addEventListener("load", onLoad);
     return () => {

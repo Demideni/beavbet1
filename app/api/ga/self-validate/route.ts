@@ -1,31 +1,49 @@
 import { NextResponse } from "next/server";
+import { getSessionUser } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
-async function callGA(body: URLSearchParams) {
-  const base = process.env.NEXT_PUBLIC_BASE_URL || "https://www.beavbet.com";
-  const url = `${base}/api/ga/callback`;
+async function callGA(req: Request, body: URLSearchParams) {
+  const url = new URL(req.url);
 
-  const res = await fetch(url, {
+  // Берем origin корректно на Render (x-forwarded-*) и локально
+  const proto = req.headers.get("x-forwarded-proto") || "https";
+  const host = req.headers.get("x-forwarded-host") || req.headers.get("host") || url.host;
+  const origin = `${proto}://${host}`;
+
+  const endpoint = `${origin}/api/ga/callback`;
+
+  const res = await fetch(endpoint, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body,
+    cache: "no-store",
   });
 
   const json = await res.json().catch(() => null);
-
   return { status: res.status, json };
 }
 
-export async function GET() {
-  const player = `selftest_${Date.now()}`;
-  const currency = "EUR";
+export async function GET(req: Request) {
+  // ✅ Только для залогиненного юзера (чтобы player_id точно существовал в users)
+  const session = await getSessionUser();
+  if (!session) {
+    return NextResponse.json(
+      { ok: false, error: "UNAUTH", hint: "Login first, then open /api/ga/self-validate" },
+      { status: 401 }
+    );
+  }
 
+  const url = new URL(req.url);
+  const currency = (url.searchParams.get("currency") || "EUR").toUpperCase();
+
+  const player = session.id; // ✅ существующий users.id
   const results: any = {};
 
   try {
     // 1) balance
-    const balanceRes = await callGA(
+    results.balance = await callGA(
+      req,
       new URLSearchParams({
         action: "balance",
         player_id: player,
@@ -33,11 +51,10 @@ export async function GET() {
       })
     );
 
-    results.balance = balanceRes;
-
     // 2) bet
-    const betTx = `tx_bet_${Date.now()}`;
-    const betRes = await callGA(
+    const betTx = `self_bet_${Date.now()}`;
+    results.bet = await callGA(
+      req,
       new URLSearchParams({
         action: "bet",
         player_id: player,
@@ -47,10 +64,9 @@ export async function GET() {
       })
     );
 
-    results.bet = betRes;
-
-    // 3) same bet (idempotency)
-    const betRepeat = await callGA(
+    // 3) idempotency (same tx again)
+    results.idempotency = await callGA(
+      req,
       new URLSearchParams({
         action: "bet",
         player_id: player,
@@ -59,12 +75,11 @@ export async function GET() {
         transaction_id: betTx,
       })
     );
-
-    results.idempotency = betRepeat;
 
     // 4) win
-    const winTx = `tx_win_${Date.now()}`;
-    const winRes = await callGA(
+    const winTx = `self_win_${Date.now()}`;
+    results.win = await callGA(
+      req,
       new URLSearchParams({
         action: "win",
         player_id: player,
@@ -74,17 +89,17 @@ export async function GET() {
       })
     );
 
-    results.win = winRes;
-
     return NextResponse.json({
       ok: true,
       message: "Self validation executed",
+      player_id: player,
+      currency,
       results,
     });
   } catch (e: any) {
-    return NextResponse.json({
-      ok: false,
-      error: e.message,
-    });
+    return NextResponse.json(
+      { ok: false, error: e?.message ?? String(e) },
+      { status: 500 }
+    );
   }
 }

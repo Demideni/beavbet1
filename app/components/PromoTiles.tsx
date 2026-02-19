@@ -6,13 +6,13 @@ function Tile({
   title,
   desc,
   href,
-  desktopBg,
+  desktopArt,
   mobileBg,
 }: {
   title: string;
   desc: string;
   href: string;
-  desktopBg: string;
+  desktopArt: string;
   mobileBg?: string;
 }) {
   return (
@@ -20,43 +20,23 @@ function Tile({
       href={href}
       className="group tile-hover relative overflow-hidden rounded-3xl card-glass p-5 lg:p-7 min-h-[150px] transition min-w-[260px] md:min-w-0 snap-start"
     >
-      {/* Background image (mobile/desktop) */}
-      {/* Mobile */}
+      {/* Mobile-only banner background */}
       {mobileBg ? (
-        <div className="absolute inset-0 md:hidden">
-          <Image
-            src={mobileBg}
-            alt={title}
-            fill
-            priority={false}
-            className="object-cover"
-            sizes="(max-width: 768px) 100vw, 0px"
-          />
-        </div>
+        <div
+          className="absolute inset-0 bg-cover bg-center md:hidden"
+          style={{ backgroundImage: `url(${mobileBg})` }}
+        />
       ) : null}
 
-      {/* Desktop */}
-      <div className="absolute inset-0 hidden md:block">
-        <Image
-          src={desktopBg}
-          alt={title}
-          fill
-          priority={false}
-          className="object-cover"
-          sizes="(min-width: 768px) 50vw, 0px"
-        />
-      </div>
+      {/* Subtle dark overlay for text readability on mobile */}
+      {mobileBg ? <div className="absolute inset-0 bg-black/25 md:hidden" /> : null}
 
-      {/* Overlay for readability */}
-      <div className="absolute inset-0 bg-black/25" />
-
-      {/* Content */}
       <div className="relative z-10">
         <div className="flex items-center gap-2">
           <div className="text-2xl font-extrabold">{title}</div>
           <ChevronRight className="size-5 text-white/55 group-hover:text-white/80 transition" />
         </div>
-
+        {/* Keep description on desktop only (mobile: hide) */}
         {desc ? (
           <div className="mt-2 text-white/60 max-w-[420px] hidden md:block">
             {desc}
@@ -64,7 +44,11 @@ function Tile({
         ) : null}
       </div>
 
-      {/* Soft gloss */}
+      {/* Desktop art (mobile uses banner) */}
+      <div className="absolute right-4 bottom-2 w-[160px] h-[160px] opacity-90 group-hover:opacity-100 transition hidden md:block">
+        <Image src={desktopArt} alt={title} fill className="object-contain" />
+      </div>
+
       <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/0 to-white/5" />
     </Link>
   );
@@ -82,21 +66,21 @@ export function PromoTiles() {
         title="Казино"
         desc=""
         href="/casino"
-        desktopBg="/images/tiles/casino-tile-desktop.png"
+        desktopArt="/images/tiles/casino-tile-desktop.png"
         mobileBg="/images/tiles/casino-tile-mobile.png"
       />
       <Tile
         title="Arena"
         desc=""
         href="/arena"
-        desktopBg="/images/tiles/arena-tile-desktop.png"
+        desktopArt="/images/tiles/arena-tile-desktop.png"
         mobileBg="/images/tiles/arena-tile-mobile.png"
       />
       <Tile
         title="Спорт"
         desc=""
         href="/sport"
-        desktopBg="/images/tiles/sport-tile-desktop.png"
+        desktopArt="/images/tiles/sport-tile-desktop.png"
         mobileBg="/images/tiles/sport-tile-mobile.png"
       />
     </section>

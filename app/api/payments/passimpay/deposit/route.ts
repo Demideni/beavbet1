@@ -1,100 +1,114 @@
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { randomUUID } from "node:crypto";
-import { getSessionUser } from "@/lib/auth";
-import { getDb } from "@/lib/db";
-import { passimpaySignature } from "@/lib/passimpay";
+import { NextRequest, NextResponse } from "next/server";
+import crypto from "crypto";
+import { randomUUID } from "crypto";
 
-export const runtime = "nodejs";
-
-const Schema = z.object({
-  amount: z.number().finite().positive().max(1000000),
-  currency: z.enum(["USD", "EUR", "USDT", "BTC"]).default("EUR"),
-});
-
-export async function POST(req: Request) {
-  const session = await getSessionUser();
-  if (!session) return NextResponse.json({ ok: false, error: "UNAUTH" }, { status: 401 });
-
-  const json = await req.json().catch(() => null);
-  const parsed = Schema.safeParse(json);
-  if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "INVALID_INPUT" }, { status: 400 });
-  }
-
-  const platformId = (process.env.PASSIMPAY_PLATFORM_ID || "").trim();
-  const secret = (process.env.PASSIMPAY_API_KEY || "").trim();
-  const baseUrl = (process.env.PASSIMPAY_BASE_URL || "https://api.passimpay.io").trim();
-
-  if (!platformId || !secret) {
-    return NextResponse.json({ ok: false, error: "PASSIMPAY_NOT_CONFIGURED" }, { status: 500 });
-  }
-
-  const { amount, currency } = parsed.data;
-
-  // Ensure wallet exists now (so UI can show it) but DO NOT credit here
-  const db = getDb();
-  const now = Date.now();
-
-  const w = db
-    .prepare("SELECT id FROM wallets WHERE user_id = ? AND currency = ?")
-    .get(session.id, currency) as { id: string } | undefined;
-  if (!w) {
-    db.prepare("INSERT INTO wallets (id, user_id, currency, balance, created_at) VALUES (?, ?, ?, ?, ?)").run(
-      randomUUID(),
-      session.id,
+export async function POST(req: NextRequest) {
+  try {
+    const {
+      amount,
       currency,
-      0,
-      now
+      userId,
+    }: { amount: number; currency: string; userId: string } =
+      await req.json();
+
+    if (!amount || amount <= 0) {
+      return NextResponse.json(
+        { error: "Invalid amount" },
+        { status: 400 }
+      );
+    }
+
+    const platformId = process.env.PASSIMPAY_PLATFORM_ID!;
+    const apiKey = process.env.PASSIMPAY_API_KEY!;
+    const baseUrl =
+      process.env.PASSIMPAY_BASE_URL || "https://api.passimpay.io";
+
+    if (!platformId || !apiKey) {
+      console.error("Missing PassimPay env vars");
+      return NextResponse.json(
+        { error: "Server config error" },
+        { status: 500 }
+      );
+    }
+
+    const orderId = randomUUID();
+
+    // формируем домен (Render/production compatible)
+    const origin =
+      req.headers.get("origin") ||
+      (req.headers.get("host")
+        ? `https://${req.headers.get("host")}`
+        : "");
+
+    const callbackUrl = origin
+      ? `${origin}/api/payments/passimpay/webhook`
+      : undefined;
+
+    const successUrl = origin
+      ? `${origin}/payments?pp=success&orderId=${orderId}`
+      : undefined;
+
+    const failUrl = origin
+      ? `${origin}/payments?pp=fail&orderId=${orderId}`
+      : undefined;
+
+    // тело запроса — EXACT JSON (важно для подписи)
+    const bodyObj: Record<string, any> = {
+      platformId,
+      orderId,
+      amount: Number(amount.toFixed(2)),
+      symbol: currency,
+      ...(callbackUrl ? { callbackUrl } : {}),
+      ...(successUrl ? { successUrl } : {}),
+      ...(failUrl ? { failUrl } : {}),
+    };
+
+    const bodyStr = JSON.stringify(bodyObj);
+
+    // подпись по документации PassimPay:
+    // signature = sha256(`${platformId};${bodyStr};${apiKey}`)
+    const signature = crypto
+      .createHash("sha256")
+      .update(`${platformId};${bodyStr};${apiKey}`)
+      .digest("hex");
+
+    const response = await fetch(`${baseUrl}/v2/createorder`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-signature": signature,
+        "x-platform-id": platformId,
+      },
+      body: bodyStr,
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error("PassimPay createorder failed:", data);
+      return NextResponse.json(
+        { error: "PassimPay error", details: data },
+        { status: 400 }
+      );
+    }
+
+    if (!data?.url) {
+      console.error("PassimPay response missing URL:", data);
+      return NextResponse.json(
+        { error: "No redirect URL from PassimPay" },
+        { status: 400 }
+      );
+    }
+
+    return NextResponse.json({
+      url: data.url,
+      orderId,
+    });
+  } catch (err) {
+    console.error("Deposit error:", err);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
     );
   }
-
-  const orderId = randomUUID();
-
-  const body = {
-    platformId,
-    orderId,
-    amount: amount.toFixed(2),
-    symbol: currency,
-  };
-
-  const signature = passimpaySignature(platformId, body, secret);
-
-  const r = await fetch(`${baseUrl}/v2/createorder`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-signature": signature,
-    },
-    body: JSON.stringify(body),
-    // IMPORTANT: do not cache
-    cache: "no-store",
-  });
-
-  const data = await r.json().catch(() => null);
-
-  if (!r.ok || !data?.url) {
-    return NextResponse.json({ ok: false, error: "PASSIMPAY_ERROR", details: data }, { status: 400 });
-  }
-
-  // Save a pending transaction
-  const txId = randomUUID();
-  db.prepare(
-    "INSERT INTO transactions (id, user_id, type, amount, currency, status, created_at, meta, provider, provider_ref, order_id, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-  ).run(
-    txId,
-    session.id,
-    "deposit",
-    amount,
-    currency,
-    "pending",
-    now,
-    JSON.stringify({ passimpay: { url: data.url, response: data } }),
-    "passimpay",
-    data.paymentId ?? null,
-    orderId,
-    now
-  );
-
-  return NextResponse.json({ ok: true, url: data.url, orderId });
 }

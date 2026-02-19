@@ -56,9 +56,15 @@ export default function ArenaClient() {
     <div className="mx-auto max-w-[980px] px-4 py-6">
       <div className="flex items-end justify-between gap-3">
         <div>
-          <div className="text-white text-3xl font-extrabold">Beav<span className="text-accent">Bet</span> Arena</div>
-          <div className="mt-1 text-white/60 text-sm">Турниры с entry fee → призовой фонд → выплаты топ-N</div>
+          <div className="text-white text-3xl font-extrabold">
+            Beav<span className="text-accent">Bet</span> Arena
+          </div>
+          <div className="mt-1 text-white/60 text-sm">
+            Турниры с entry fee → призовой фонд → выплаты топ-N
+          </div>
         </div>
+
+        {/* ✅ ВАЖНО: тут был не закрыт div */}
         <div className="flex gap-2">
           <Link
             href="/arena/duels/cs2"
@@ -66,12 +72,14 @@ export default function ArenaClient() {
           >
             CS2 дуэли
           </Link>
+
           <Link
-          href="/arena/matches"
-          className="px-4 py-2 rounded-2xl bg-white/6 border border-white/10 hover:bg-white/10 text-sm text-white/85"
-        >
-          Мои матчи
-        </Link>
+            href="/arena/matches"
+            className="px-4 py-2 rounded-2xl bg-white/6 border border-white/10 hover:bg-white/10 text-sm text-white/85"
+          >
+            Мои матчи
+          </Link>
+        </div>
       </div>
 
       <div className="mt-6 grid gap-3">
@@ -91,7 +99,11 @@ export default function ArenaClient() {
                       {t.game} • {t.title}
                     </div>
                     <div className="mt-1 text-white/60 text-sm">
-                      Entry: <span className="text-white/85 font-semibold">{t.entryFee} {t.currency}</span> • Players: {t.players}/{t.maxPlayers}
+                      Entry:{" "}
+                      <span className="text-white/85 font-semibold">
+                        {t.entryFee} {t.currency}
+                      </span>{" "}
+                      • Players: {t.players}/{t.maxPlayers}
                     </div>
                   </div>
 
@@ -102,6 +114,7 @@ export default function ArenaClient() {
                     >
                       Открыть
                     </Link>
+
                     <button
                       disabled={!isOpen || busy === t.id}
                       onClick={() => join(t.id)}

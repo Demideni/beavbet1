@@ -59,7 +59,14 @@ export default function ArenaClient() {
           <div className="text-white text-3xl font-extrabold">Beav<span className="text-accent">Bet</span> Arena</div>
           <div className="mt-1 text-white/60 text-sm">Турниры с entry fee → призовой фонд → выплаты топ-N</div>
         </div>
-        <Link
+        <div className="flex gap-2">
+          <Link
+            href="/arena/duels/cs2"
+            className="px-4 py-2 rounded-2xl bg-accent text-black font-bold text-sm"
+          >
+            CS2 дуэли
+          </Link>
+          <Link
           href="/arena/matches"
           className="px-4 py-2 rounded-2xl bg-white/6 border border-white/10 hover:bg-white/10 text-sm text-white/85"
         >

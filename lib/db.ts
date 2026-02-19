@@ -248,6 +248,41 @@ function ensureSchema(db: any) {
       UNIQUE(match_id, user_id)
     );
     CREATE INDEX IF NOT EXISTS idx_arena_reports_match ON arena_match_reports(match_id);
+
+    -- Quick Duels (1v1) for Arena
+    CREATE TABLE IF NOT EXISTS arena_duels (
+      id TEXT PRIMARY KEY,
+      game TEXT NOT NULL,          -- cs2 | wot (later)
+      mode TEXT NOT NULL,          -- 1v1
+      stake REAL NOT NULL,
+      currency TEXT NOT NULL DEFAULT 'EUR',
+      rake REAL NOT NULL DEFAULT 0.15, -- 15% fee (kept in air)
+      status TEXT NOT NULL DEFAULT 'open', -- open | active | reported | pending_review | done | cancelled
+      map TEXT,
+      server TEXT,
+      server_password TEXT,
+      join_link TEXT,
+      started_at INTEGER,
+      ended_at INTEGER,
+      p1_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      p2_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+      winner_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_arena_duels_status ON arena_duels(status);
+    CREATE INDEX IF NOT EXISTS idx_arena_duels_game ON arena_duels(game);
+
+    CREATE TABLE IF NOT EXISTS arena_duel_reports (
+      id TEXT PRIMARY KEY,
+      duel_id TEXT NOT NULL REFERENCES arena_duels(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      result TEXT NOT NULL, -- win | lose
+      created_at INTEGER NOT NULL,
+      UNIQUE(duel_id, user_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_arena_duel_reports_duel ON arena_duel_reports(duel_id);
+
   `);
 
   // Arena matches: add newer columns for CS2 (and other games) matchmaking/launch info.

@@ -59,7 +59,7 @@ export async function GET(req: Request) {
         action: "bet",
         player_id: player,
         currency,
-        amount: "1.00",
+        amount: "0.10",
         transaction_id: betTx,
       })
     );
@@ -71,7 +71,7 @@ export async function GET(req: Request) {
         action: "bet",
         player_id: player,
         currency,
-        amount: "1.00",
+        amount: "0.10",
         transaction_id: betTx,
       })
     );

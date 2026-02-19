@@ -64,16 +64,33 @@ async function readParams(req: Request): Promise<Record<string, string>> {
  * If headers are absent -> skip verification (don't break gameplay).
  * If GA_ENFORCE_SIGNATURE=true -> reject invalid signature.
  */
-function verifySignature(req: Request, params: Record<string, string>): { ok: boolean; error?: string } {
+function verifySignature(
+  req: Request,
+  params: Record<string, string>
+): { ok: boolean; error?: string } {
   const cfg = getGaConfig();
 
-  const xMerchantId = req.headers.get("x-merchant-id") || req.headers.get("X-Merchant-Id") || "";
-  const xNonce = req.headers.get("x-nonce") || req.headers.get("X-Nonce") || "";
-  const xTimestamp = req.headers.get("x-timestamp") || req.headers.get("X-Timestamp") || "";
-  const xSign = req.headers.get("x-sign") || req.headers.get("X-Sign") || "";
+  const xMerchantId =
+    req.headers.get("x-merchant-id") || req.headers.get("X-Merchant-Id") || "";
+  const xNonce =
+    req.headers.get("x-nonce") || req.headers.get("X-Nonce") || "";
+  const xTimestamp =
+    req.headers.get("x-timestamp") || req.headers.get("X-Timestamp") || "";
+  const xSign =
+    req.headers.get("x-sign") || req.headers.get("X-Sign") || "";
 
-  if (!xMerchantId || !xNonce || !xTimestamp || !xSign) {
+  // если подпись не передана вообще — пропускаем (для локальных тестов)
+  if (!xMerchantId && !xNonce && !xTimestamp && !xSign) {
     return { ok: true };
+  }
+
+  // если подпись частично отсутствует — reject
+  if (!xMerchantId || !xNonce || !xTimestamp || !xSign) {
+    return { ok: false, error: "Invalid signature" };
+  }
+
+  if (!cfg.merchantKey) {
+    return { ok: false, error: "Invalid signature" };
   }
 
   const signQuery = buildQuery({
@@ -83,17 +100,18 @@ function verifySignature(req: Request, params: Record<string, string>): { ok: bo
     "X-Timestamp": xTimestamp,
   });
 
-  const expected = signSha1(signQuery, cfg.merchantKey);
+  const expected = crypto
+    .createHmac("sha1", cfg.merchantKey)
+    .update(signQuery)
+    .digest("hex");
 
   if (expected !== xSign) {
-    if (process.env.GA_ENFORCE_SIGNATURE === "true") {
-      return { ok: false, error: "BAD_SIGNATURE" };
-    }
-    return { ok: true };
+    return { ok: false, error: "Invalid signature" };
   }
 
   return { ok: true };
 }
+
 
 // Money helpers (avoid float artifacts)
 function toCents(v: number): number {

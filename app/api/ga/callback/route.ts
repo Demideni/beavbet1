@@ -79,20 +79,33 @@ function verifySignature(
   const xSign =
     req.headers.get("x-sign") || req.headers.get("X-Sign") || "";
 
-  // если подпись не передана вообще — пропускаем (для локальных тестов)
-  if (!xMerchantId && !xNonce && !xTimestamp && !xSign) {
-    return { ok: true };
-  }
+  const anySigHeaders = !!(xMerchantId || xNonce || xTimestamp || xSign);
 
-  // если подпись частично отсутствует — reject
+  // ✅ Если это твой локальный вызов/self-validate без подписи — пропускаем
+  if (!anySigHeaders) return { ok: true };
+
+  // ❌ Если подпись “частично пришла” — сразу reject
   if (!xMerchantId || !xNonce || !xTimestamp || !xSign) {
     return { ok: false, error: "Invalid signature" };
   }
 
+  // ❌ merchantKey обязателен
   if (!cfg.merchantKey) {
     return { ok: false, error: "Invalid signature" };
   }
 
+  // ✅ Проверка timestamp (в доке: 30 секунд)
+  // провайдер шлёт timestamp в СЕКУНДАХ
+  const ts = Number(xTimestamp);
+  if (!Number.isFinite(ts)) {
+    return { ok: false, error: "Request expired" };
+  }
+  const nowSec = Math.floor(Date.now() / 1000);
+  if (Math.abs(nowSec - ts) > 30) {
+    return { ok: false, error: "Request expired" };
+  }
+
+  // ✅ Собираем canonical query: params + auth headers, сортировка по ключу, url-encode
   const signQuery = buildQuery({
     ...params,
     "X-Merchant-Id": xMerchantId,
@@ -100,17 +113,16 @@ function verifySignature(
     "X-Timestamp": xTimestamp,
   });
 
-  const expected = crypto
-    .createHmac("sha1", cfg.merchantKey)
-    .update(signQuery)
-    .digest("hex");
+  const expected = signSha1(signQuery, cfg.merchantKey);
 
+  // ❌ Если подпись не совпала — ВСЕГДА reject (это то, что они валидируют)
   if (expected !== xSign) {
     return { ok: false, error: "Invalid signature" };
   }
 
   return { ok: true };
 }
+
 
 
 // Money helpers (avoid float artifacts)

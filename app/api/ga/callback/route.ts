@@ -6,12 +6,11 @@ import { getGaConfig, gaCurrency } from "@/lib/gaClient";
 export const runtime = "nodejs";
 
 /**
- * GA (Game Aggregator) callback endpoint.
- * Spec highlights (from PDF):
+ * GA callback endpoint
  * - Provider sends POST application/x-www-form-urlencoded
- * - We must always respond HTTP 200 with JSON
+ * - Always respond HTTP 200 JSON
  * - balance: { "balance": 57.12 }
- * - bet/win: { "balance": 27.18, "transaction_id": "..." }
+ * - bet/win/refund: { "balance": 27.18, "transaction_id": "..." }
  * - errors also 200: { "error_code": "...", "error_description": "..." }
  */
 
@@ -31,12 +30,6 @@ function signSha1(queryString: string, key: string): string {
   return crypto.createHmac("sha1", key).update(queryString).digest("hex");
 }
 
-/**
- * Parse params from either:
- * - GET query string
- * - POST x-www-form-urlencoded
- * - POST JSON (fallback)
- */
 async function readParams(req: Request): Promise<Record<string, string>> {
   const url = new URL(req.url);
 
@@ -60,7 +53,6 @@ async function readParams(req: Request): Promise<Record<string, string>> {
     return out;
   }
 
-  // fallback: try body as querystring
   const raw = await req.text();
   const sp = new URLSearchParams(raw);
   sp.forEach((v, k) => (out[k] = v));
@@ -68,8 +60,9 @@ async function readParams(req: Request): Promise<Record<string, string>> {
 }
 
 /**
- * Optional signature check (if provider sends X-* headers).
- * If provider does NOT send these headers, skip verification (don’t break gameplay).
+ * Signature check (works with your provider logs showing these headers)
+ * If headers are absent -> skip verification (don't break gameplay).
+ * If GA_ENFORCE_SIGNATURE=true -> reject invalid signature.
  */
 function verifySignature(req: Request, params: Record<string, string>): { ok: boolean; error?: string } {
   const cfg = getGaConfig();
@@ -110,7 +103,7 @@ function fromCents(c: number): number {
   return Number((c / 100).toFixed(2));
 }
 
-// Spec wants JSON + 200 always
+// Always JSON + 200
 function okJson(body: any) {
   return NextResponse.json(body, {
     status: 200,
@@ -132,8 +125,8 @@ function normalizeAction(raw: string) {
 }
 
 /**
- * Ensure idempotency log table exists.
- * (We can’t easily use JSON meta indexing reliably; this table makes validation predictable.)
+ * Idempotency log table.
+ * We also store related_transaction_id for refund (bet_transaction_id).
  */
 function ensureGaTxnLog(db: any) {
   db.exec(`
@@ -145,9 +138,17 @@ function ensureGaTxnLog(db: any) {
       currency TEXT NOT NULL,
       balance_after REAL NOT NULL DEFAULT 0,
       round_id TEXT,
+      related_transaction_id TEXT,
       created_at INTEGER NOT NULL
     );
   `);
+
+  // If old table existed without related_transaction_id, add it.
+  try {
+    db.exec(`ALTER TABLE ga_txn_log ADD COLUMN related_transaction_id TEXT;`);
+  } catch {
+    // column already exists
+  }
 }
 
 async function handleCallback(req: Request) {
@@ -155,7 +156,6 @@ async function handleCallback(req: Request) {
 
   const sig = verifySignature(req, params);
   if (!sig.ok) {
-    // Spec: still respond 200 with error_code
     return errJson("INTERNAL_ERROR", sig.error || "BAD_SIGNATURE");
   }
 
@@ -163,7 +163,8 @@ async function handleCallback(req: Request) {
   ensureGaTxnLog(db);
 
   const sessionId = params.session_id || params.session || params.sid || null;
-  const playerId = params.player_id || params.playerId || params.userid || params.user_id || params.player || null;
+  const playerId =
+    params.player_id || params.playerId || params.userid || params.user_id || params.player || null;
 
   let userId: string | null = null;
 
@@ -174,7 +175,7 @@ async function handleCallback(req: Request) {
     if (row?.user_id) userId = row.user_id;
   }
 
-  // Fallback: many providers call with player_id only
+  // Fallback: some providers call with player_id only
   if (!userId && playerId) userId = playerId;
 
   if (!userId) {
@@ -183,7 +184,7 @@ async function handleCallback(req: Request) {
 
   const currency = (params.currency || gaCurrency()).toUpperCase();
 
-  // Ensure wallet exists
+  // Ensure wallet exists (BUT: if you have FK users->wallets, make sure userId is real users.id)
   const w = db
     .prepare(`SELECT balance FROM wallets WHERE user_id = ? AND currency = ? LIMIT 1`)
     .get(userId, currency) as any;
@@ -202,20 +203,15 @@ async function handleCallback(req: Request) {
 
   const balance = Number(wallet?.balance ?? 0);
 
-  const transactionId =
-    params.transaction_id || params.tx_id || params.txid || params.transaction || "";
-
+  const transactionId = params.transaction_id || params.tx_id || params.txid || params.transaction || "";
   const roundId = params.round_id || params.round || null;
-
   const action = normalizeAction(params.action || params.method || params.type || "balance");
 
   // -------------------------
   // BALANCE
   // -------------------------
   if (action === "balance") {
-    // Spec: ONLY { balance }
-    const cleanBal = fromCents(toCents(balance));
-    return okJson({ balance: cleanBal });
+    return okJson({ balance: fromCents(toCents(balance)) });
   }
 
   // For money-changing actions, transaction_id must exist
@@ -223,7 +219,7 @@ async function handleCallback(req: Request) {
     return errJson("INTERNAL_ERROR", "Missing transaction_id");
   }
 
-  // Idempotency: if we already processed this transaction_id, return stored balance_after
+  // Idempotency: if already processed this transaction_id, return stored balance_after
   const existing = db
     .prepare(`SELECT balance_after FROM ga_txn_log WHERE transaction_id = ? LIMIT 1`)
     .get(transactionId) as any;
@@ -251,21 +247,22 @@ async function handleCallback(req: Request) {
     const amtC = toCents(amount);
 
     if (balC < amtC) {
-      // Spec: error with 200
       return errJson("INSUFFICIENT_FUNDS", "Insufficient funds");
     }
 
     const newBal = fromCents(balC - amtC);
 
-    db.prepare(`UPDATE wallets SET balance = ? WHERE user_id = ? AND currency = ?`)
-      .run(newBal, userId, currency);
+    db.prepare(`UPDATE wallets SET balance = ? WHERE user_id = ? AND currency = ?`).run(
+      newBal,
+      userId,
+      currency
+    );
 
     db.prepare(
-      `INSERT INTO ga_txn_log (transaction_id, user_id, action, amount, currency, balance_after, round_id, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(transactionId, userId, "bet", amount, currency, newBal, roundId, now);
+      `INSERT INTO ga_txn_log (transaction_id, user_id, action, amount, currency, balance_after, round_id, related_transaction_id, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(transactionId, userId, "bet", amount, currency, newBal, roundId, null, now);
 
-    // Spec: ONLY { balance, transaction_id }
     return okJson({ balance: newBal, transaction_id: transactionId });
   }
 
@@ -273,40 +270,103 @@ async function handleCallback(req: Request) {
   // WIN (CREDIT)
   // -------------------------
   if (action === "win") {
-    const balC = toCents(balance);
-    const amtC = toCents(amount);
+    const newBal = fromCents(toCents(balance) + toCents(amount));
 
-    const newBal = fromCents(balC + amtC);
-
-    db.prepare(`UPDATE wallets SET balance = ? WHERE user_id = ? AND currency = ?`)
-      .run(newBal, userId, currency);
+    db.prepare(`UPDATE wallets SET balance = ? WHERE user_id = ? AND currency = ?`).run(
+      newBal,
+      userId,
+      currency
+    );
 
     db.prepare(
-      `INSERT INTO ga_txn_log (transaction_id, user_id, action, amount, currency, balance_after, round_id, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(transactionId, userId, "win", amount, currency, newBal, roundId, now);
+      `INSERT INTO ga_txn_log (transaction_id, user_id, action, amount, currency, balance_after, round_id, related_transaction_id, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(transactionId, userId, "win", amount, currency, newBal, roundId, null, now);
 
     return okJson({ balance: newBal, transaction_id: transactionId });
   }
 
   // -------------------------
-  // REFUND / ROLLBACK (если провайдер будет проверять)
-  // По многим докам: тоже { balance, transaction_id }
+  // REFUND
+  // Provider sends bet_transaction_id; we must credit amount back.
+  // Also: same bet_transaction_id must not be refunded twice.
   // -------------------------
-  if (action === "refund" || action === "rollback") {
-    // Внятной логики без их rollback_transactions массива мы не знаем,
-    // поэтому не ломаем интеграцию: возвращаем текущий баланс и фиксируем txn_id как обработанный.
+  if (action === "refund") {
+    const betTxId = params.bet_transaction_id || (params as any).betTransactionId || "";
+
+    if (!betTxId) {
+      return errJson("INTERNAL_ERROR", "Missing bet_transaction_id");
+    }
+
+    // If this bet has already been refunded, return that previous refund result (idempotent by bet_transaction_id)
+    const alreadyRefunded = db
+      .prepare(
+        `SELECT transaction_id, balance_after
+         FROM ga_txn_log
+         WHERE action = 'refund' AND related_transaction_id = ?
+         LIMIT 1`
+      )
+      .get(betTxId) as any;
+
+    if (alreadyRefunded?.transaction_id) {
+      return okJson({
+        balance: fromCents(toCents(Number(alreadyRefunded.balance_after))),
+        transaction_id: String(alreadyRefunded.transaction_id),
+      });
+    }
+
+    // If bet exists, refund it; if not found, still record refund txn and return current balance
+    const betRow = db
+      .prepare(
+        `SELECT transaction_id
+         FROM ga_txn_log
+         WHERE transaction_id = ? AND action = 'bet'
+         LIMIT 1`
+      )
+      .get(betTxId) as any;
+
+    if (!betRow) {
+      const cleanBal = fromCents(toCents(balance));
+      db.prepare(
+        `INSERT INTO ga_txn_log (transaction_id, user_id, action, amount, currency, balance_after, round_id, related_transaction_id, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).run(transactionId, userId, "refund", amount, currency, cleanBal, roundId, betTxId, now);
+
+      return okJson({ balance: cleanBal, transaction_id: transactionId });
+    }
+
+    const newBal = fromCents(toCents(balance) + toCents(amount));
+
+    db.prepare(`UPDATE wallets SET balance = ? WHERE user_id = ? AND currency = ?`).run(
+      newBal,
+      userId,
+      currency
+    );
+
+    db.prepare(
+      `INSERT INTO ga_txn_log (transaction_id, user_id, action, amount, currency, balance_after, round_id, related_transaction_id, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(transactionId, userId, "refund", amount, currency, newBal, roundId, betTxId, now);
+
+    return okJson({ balance: newBal, transaction_id: transactionId });
+  }
+
+  // -------------------------
+  // ROLLBACK
+  // (If they start validating rollback_transactions, we’ll implement fully.)
+  // For now: keep it format-correct and idempotent.
+  // -------------------------
+  if (action === "rollback") {
     const cleanBal = fromCents(toCents(balance));
 
     db.prepare(
-      `INSERT INTO ga_txn_log (transaction_id, user_id, action, amount, currency, balance_after, round_id, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(transactionId, userId, action, amount, currency, cleanBal, roundId, now);
+      `INSERT INTO ga_txn_log (transaction_id, user_id, action, amount, currency, balance_after, round_id, related_transaction_id, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(transactionId, userId, "rollback", amount, currency, cleanBal, roundId, null, now);
 
     return okJson({ balance: cleanBal, transaction_id: transactionId });
   }
 
-  // Unknown action: safest per spec is INTERNAL_ERROR (but 200)
   return errJson("INTERNAL_ERROR", "Unknown action");
 }
 

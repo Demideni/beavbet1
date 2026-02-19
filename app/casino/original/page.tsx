@@ -7,6 +7,13 @@ const ORIGINALS = [
     href: "/casino/original/robinson",
     bannerSrc: "/images/originals/robinson.png",
   },
+
+{
+  key: "blackjack",
+  title: "Blackjack",
+  href: "/casino/original/blackjack",
+  bannerSrc: "/images/originals/blackjack.png",
+},
 ];
 
 export default function Page() {

@@ -60,8 +60,56 @@
 
   // ====== State ======
   let shoe = [];
+  let currency = "EUR";
   let balance = 1000;
   let bet = 10;
+
+  const CURRENCY_SYMBOL = { USD: "$", EUR: "€", GBP: "£", RUB: "₽" };
+  function fmtMoney(amount){
+    const sym = CURRENCY_SYMBOL[currency] || (currency + " ");
+    const n = Number(amount);
+    if (!Number.isFinite(n)) return `${sym}0.00`;
+    return `${sym}${n.toFixed(2)}`;
+  }
+
+  async function loadWallet(){
+    try{
+      const res = await fetch('/api/account/wallet', { credentials: 'include' });
+      const data = await res.json().catch(()=>null);
+      if (!res.ok || !data?.ok){
+        // Not logged in or API unavailable
+        return;
+      }
+      currency = (data.main?.currency || data.defaultCurrency || 'EUR').toUpperCase();
+      balance = Number(data.main?.balance ?? 0);
+      clampBet();
+      renderHands();
+    }catch{}
+  }
+
+  async function apiWager(amount, meta){
+    const res = await fetch('/api/casino/blackjack/wager', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ amount, currency, meta })
+    });
+    const data = await res.json().catch(()=>({}));
+    if (!res.ok || !data?.ok) throw new Error(data?.error || 'WAGER_FAILED');
+    return data;
+  }
+
+  async function apiPayout(amount, meta){
+    const res = await fetch('/api/casino/blackjack/payout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ amount, currency, meta })
+    });
+    const data = await res.json().catch(()=>({}));
+    if (!res.ok || !data?.ok) throw new Error(data?.error || 'PAYOUT_FAILED');
+    return data;
+  }
 
   let dealerHand = [];
   let playerHand = [];
@@ -177,9 +225,9 @@
       ? `${handTotals(playerHand).total}${handTotals(playerHand).isSoft ? " (soft)" : ""}`
       : "—";
 
-    balanceEl.textContent = `$${balance}`;
-    betEl.textContent = `$${bet}`;
-    betTopEl.textContent = `$${bet}`;
+    balanceEl.textContent = fmtMoney(balance);
+    betEl.textContent = fmtMoney(bet);
+    betTopEl.textContent = fmtMoney(bet);
   }
 
   function setMessage(txt) {
@@ -201,7 +249,7 @@
   }
 
   // ====== Round Flow ======
-  function startRound() {
+  async function startRound() {
     if (inRound) return;
 
     // если модалка открыта — не стартуем
@@ -220,7 +268,19 @@
     dealerHand = [draw(), draw()];
     playerHand = [draw(), draw()];
 
-    balance -= bet;
+    // Debit real wallet on server
+    try {
+      setControls({ deal:false, hit:false, stand:false, dbl:false, betAdjust:false });
+      setMessage("Ставка принимается...");
+      const w = await apiWager(bet, { action: 'deal' });
+      balance = Number(w.newBalance);
+    } catch (e) {
+      setMessage("Не удалось поставить. Проверьте баланс/авторизацию.");
+      inRound = false;
+      setControls({ deal:true, hit:false, stand:false, dbl:false, betAdjust:true });
+      renderHands();
+      return;
+    }
 
     setControls({ deal:false, hit:true, stand:true, dbl:true, betAdjust:false });
     renderHands();
@@ -231,25 +291,35 @@
     if (pBJ || dBJ) {
       dealerHoleHidden = false;
       renderHands();
-      settleBlackjack(pBJ, dBJ);
+      await settleBlackjack(pBJ, dBJ);
       return;
     }
 
     setMessage("Ваш ход: Hit / Stand / Double.");
   }
 
-  function settleBlackjack(pBJ, dBJ) {
-    if (pBJ && dBJ) {
-      balance += bet;
-      setMessage("Push: у обоих Blackjack. Ставка возвращена.");
-    } else if (pBJ) {
-      balance += (bet + bet * BLACKJACK_PAYOUT);
-      setMessage(`Blackjack! Выплата 3:2. Вы выиграли $${(bet * BLACKJACK_PAYOUT).toFixed(0)}.`);
-    } else {
-      setMessage("У дилера Blackjack. Вы проиграли.");
-    }
-    endRound();
+  async function settleBlackjack(pBJ, dBJ) {
+  let payout = 0;
+
+  if (pBJ && dBJ) {
+    payout = bet; // refund
+    setMessage("Push: у обоих Blackjack. Ставка возвращена.");
+  } else if (pBJ) {
+    payout = bet + bet * BLACKJACK_PAYOUT; // 2.5x total
+    setMessage(`Blackjack! Выплата 3:2. Вы выиграли ${fmtMoney(bet * BLACKJACK_PAYOUT)}.`);
+  } else {
+    setMessage("У дилера Blackjack. Вы проиграли.");
   }
+
+  if (payout > 0) {
+    try {
+      const p = await apiPayout(payout, { reason: "blackjack" });
+      balance = Number(p.newBalance);
+    } catch {}
+  }
+
+  endRound();
+}
 
   function hit() {
     if (!inRound) return;
@@ -271,14 +341,14 @@
     setControls({ deal:false, hit:true, stand:true, dbl:false, betAdjust:false });
   }
 
-  function stand() {
+  async function stand() {
     if (!inRound) return;
     canDouble = false;
     setControls({ deal:false, hit:false, stand:false, dbl:false, betAdjust:false });
-    dealerPlay();
+    await dealerPlay();
   }
 
-  function doubleDown() {
+  async function doubleDown() {
     if (!inRound) return;
     if (!canDouble || playerHand.length !== 2) return;
 
@@ -287,7 +357,19 @@
       return;
     }
 
-    balance -= bet;
+    // Debit additional stake for Double
+    try {
+      setControls({ deal:false, hit:false, stand:false, dbl:false, betAdjust:false });
+      setMessage("Double: ставка принимается...");
+      const w = await apiWager(bet, { action: 'double' });
+      balance = Number(w.newBalance);
+    } catch (e) {
+      setMessage("Не удалось сделать Double. Проверьте баланс/авторизацию.");
+      setControls({ deal:false, hit:true, stand:true, dbl:true, betAdjust:false });
+      renderHands();
+      return;
+    }
+
     bet *= 2;
     canDouble = false;
 
@@ -305,10 +387,10 @@
 
     setMessage("Double: авто Stand.");
     setControls({ deal:false, hit:false, stand:false, dbl:false, betAdjust:false });
-    dealerPlay();
+    await dealerPlay();
   }
 
-  function dealerPlay() {
+  async function dealerPlay() {
     dealerHoleHidden = false;
     renderHands();
 
@@ -320,31 +402,37 @@
     }
 
     renderHands();
-    settleNormal();
+    await settleNormal();
   }
 
-  function settleNormal() {
-    const pt = handTotals(playerHand).total;
-    const dt = handTotals(dealerHand).total;
+  async function settleNormal() {
+  const pt = handTotals(playerHand).total;
+  const dt = handTotals(dealerHand).total;
 
-    if (dt > 21) {
-      balance += bet * 2;
-      setMessage(`Дилер перебрал (${dt}). Вы выиграли $${bet}.`);
-      endRound();
-      return;
-    }
+  let payout = 0;
 
-    if (pt > dt) {
-      balance += bet * 2;
-      setMessage(`Вы выиграли! ${pt} vs ${dt}. Профит $${bet}.`);
-    } else if (pt < dt) {
-      setMessage(`Вы проиграли. ${pt} vs ${dt}.`);
-    } else {
-      balance += bet;
-      setMessage(`Push. ${pt} vs ${dt}. Ставка возвращена.`);
-    }
-    endRound();
+  if (dt > 21) {
+    payout = bet * 2;
+    setMessage(`Дилер перебрал (${dt}). Вы выиграли ${fmtMoney(bet)}.`);
+  } else if (pt > dt) {
+    payout = bet * 2;
+    setMessage(`Вы выиграли! ${pt} vs ${dt}. Профит ${fmtMoney(bet)}.`);
+  } else if (pt < dt) {
+    setMessage(`Вы проиграли. ${pt} vs ${dt}.`);
+  } else {
+    payout = bet; // refund
+    setMessage(`Push. ${pt} vs ${dt}. Ставка возвращена.`);
   }
+
+  if (payout > 0) {
+    try {
+      const p = await apiPayout(payout, { reason: "settle", playerTotal: pt, dealerTotal: dt });
+      balance = Number(p.newBalance);
+    } catch {}
+  }
+
+  endRound();
+}
 
   function endRound() {
     inRound = false;
@@ -470,6 +558,9 @@
   if (carRight) carRight.addEventListener("click", () => scrollCarousel(1));
 
   // ====== Init ======
+  // Sync real wallet (if user is logged in)
+  window.addEventListener('DOMContentLoaded', () => { loadWallet(); });
+
   shoe = buildShoe();
   setControls({ deal:true, hit:false, stand:false, dbl:false, betAdjust:true });
   renderHands();

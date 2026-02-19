@@ -16,6 +16,13 @@ const ORIGINALS: OriginalGame[] = [
     href: "/casino/original/robinson",
     bannerSrc: "/images/originals/robinson.png",
   },
+
+{
+  key: "blackjack",
+  label: "",
+  href: "/casino/original/blackjack",
+  bannerSrc: "/images/originals/blackjack.png",
+},
 ];
 
 export function BeavbetOriginal() {

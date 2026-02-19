@@ -182,17 +182,16 @@ h2{margin:0; font-size:16px; color:#fff}
 }
 
 .statusBar{
-  /* Evolution-like round message strip above actions */
-  position: sticky;
-  bottom: calc(var(--tapbarH, var(--tapH)) + var(--safeBottom) + 12px);
+  /* Message strip above actions (NO overlap with cards) */
+  position: relative;
   margin-top: 14px;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
   padding: 14px 16px;
   background: rgba(0,0,0,0.55);
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255,255,255,0.12);
   border-radius: 16px;
-  z-index: 40;
+  z-index: 5;
 }
 
 .statusBar .message{
@@ -204,15 +203,13 @@ h2{margin:0; font-size:16px; color:#fff}
   text-shadow: 0 1px 0 rgba(0,0,0,0.35);
 }
 
-/* mobile: make it full width inside table, no awkward centering */
+/* mobile: slightly tighter */
 @media (max-width: 640px){
   .statusBar{
     border-radius: 14px;
     padding: 12px 14px;
-    bottom: calc(var(--tapbarH, var(--tapH)) + var(--safeBottom) + 10px);
   }
   .statusBar .message{ font-size: 16px; }
-}
 }
 
 

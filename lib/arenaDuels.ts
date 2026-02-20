@@ -168,6 +168,11 @@ export function joinCs2Duel(userId: string, duelId: string) {
   const db = getDb();
   const now = Date.now();
 
+
+  const envHost = process.env.ARENA_CS2_HOST;
+  const envPort = process.env.ARENA_CS2_PORT;
+  const singleServer = envHost && envPort ? `${envHost}:${envPort}` : null;
+
   const t = db.transaction(() => {
     const d = db.prepare("SELECT * FROM arena_duels WHERE id = ?").get(duelId) as DuelRow | undefined;
     if (!d) return { ok: false as const, error: "NOT_FOUND" };
@@ -177,11 +182,13 @@ export function joinCs2Duel(userId: string, duelId: string) {
     const deb = debitBalance(db, userId, d.currency, Number(d.stake), duelId);
     if (!deb.ok) return deb;
 
-    // Assign server info (best-effort)
-    const servers = parseServers(process.env.ARENA_CS2_SERVERS);
+    // Assign server info
+    // MVP "B": if ARENA_CS2_HOST/PORT present, always use that single server.
+    // Otherwise fall back to ARENA_CS2_SERVERS list.
+    const servers = singleServer ? [singleServer] : parseServers(process.env.ARENA_CS2_SERVERS);
     const server = servers.length ? servers[Math.floor(Math.random() * servers.length)] : null;
     const pass = server ? genPassword(10) : null;
-    const joinLink = server ? `steam://connect/${server}` : null;
+    const joinLink = server ? (pass ? `steam://connect/${server}/${pass}` : `steam://connect/${server}`) : null;
 
     db.prepare(
       `UPDATE arena_duels
@@ -189,7 +196,7 @@ export function joinCs2Duel(userId: string, duelId: string) {
        WHERE id = ? AND status = 'open'`
     ).run(userId, server, pass, joinLink, now, now, duelId);
 
-    return { ok: true as const, duelId };
+    return { ok: true as const, duelId, server, server_password: pass, join_link: joinLink };
   });
 
   return t();

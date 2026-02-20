@@ -14,6 +14,15 @@ const ORIGINALS = [
   href: "/casino/original/blackjack",
   bannerSrc: "/images/originals/blackjack.png",
 },
+
+
+{
+  key: "aviator",
+  title: "BeavJet",
+  href: "/casino/original/aviator",
+  bannerSrc: "/images/originals/aviator.png",
+},
+
 ];
 
 export default function Page() {

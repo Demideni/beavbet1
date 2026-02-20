@@ -101,7 +101,7 @@ export default function Cs2DuelsClient() {
         <div>
           <div className="text-white text-3xl font-extrabold">CS2 Duels</div>
           <div className="mt-1 text-white/60 text-sm">
-            1v1 • ставки 5/10/20 • комиссия 15% (пока просто удерживается)
+            1v1 • ставки 5/10/20 • комиссия 15% от банка
           </div>
         </div>
         <Link

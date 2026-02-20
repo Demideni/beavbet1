@@ -61,6 +61,28 @@ body {
   animation: tabBounce 260ms cubic-bezier(0.2, 0.9, 0.2, 1);
 }
 
+/* Faceit-like flowing hero for Arena */
+.arena-hero-bg {
+  background:
+    radial-gradient(1200px 520px at 18% 30%, rgba(255,42,79,0.32), transparent 58%),
+    radial-gradient(920px 520px at 84% 18%, rgba(176,18,46,0.38), transparent 60%),
+    radial-gradient(900px 520px at 65% 85%, rgba(255,42,79,0.18), transparent 62%),
+    linear-gradient(90deg, rgba(255,42,79,0.08), rgba(0,0,0,0.0) 55%, rgba(176,18,46,0.10)),
+    linear-gradient(180deg, rgba(0,0,0,0.55), rgba(0,0,0,0.78));
+  background-size: 200% 200%;
+  animation: arenaFlow 10s ease-in-out infinite;
+}
+
+@keyframes arenaFlow {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .arena-hero-bg { animation: none; }
+}
+
 /* Desktop-only tile hover (lift + glow) */
 @media (min-width: 768px) {
   .tile-hover {

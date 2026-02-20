@@ -62,7 +62,11 @@ export default function ArenaClient() {
   }, 0);
 
   return (
-    <div>
+    <div className="relative">
+      {/* Full-page flowing background (fixed, works on desktop + mobile) */}
+      <div className="arena-page-bg" aria-hidden />
+
+      <div className="relative z-10">
       {/* Hero (Faceit-like) */}
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 arena-hero-bg" aria-hidden />
@@ -224,6 +228,7 @@ export default function ArenaClient() {
         )}
         </div>
       </section>
+      </div>
     </div>
   );
 }

@@ -73,6 +73,22 @@ body {
   animation: arenaFlow 10s ease-in-out infinite;
 }
 
+/* Full page flowing background for Arena pages */
+.arena-page-bg {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(1400px 720px at 16% 28%, rgba(255,42,79,0.22), transparent 60%),
+    radial-gradient(1100px 720px at 86% 18%, rgba(176,18,46,0.28), transparent 62%),
+    radial-gradient(1200px 720px at 62% 92%, rgba(255,42,79,0.14), transparent 64%),
+    linear-gradient(90deg, rgba(255,42,79,0.06), rgba(0,0,0,0) 55%, rgba(176,18,46,0.08)),
+    linear-gradient(180deg, rgba(0,0,0,0.78), rgba(0,0,0,0.92));
+  background-size: 240% 240%;
+  animation: arenaFlow 14s ease-in-out infinite;
+}
+
 @keyframes arenaFlow {
   0%   { background-position: 0% 50%; }
   50%  { background-position: 100% 50%; }
@@ -81,6 +97,7 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .arena-hero-bg { animation: none; }
+  .arena-page-bg { animation: none; }
 }
 
 /* Desktop-only tile hover (lift + glow) */

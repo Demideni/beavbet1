@@ -224,6 +224,9 @@ export function listCs2Duels(userId: string) {
   const enriched = duels.map((d) => {
     const players = getDuelPlayers(db, d.id);
     const { t1, t2 } = teamsFill(players);
+    const me = players.find((p) => p.user_id === userId);
+    const me_team = me?.team ?? (d.p1_user_id === userId ? 1 : d.p2_user_id === userId ? 2 : null);
+    const me_is_p1 = me_team === 1;
     return {
       ...d,
       p1_nick: getNick(db, d.p1_user_id),
@@ -231,12 +234,14 @@ export function listCs2Duels(userId: string) {
       players,
       team1_count: t1.length,
       team2_count: t2.length,
+      me_team,
+      me_is_p1,
     };
   });
 
   const myRating = getDamRank(db, userId);
 
-  return { ok: true as const, duels: enriched, myRating, ratingName: "DamRank" };
+  return { ok: true as const, duels: enriched, myRating, ratingName: ratingNameFromElo(myRating.dam_rank) };
 }
 
 export function createCs2Duel(
@@ -587,4 +592,140 @@ export function finalizeDuel(duelId: string, winnerUserId: string, source: "serv
   });
 
   return tx();
+}
+
+// --- Arena social/UX helpers (profile / leaderboard / activity) ---
+
+function ratingNameFromElo(elo: number) {
+  if (elo >= 2000) return "Elite";
+  if (elo >= 1700) return "Diamond";
+  if (elo >= 1400) return "Gold";
+  if (elo >= 1000) return "Silver";
+  return "Bronze";
+}
+
+export function getArenaProfile(userId: string, limit = 30) {
+  const db = getDb();
+  ensureRating(db, userId);
+  const r = getDamRank(db, userId);
+  const nick = getNick(db, userId);
+
+  const history = db
+    .prepare(
+      `SELECT d.id, d.game, d.stake, d.currency, d.status, d.map, d.updated_at, d.ended_at,
+              d.p1_user_id, d.p2_user_id, d.winner_user_id
+       FROM arena_duels d
+       WHERE (d.p1_user_id=? OR d.p2_user_id=? OR EXISTS(SELECT 1 FROM arena_duel_players p WHERE p.duel_id=d.id AND p.user_id=?))
+       ORDER BY COALESCE(d.ended_at, d.updated_at) DESC
+       LIMIT ?`
+    )
+    .all(userId, userId, userId, limit) as any[];
+
+  const rows = history.map((d) => {
+    const p1 = getNick(db, d.p1_user_id);
+    const p2 = getNick(db, d.p2_user_id);
+    const w = getNick(db, d.winner_user_id);
+    return { ...d, p1_nick: p1, p2_nick: p2, winner_nick: w };
+  });
+
+  return {
+    ok: true as const,
+    profile: {
+      userId,
+      nickname: nick,
+      elo: r.dam_rank,
+      division: ratingNameFromElo(r.dam_rank),
+      matches: r.matches,
+      wins: r.wins,
+      losses: r.losses,
+      winrate: r.matches ? Math.round((r.wins / r.matches) * 100) : 0,
+    },
+    history: rows,
+  };
+}
+
+export function getArenaLeaderboard(limit = 50) {
+  const db = getDb();
+  const top = db
+    .prepare(
+      `SELECT r.user_id, r.dam_rank AS elo, r.matches, r.wins, r.losses, r.updated_at
+       FROM arena_ratings r
+       ORDER BY r.dam_rank DESC
+       LIMIT ?`
+    )
+    .all(limit) as any[];
+
+  const rows = top.map((x) => ({
+    ...x,
+    nickname: getNick(db, x.user_id),
+    division: ratingNameFromElo(Number(x.elo || 1000)),
+    winrate: x.matches ? Math.round((Number(x.wins || 0) / Number(x.matches || 0)) * 100) : 0,
+  }));
+
+  return { ok: true as const, rows };
+}
+
+export function getArenaActivity(limit = 25) {
+  const db = getDb();
+  const duels = db
+    .prepare(
+      `SELECT id, game, stake, currency, status, p1_user_id, p2_user_id, winner_user_id,
+              COALESCE(ended_at, updated_at) AS at
+       FROM arena_duels
+       ORDER BY COALESCE(ended_at, updated_at) DESC
+       LIMIT ?`
+    )
+    .all(limit) as any[];
+
+  const items = duels.map((d) => {
+    const kind = d.status === "done" ? "duel_done" : d.status === "active" ? "duel_active" : "duel_open";
+    return {
+      id: d.id,
+      kind,
+      game: d.game,
+      stake: Number(d.stake || 0),
+      currency: d.currency,
+      p1_nick: getNick(db, d.p1_user_id),
+      p2_nick: getNick(db, d.p2_user_id),
+      winner_nick: getNick(db, d.winner_user_id),
+      at: Number(d.at || Date.now()),
+    };
+  });
+
+  return { ok: true as const, items };
+}
+
+export function getCs2DuelView(userId: string, duelId: string) {
+  const db = getDb();
+  tickCs2Duels(db);
+
+  const d = db.prepare("SELECT * FROM arena_duels WHERE id=? AND game='cs2'").get(duelId) as DuelRow | undefined;
+  if (!d) return { ok: false as const, error: "NOT_FOUND" };
+
+  const players = getDuelPlayers(db, duelId).map((p) => ({
+    ...p,
+    nickname: getNick(db, p.user_id),
+  }));
+
+  const me = players.find((p) => p.user_id === userId);
+  const me_team = me?.team ?? (d.p1_user_id === userId ? 1 : d.p2_user_id === userId ? 2 : null);
+  const me_ready = Boolean(me?.ready ?? (me_team === 1 ? d.p1_ready : me_team === 2 ? d.p2_ready : 0));
+
+  ensureRating(db, userId);
+  const r = getDamRank(db, userId);
+
+  return {
+    ok: true as const,
+    duel: {
+      ...d,
+      p1_nick: getNick(db, d.p1_user_id),
+      p2_nick: getNick(db, d.p2_user_id),
+      winner_nick: getNick(db, d.winner_user_id),
+      me_team,
+      me_ready,
+      myRating: r.dam_rank,
+      ratingName: ratingNameFromElo(r.dam_rank),
+    },
+    players,
+  };
 }

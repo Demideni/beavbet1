@@ -21,6 +21,10 @@ type Duel = {
   p1_nick?: string | null;
   p2_user_id?: string | null;
   p2_nick?: string | null;
+  p2_nick?: string | null;
+  p1_ready?: number | boolean | null;
+  p2_ready?: number | boolean | null;
+  ready_deadline?: number | null;
   winner_user_id?: string | null;
   winner_team?: number | null;
   ready_deadline?: number | null;
@@ -105,7 +109,7 @@ export default function Cs2DuelsClient() {
     window.dispatchEvent(new Event("wallet:refresh"));
     await load();
   }
-  async function ready(duelId: string, team?: number) {
+  async function ready(duelId: string) {
     setBusy(`ready:${duelId}`);
     const r = await fetch("/api/arena/duels/cs2/ready", {
       method: "POST",

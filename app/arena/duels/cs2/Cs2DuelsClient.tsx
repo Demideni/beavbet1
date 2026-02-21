@@ -23,6 +23,7 @@ type Duel = {
   p2_nick?: string | null;
   p1_ready?: number | boolean | null;
   p2_ready?: number | boolean | null;
+  me_is_p1?: boolean | null;
   ready_deadline?: number | null;
   winner_user_id?: string | null;
   winner_team?: number | null;

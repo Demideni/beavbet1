@@ -5,6 +5,41 @@
   const canvas = document.getElementById("c");
   const ctx = canvas.getContext("2d", { alpha: true });
 
+  // --- BeavJet assets (optional). If missing, falls back to procedural graphics.
+  const ASSET_ROOT = "/aviator";
+  const IMG = {};
+  const IMG_READY = { value: false };
+
+  function loadImage(name, src) {
+    return new Promise((resolve) => {
+      const im = new Image();
+      im.onload = () => { IMG[name] = im; resolve(true); };
+      im.onerror = () => { IMG[name] = null; resolve(false); };
+      im.src = src;
+    });
+  }
+
+  async function loadAssets() {
+    const list = {
+      plane: `${ASSET_ROOT}/plane/plane.png`,
+      planeBoost: `${ASSET_ROOT}/plane/plane_boost.png`,
+      fire: `${ASSET_ROOT}/plane/engine_fire.png`,
+      shadow: `${ASSET_ROOT}/plane/plane_shadow.png`,
+      sky: `${ASSET_ROOT}/bg/sky.png`,
+      clouds: `${ASSET_ROOT}/bg/clouds.png`,
+      city: `${ASSET_ROOT}/bg/city.png`,
+      spark: `${ASSET_ROOT}/effects/spark.png`,
+      particle: `${ASSET_ROOT}/effects/particle.png`,
+      explosion: `${ASSET_ROOT}/effects/explosion.png`,
+      smoke: `${ASSET_ROOT}/effects/smoke.png`,
+    };
+    const results = await Promise.all(Object.entries(list).map(([k, v]) => loadImage(k, v)));
+    // ready if at least the core visuals exist
+    IMG_READY.value = Boolean(IMG.plane && IMG.sky && IMG.clouds && IMG.city);
+    return results;
+  }
+
+
   const state = {
     dpr: 1,
     w: 0,
@@ -27,6 +62,8 @@
     trail: [],
     particles: [],
     shake: 0,
+    boomT: 0,
+    boomOn: false,
   };
 
   function resize() {
@@ -65,6 +102,8 @@
     state.trail.length = 0;
     state.particles.length = 0;
     state.shake = 0;
+    state.boomOn = false;
+    state.boomT = 0;
   }
 
   function cashOut() {
@@ -81,6 +120,8 @@
     state.running = false;
     state.lastCrash = state.crashPoint;
     state.shake = 1.0;
+    state.boomOn = true;
+    state.boomT = 0;
     spawnExplosion();
   }
 
@@ -106,6 +147,13 @@
     // background
     drawBackground(now);
 
+    // crash explosion overlay (image-based if available)
+    if (state.boomOn) {
+      state.boomT += dt / 1000;
+      drawBoom();
+      if (state.boomT > 1.0) state.boomOn = false;
+    }
+
     // graph & plane
     drawGraph();
 
@@ -120,7 +168,59 @@
     const w = state.w, h = state.h;
     const t = now / 1000;
 
-    // subtle stars
+    // If branded images are available, use parallax layers.
+    if (IMG_READY.value) {
+      ctx.save();
+
+      // SKY
+      const sky = IMG.sky;
+      if (sky) {
+        // cover
+        const scale = Math.max(w / sky.width, h / sky.height);
+        const dw = sky.width * scale;
+        const dh = sky.height * scale;
+        ctx.globalAlpha = 1;
+        ctx.drawImage(sky, (w - dw) / 2, (h - dh) / 2, dw, dh);
+      }
+
+      // subtle vignette
+      ctx.save();
+      const vg = ctx.createRadialGradient(w * 0.65, h * 0.25, 20, w * 0.55, h * 0.45, Math.max(w, h));
+      vg.addColorStop(0, "rgba(234,59,59,0.10)");
+      vg.addColorStop(1, "rgba(0,0,0,0.65)");
+      ctx.fillStyle = vg;
+      ctx.fillRect(0, 0, w, h);
+      ctx.restore();
+
+      // CITY (slow)
+      const city = IMG.city;
+      if (city) {
+        const y = h - city.height * (w / city.width);
+        const scale = w / city.width;
+        const dh = city.height * scale;
+        const dy = h - dh;
+        const off = (t * 8 * state.dpr) % (w * 0.35);
+        ctx.globalAlpha = 0.85;
+        ctx.drawImage(city, -off, dy, w + off, dh);
+      }
+
+      // CLOUDS (faster)
+      const clouds = IMG.clouds;
+      if (clouds) {
+        const scale = w / clouds.width;
+        const dh = clouds.height * scale;
+        const dy = h * 0.05;
+        const off = (t * 32 * state.dpr) % w;
+        ctx.globalAlpha = 0.75;
+        ctx.drawImage(clouds, -off, dy, w, dh);
+        ctx.drawImage(clouds, -off + w, dy, w, dh);
+      }
+
+      ctx.restore();
+      return;
+    }
+
+    // --- Fallback procedural background ---
     ctx.save();
     ctx.globalAlpha = 0.7;
     for (let i = 0; i < 70; i++) {
@@ -132,7 +232,6 @@
     }
     ctx.restore();
 
-    // clouds (parallax ribbons)
     ctx.save();
     ctx.globalAlpha = 0.55;
     for (let i = 0; i < 4; i++) {
@@ -148,14 +247,6 @@
       ctx.fillRect(x, y, 520 * state.dpr, 90 * state.dpr);
     }
     ctx.restore();
-
-    // horizon glow
-    const g = ctx.createRadialGradient(w * 0.6, h * 0.2, 0, w * 0.6, h * 0.2, h * 0.9);
-    g.addColorStop(0, "rgba(234,59,59,0.18)");
-    g.addColorStop(0.45, "rgba(234,59,59,0.06)");
-    g.addColorStop(1, "rgba(234,59,59,0)");
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, w, h);
   }
 
   function drawGraph() {
@@ -272,14 +363,60 @@
   }
 
   function drawPlane(x, y, mult) {
-    const s = 1.0 + Math.min(0.25, (Math.log(mult) / Math.log(30)) * 0.22);
+    const s = 1.0 + Math.min(0.28, (Math.log(mult) / Math.log(30)) * 0.22);
     const rot = clamp(-0.25 + (Math.log(mult) / Math.log(60)) * 0.55, -0.25, 0.55);
 
+    // Micro-bob for premium feel
+    const bob = Math.sin(performance.now() / 180) * 2.0 * state.dpr;
+
     ctx.save();
-    ctx.translate(x, y);
+    ctx.translate(x, y + bob);
     ctx.rotate(rot);
     ctx.scale(s * state.dpr, s * state.dpr);
 
+    // If we have branded images, use them
+    if (IMG.plane) {
+      // Shadow (separate image looks cleaner)
+      if (IMG.shadow) {
+        ctx.save();
+        ctx.globalAlpha = 0.42;
+        ctx.drawImage(IMG.shadow, -IMG.shadow.width * 0.5, 18, IMG.shadow.width, IMG.shadow.height);
+        ctx.restore();
+      } else {
+        ctx.save();
+        ctx.globalAlpha = 0.28;
+        ctx.fillStyle = "rgba(0,0,0,0.65)";
+        ctx.beginPath();
+        ctx.ellipse(-6, 18, 46, 18, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      // Engine fire flicker (behind)
+      const wantsBoost = state.running && !state.cashed && mult >= 2.2;
+      const fire = IMG.fire;
+      if (fire) {
+        const f = 0.78 + (Math.sin(performance.now() / 55) * 0.10 + Math.random() * 0.08);
+        ctx.save();
+        ctx.globalAlpha = wantsBoost ? 0.95 : 0.65;
+        ctx.translate(-72, 2);
+        ctx.scale(f, f);
+        ctx.drawImage(fire, -fire.width * 0.5, -fire.height * 0.5, fire.width, fire.height);
+        ctx.restore();
+      }
+
+      // Plane image (switch to boost skin at higher mult)
+      const im = (mult >= 6 || state.cashed) && IMG.planeBoost ? IMG.planeBoost : IMG.plane;
+      ctx.save();
+      ctx.globalAlpha = 1;
+      ctx.drawImage(im, -im.width * 0.5, -im.height * 0.5, im.width, im.height);
+      ctx.restore();
+
+      ctx.restore();
+      return;
+    }
+
+    // --- fallback procedural plane ---
     // shadow
     ctx.save();
     ctx.globalAlpha = 0.35;
@@ -292,77 +429,57 @@
     // body
     roundedRect(-62, -10, 120, 20, 10, "rgba(255,255,255,0.92)");
     // nose
-    ctx.fillStyle = "rgba(255,255,255,0.92)";
+    ctx.fillStyle = "rgba(240,240,240,0.95)";
     ctx.beginPath();
     ctx.moveTo(58, -10);
-    ctx.lineTo(86, 0);
-    ctx.lineTo(58, 10);
+    ctx.quadraticCurveTo(72, 0, 58, 10);
     ctx.closePath();
     ctx.fill();
+
+    // stripe
+    const grad = ctx.createLinearGradient(-40, -10, 50, 10);
+    grad.addColorStop(0, "rgba(234,59,59,0.10)");
+    grad.addColorStop(0.3, "rgba(234,59,59,0.70)");
+    grad.addColorStop(1, "rgba(255,90,90,0.10)");
+    roundedRect(-40, -10, 90, 20, 10, grad);
 
     // wing
-    ctx.fillStyle = "rgba(234,59,59,0.90)";
-    ctx.beginPath();
-    ctx.moveTo(-8, 2);
-    ctx.lineTo(32, 40);
-    ctx.lineTo(12, 40);
-    ctx.lineTo(-38, 6);
-    ctx.closePath();
-    ctx.fill();
-
+    roundedRect(-26, 2, 46, 12, 6, "rgba(255,255,255,0.92)");
     // tail
-    ctx.fillStyle = "rgba(234,59,59,0.92)";
+    roundedRect(-54, -18, 18, 12, 6, "rgba(255,255,255,0.92)");
+
+    // cockpit
+    roundedRect(10, -18, 26, 12, 6, "rgba(20,20,24,0.85)");
+    // beaver head
+    ctx.fillStyle = "rgba(144,94,60,0.95)";
     ctx.beginPath();
-    ctx.moveTo(-62, -10);
-    ctx.lineTo(-92, -34);
-    ctx.lineTo(-78, -4);
-    ctx.lineTo(-92, 34);
-    ctx.lineTo(-62, 10);
-    ctx.closePath();
+    ctx.arc(-4, -18, 9, 0, Math.PI * 2);
     ctx.fill();
-
-    // cockpit (beaver window)
-    ctx.fillStyle = "rgba(30,30,40,0.80)";
+    // ear
+    ctx.fillStyle = "rgba(134,84,52,0.95)";
     ctx.beginPath();
-    ctx.ellipse(30, 0, 16, 12, 0, 0, Math.PI * 2);
+    ctx.arc(-10, -24, 4, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = "rgba(255,255,255,0.55)";
+    // goggles
+    ctx.strokeStyle = "rgba(255,255,255,0.75)";
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.ellipse(35, -2, 5, 4, 0, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.arc(-8, -20, 3.5, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(2, -20, 3.5, 0, Math.PI * 2);
+    ctx.stroke();
 
-    // beaver head (simple)
-    ctx.save();
-    ctx.translate(28, 0);
-    ctx.scale(0.9, 0.9);
-    ctx.globalAlpha = 0.95;
-    ctx.fillStyle = "rgba(255,255,255,0.08)";
-    ctx.beginPath(); ctx.ellipse(0, 0, 12, 9, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.restore();
-
-    // logo
-    ctx.strokeStyle = "rgba(234,59,59,0.95)";
-    ctx.lineWidth = 2.5;
-    roundStroke(-24, -7, 40, 14, 6);
-    ctx.fillStyle = "rgba(234,59,59,0.95)";
-    ctx.font = "900 10px ui-sans-serif, system-ui";
-    ctx.fillText("BB", -15, 4);
-
-    // engine fire
-    if (state.running && !state.crashed) {
-      const flick = (Math.sin(performance.now() / 90) * 0.5 + 0.5);
-      const len = 22 + flick * 14;
-      const grad = ctx.createLinearGradient(-70, 0, -70 - len, 0);
-      grad.addColorStop(0, "rgba(255,160,80,0.95)");
-      grad.addColorStop(0.4, "rgba(255,90,90,0.85)");
-      grad.addColorStop(1, "rgba(255,90,90,0)");
-      ctx.fillStyle = grad;
-      ctx.beginPath();
-      ctx.moveTo(-62, -6);
-      ctx.lineTo(-62 - len, 0);
-      ctx.lineTo(-62, 6);
-      ctx.closePath();
-      ctx.fill();
+    // glow at high mult
+    const glow = clamp((Math.log(mult) / Math.log(30)) * 0.9, 0, 1);
+    if (glow > 0.1) {
+      ctx.save();
+      ctx.globalAlpha = glow * 0.45;
+      ctx.shadowColor = "rgba(255,90,90,1)";
+      ctx.shadowBlur = 18 * state.dpr;
+      ctx.fillStyle = "rgba(255,90,90,0.25)";
+      roundedRect(-66, -14, 132, 28, 12, "rgba(255,90,90,0.10)");
+      ctx.restore();
     }
 
     ctx.restore();
@@ -406,21 +523,58 @@
   }
 
   function spawnExplosion() {
-    const n = 70;
+    // big boom sprite (center)
+    state.particles.push({
+      x: state.w * 0.5,
+      y: state.h * 0.42,
+      vx: 0,
+      vy: 0,
+      life: 0.85,
+      t: 0,
+      kind: "boom",
+      rot: Math.random() * Math.PI * 2,
+    });
+
+    const n = 84;
     for (let i = 0; i < n; i++) {
+      const smoke = i % 4 === 0;
       state.particles.push({
-        x: state.w * 0.5,
-        y: state.h * 0.42,
-        vx: (Math.random() - 0.5) * 520 * state.dpr,
-        vy: (Math.random() - 0.5) * 520 * state.dpr,
-        life: 0.9 + Math.random() * 0.8,
+        x: state.w * 0.5 + (Math.random() - 0.5) * 30 * state.dpr,
+        y: state.h * 0.42 + (Math.random() - 0.5) * 30 * state.dpr,
+        vx: (Math.random() - 0.5) * (smoke ? 260 : 620) * state.dpr,
+        vy: (Math.random() - 0.5) * (smoke ? 260 : 620) * state.dpr,
+        life: (smoke ? 1.4 : 0.95) + Math.random() * 0.7,
         t: 0,
-        kind: i % 3 === 0 ? "smoke" : "spark",
+        kind: smoke ? "smoke" : (i % 3 === 0 ? "particle" : "spark"),
+        rot: Math.random() * Math.PI * 2,
       });
     }
   }
 
-  function updateParticles(dt) {
+  function drawBoom() {
+    const w = state.w, h = state.h;
+    const t = state.boomT;
+    const k = 1 - Math.min(1, t / 1.0);
+
+    // flash
+    ctx.save();
+    ctx.globalAlpha = 0.25 * k;
+    ctx.fillStyle = "rgba(255,90,90,1)";
+    ctx.fillRect(0, 0, w, h);
+    ctx.restore();
+
+    // center glow
+    ctx.save();
+    const r = (120 + t * 420) * state.dpr;
+    const g = ctx.createRadialGradient(w * 0.5, h * 0.42, 0, w * 0.5, h * 0.42, r);
+    g.addColorStop(0, `rgba(255,120,90,${0.55 * k})`);
+    g.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+    ctx.restore();
+  }
+
+    function updateParticles(dt) {
     for (const p of state.particles) {
       p.t += dt;
       p.x += p.vx * dt;
@@ -434,6 +588,28 @@
   function drawParticles() {
     for (const p of state.particles) {
       const k = 1 - p.t / p.life;
+
+      if (IMG_READY.value && (p.kind === "spark" || p.kind === "smoke" || p.kind === "particle" || p.kind === "boom")) {
+        let im = null;
+        if (p.kind === "spark") im = IMG.spark;
+        if (p.kind === "smoke") im = IMG.smoke;
+        if (p.kind === "particle") im = IMG.particle;
+        if (p.kind === "boom") im = IMG.explosion;
+
+        if (im) {
+          const base = (p.kind === "smoke") ? 90 : (p.kind === "boom" ? 420 : 42);
+          const size = (base * (0.65 + (1 - k) * 0.55)) * state.dpr;
+          ctx.save();
+          ctx.globalAlpha = (p.kind === "smoke") ? (0.06 + k * 0.22) : (0.10 + k * 0.85);
+          ctx.translate(p.x, p.y);
+          ctx.rotate((p.rot || 0) + (1 - k) * 0.6);
+          ctx.drawImage(im, -size * 0.5, -size * 0.5, size, size);
+          ctx.restore();
+          continue;
+        }
+      }
+
+      // fallback primitives
       if (p.kind === "spark") {
         ctx.fillStyle = `rgba(255,120,80,${0.18 + k * 0.75})`;
         ctx.beginPath();
@@ -456,5 +632,7 @@
   };
 
   window.addEventListener("resize", resize);
+  // fire-and-forget asset loading
+  loadAssets().catch(() => {});
   requestAnimationFrame(tick);
 })();

@@ -53,9 +53,7 @@ export function ensureSeedTournaments() {
   const now = Date.now();
   const seeds: Array<Pick<ArenaTournament, "title" | "game" | "team_size" | "entry_fee" | "currency" | "max_players" | "rake">> = [
     { title: "Express Cup", game: "CS2", team_size: 1, entry_fee: 5, currency: "EUR", max_players: 8, rake: 0.1 },
-    { title: "Daily Cup", game: "Dota 2", team_size: 1, entry_fee: 10, currency: "EUR", max_players: 16, rake: 0.1 },
-    { title: "Express Cup", game: "Valorant", team_size: 1, entry_fee: 5, currency: "EUR", max_players: 8, rake: 0.1 },
-  ];
+      ];
   const ins = db.prepare(
     "INSERT INTO arena_tournaments (id, title, game, team_size, entry_fee, currency, max_players, rake, status, starts_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', NULL, ?, ?)"
   );
@@ -83,7 +81,7 @@ export function listTournaments() {
   ensureSeedTournaments();
   const rows = db
     .prepare(
-      "SELECT t.*, (SELECT COUNT(*) FROM arena_participants p WHERE p.tournament_id = t.id) as players FROM arena_tournaments t ORDER BY status ASC, created_at DESC"
+      "SELECT t.*, (SELECT COUNT(*) FROM arena_participants p WHERE p.tournament_id = t.id) as players FROM arena_tournaments t WHERE t.game NOT IN ('Dota 2','Valorant') ORDER BY status ASC, created_at DESC"
     )
     .all() as Array<ArenaTournament & { players: number }>;
   return rows;

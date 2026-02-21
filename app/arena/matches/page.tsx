@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import ArenaShell from "../ArenaShell";
 
 export default function ArenaMatchesPage() {
   const [rows, setRows] = useState<any[]>([]);
@@ -20,13 +21,14 @@ export default function ArenaMatchesPage() {
   }, []);
 
   return (
+    <ArenaShell>
     <div className="mx-auto max-w-[980px] px-4 py-6">
       <div className="flex items-end justify-between gap-3">
         <div>
           <div className="text-white text-2xl font-extrabold">Мои матчи</div>
           <div className="mt-1 text-white/60 text-sm">Если есть активный матч — заходи и репорть результат</div>
         </div>
-        <Link href="/arena" className="px-4 py-2 rounded-2xl bg-white/6 border border-white/10 hover:bg-white/10 text-sm text-white/85">
+        <Link href="/arena" className="px-4 py-2 rounded-2xl cs2-btn-ghost text-sm text-white/85">
           Arena
         </Link>
       </div>
@@ -41,7 +43,7 @@ export default function ArenaMatchesPage() {
             <Link
               key={m.id}
               href={`/arena/match/${m.id}`}
-              className="block rounded-3xl bg-white/5 border border-white/10 hover:bg-white/8 p-4"
+              className="block rounded-3xl cs2-panel-dark hover:bg-white/8 p-4"
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="text-white/85 font-semibold">
@@ -58,5 +60,7 @@ export default function ArenaMatchesPage() {
         )}
       </div>
     </div>
+    </div>
+    </ArenaShell>
   );
 }

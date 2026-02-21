@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import ArenaShell from "../ArenaShell";
 import { useParams } from "next/navigation";
 import { cn } from "@/components/utils/cn";
 
@@ -46,6 +47,7 @@ export default function TournamentClient() {
 
   if (!t) {
     return (
+    <ArenaShell>
       <div className="mx-auto max-w-[980px] px-4 py-6 text-white/60">
         Загрузка…
       </div>
@@ -55,6 +57,7 @@ export default function TournamentClient() {
   const prizePool = Number((t.entryFee * t.maxPlayers * (1 - t.rake)).toFixed(2));
 
   return (
+    <ArenaShell>
     <div className="mx-auto max-w-[980px] px-4 py-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
@@ -66,7 +69,7 @@ export default function TournamentClient() {
         <div className="flex items-center gap-2">
           <Link
             href="/arena"
-            className="px-4 py-2 rounded-2xl bg-white/6 border border-white/10 hover:bg-white/10 text-sm text-white/85"
+            className="px-4 py-2 rounded-2xl cs2-btn-ghost text-sm text-white/85"
           >
             Назад
           </Link>
@@ -85,7 +88,7 @@ export default function TournamentClient() {
       </div>
 
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
-        <div className="rounded-3xl bg-white/5 border border-white/10 p-4">
+        <div className="rounded-3xl cs2-panel-dark p-4">
           <div className="text-white font-semibold">Участники</div>
           <div className="mt-3 space-y-2">
             {participants.length === 0 ? (
@@ -102,7 +105,7 @@ export default function TournamentClient() {
           </div>
         </div>
 
-        <div className="rounded-3xl bg-white/5 border border-white/10 p-4">
+        <div className="rounded-3xl cs2-panel-dark p-4">
           <div className="text-white font-semibold">Сетка</div>
           <div className="mt-3 space-y-2">
             {matches.length === 0 ? (
@@ -128,5 +131,6 @@ export default function TournamentClient() {
         </div>
       </div>
     </div>
+    </ArenaShell>
   );
 }

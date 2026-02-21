@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import ArenaShell from "../../ArenaShell";
 import { useParams } from "next/navigation";
 import { cn } from "@/components/utils/cn";
 
@@ -15,15 +16,17 @@ function CopyRow({ label, value }: { label: string; value: string }) {
     }
   }
   return (
+    <ArenaShell>
     <div className="flex items-center justify-between gap-3 rounded-2xl bg-black/20 border border-white/10 px-4 py-3">
       <div className="min-w-0">
         <div className="text-white/50 text-xs">{label}</div>
         <div className="text-white/90 text-sm font-mono truncate">{value}</div>
       </div>
-      <button onClick={copy} className="shrink-0 px-3 py-2 rounded-xl bg-white/6 border border-white/10 hover:bg-white/10 text-xs text-white/85">
+      <button onClick={copy} className="shrink-0 px-3 py-2 rounded-xl cs2-btn-ghost text-xs text-white/85">
         Copy
       </button>
     </div>
+    </ArenaShell>
   );
 }
 
@@ -47,7 +50,8 @@ export default function ArenaMatchPage() {
     if (id) load();
     // refresh every 5s while open
     const t = setInterval(() => load(), 5000);
-    return () => clearInterval(t);
+    return (
+    <ArenaShell>) => clearInterval(t);
   }, [id]);
 
   async function report(result: "win" | "lose") {
@@ -86,10 +90,11 @@ export default function ArenaMatchPage() {
 
   if (!match) {
     return (
+    <ArenaShell>
       <div className="mx-auto max-w-[980px] px-4 py-6 text-white/60">
         Матч не найден (или ты не участник).
         <div className="mt-4">
-          <Link href="/arena/matches" className="px-4 py-2 rounded-2xl bg-white/6 border border-white/10 hover:bg-white/10 text-sm text-white/85">
+          <Link href="/arena/matches" className="px-4 py-2 rounded-2xl cs2-btn-ghost text-sm text-white/85">
             Назад
           </Link>
         </div>
@@ -98,6 +103,7 @@ export default function ArenaMatchPage() {
   }
 
   return (
+    <ArenaShell>
     <div className="mx-auto max-w-[980px] px-4 py-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
@@ -106,12 +112,12 @@ export default function ArenaMatchPage() {
             {match.game} • {match.title} • Round {match.round}
           </div>
         </div>
-        <Link href="/arena/matches" className="px-4 py-2 rounded-2xl bg-white/6 border border-white/10 hover:bg-white/10 text-sm text-white/85">
+        <Link href="/arena/matches" className="px-4 py-2 rounded-2xl cs2-btn-ghost text-sm text-white/85">
           Мои матчи
         </Link>
       </div>
 
-      <div className="mt-6 rounded-3xl bg-white/5 border border-white/10 p-5">
+      <div className="mt-6 rounded-3xl cs2-panel-dark p-5">
         <div className="text-white/85 font-semibold">
           {match.p1_nick || match.p1_user_id?.slice(0, 6)} vs {match.p2_nick || match.p2_user_id?.slice(0, 6)}
         </div>
@@ -167,7 +173,7 @@ export default function ArenaMatchPage() {
             onClick={() => setReady(true)}
             className={cn(
               "py-3 rounded-2xl font-semibold",
-              (match.p1_ready || match.p2_ready) ? "bg-white/8 border border-white/10 hover:bg-white/10 text-white" : "bg-white/6 border border-white/10 hover:bg-white/10 text-white",
+              (match.p1_ready || match.p2_ready) ? "bg-white/8 border border-white/10 hover:bg-white/10 text-white" : "cs2-btn-ghost text-white",
               readyBusy && "opacity-70"
             )}
           >
@@ -178,7 +184,7 @@ export default function ArenaMatchPage() {
             onClick={() => setReady(false)}
             className={cn(
               "py-3 rounded-2xl font-semibold",
-              "bg-white/6 border border-white/10 hover:bg-white/10 text-white/85",
+              "cs2-btn-ghost text-white/85",
               readyBusy && "opacity-70"
             )}
           >
@@ -216,5 +222,6 @@ export default function ArenaMatchPage() {
         </div>
       </div>
     </div>
+    </ArenaShell>
   );
 }

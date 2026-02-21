@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { cn } from "@/components/utils/cn";
+import ArenaShell from "./ArenaShell";
 import { Crosshair, Swords, Trophy } from "lucide-react";
 
 type T = {
@@ -53,20 +54,19 @@ export default function ArenaClient() {
     await load();
   }
 
-  const openCount = items.filter((t) => t.status === "open").length;
-  const liveCount = items.filter((t) => t.status === "live").length;
-  const todayPool = items.reduce((sum, t) => {
+  const visible = items.filter((t) => t.game !== "Dota 2" && t.game !== "Valorant");
+
+  const openCount = visible.filter((t) => t.status === "open").length;
+  const liveCount = visible.filter((t) => t.status === "live").length;
+  const todayPool = visible.reduce((sum, t) => {
     // rough pool estimate: entryFee * maxPlayers (safe for display)
     const pool = Number.isFinite(t.entryFee) ? t.entryFee * t.maxPlayers : 0;
     return sum + pool;
   }, 0);
 
   return (
-    <div className="cs2-shell">
-      {/* Full-page flowing background (fixed, works on desktop + mobile) */}
-      <div className="cs2-shell-bg" aria-hidden />
-      <div className="cs2-fx" aria-hidden />
-      <div className="cs2-noise" aria-hidden />
+    <ArenaShell>
+    <div className="relative">
 
       <div className="relative z-10">
       {/* Hero (Faceit-like) */}
@@ -104,26 +104,6 @@ export default function ArenaClient() {
               </Link>
             </div>
 
-            <div className="mt-10 flex flex-col md:flex-row items-stretch justify-center gap-3">
-              <div className="rounded-full md:rounded-3xl px-6 py-3 md:py-4 bg-black/35 border border-white/10">
-                <div className="text-xs text-white/60">Турниров сегодня</div>
-                <div className="mt-1 text-2xl font-extrabold text-white">{loading ? "…" : items.length}</div>
-              </div>
-              <div className="rounded-full md:rounded-3xl px-6 py-3 md:py-4 bg-black/35 border border-white/10">
-                <div className="text-xs text-white/60">Сейчас открыто</div>
-                <div className="mt-1 text-2xl font-extrabold text-white">{loading ? "…" : openCount}</div>
-              </div>
-              <div className="rounded-full md:rounded-3xl px-6 py-3 md:py-4 bg-black/35 border border-white/10">
-                <div className="text-xs text-white/60">В игре прямо сейчас</div>
-                <div className="mt-1 text-2xl font-extrabold text-white">{loading ? "…" : liveCount}</div>
-              </div>
-              <div className="rounded-full md:rounded-3xl px-6 py-3 md:py-4 bg-black/35 border border-white/10">
-                <div className="text-xs text-white/60">Призовой фонд (оценка)</div>
-                <div className="mt-1 text-2xl font-extrabold text-white">
-                  {loading ? "…" : `${Math.round(todayPool)} EUR+`}
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </section>
@@ -180,7 +160,7 @@ export default function ArenaClient() {
         ) : items.length === 0 ? (
           <div className="text-white/60">Нет турниров</div>
         ) : (
-          items.map((t) => {
+          visible.map((t) => {
             const pct = Math.round((t.players / t.maxPlayers) * 100);
             const isOpen = t.status === "open";
             return (
@@ -232,5 +212,7 @@ export default function ArenaClient() {
       </section>
       </div>
     </div>
+    </div>
+    </ArenaShell>
   );
 }

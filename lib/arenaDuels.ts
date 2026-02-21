@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { getDb } from "./db";
 import { addWalletTx, getOrCreateWallet } from "./wallet";
+import { rconExec } from "./cs2Rcon";
 
 export type DuelRow = {
   id: string;
@@ -21,6 +22,13 @@ export type DuelRow = {
   winner_user_id: string | null;
   created_at: number;
   updated_at: number;
+  p1_ready?: number;
+  p2_ready?: number;
+  ready_deadline?: number | null;
+  live_state?: string;
+  match_token?: string | null;
+  result_source?: string | null;
+  cancel_reason?: string | null;
 };
 
 function parseServers(envVal: string | undefined): string[] {
@@ -99,6 +107,7 @@ function creditBalance(db: any, userId: string, currency: string, amount: number
 
 export function listCs2Duels(userId: string) {
   const db = getDb();
+  tickCs2Duels(db);
   const open = db
     .prepare(
       `SELECT d.*, p1.nickname as p1_nick
@@ -112,7 +121,7 @@ export function listCs2Duels(userId: string) {
 
   const mine = db
     .prepare(
-      `SELECT d.*,
+      `SELECT d.*, (CASE WHEN d.p1_user_id = ? THEN 1 ELSE 0 END) as me_is_p1,
           p1.nickname as p1_nick,
           p2.nickname as p2_nick,
           w.nickname as winner_nick
@@ -126,7 +135,7 @@ export function listCs2Duels(userId: string) {
        ORDER BY d.updated_at DESC
        LIMIT 20`
     )
-    .all(userId, userId) as any[];
+    .all(userId, userId, userId) as any[];
 
   return { open, mine };
 }
@@ -135,6 +144,82 @@ export function getDuel(duelId: string) {
   const db = getDb();
   const d = db.prepare("SELECT * FROM arena_duels WHERE id = ?").get(duelId) as DuelRow | undefined;
   return d ?? null;
+}
+
+
+function splitHostPort(server: string) {
+  const [h, p] = server.split(":");
+  return { host: h, port: Number(p || 27015) };
+}
+
+function rconPassword() {
+  return process.env.ARENA_CS2_RCON_PASSWORD || "";
+}
+
+function bestEffortSetupServer(server: string | null, pass: string | null, map: string | null, duelId: string) {
+  const pwd = rconPassword();
+  if (!server || !pwd) return;
+  const { host, port } = splitHostPort(server);
+
+  // Fire-and-forget setup; no hard fail for MVP.
+  void rconExec({ host, port, password: pwd, timeoutMs: 1800 }, `say [BeavBet] Duel ${duelId} provisioning...`).catch(() => {});
+  if (pass) void rconExec({ host, port, password: pwd, timeoutMs: 1800 }, `sv_password "${pass}"`).catch(() => {});
+  if (map) void rconExec({ host, port, password: pwd, timeoutMs: 1800 }, `changelevel ${map}`).catch(() => {});
+}
+
+function tickCs2Duels(db: any) {
+  const now = Date.now();
+
+  // Auto-cancel if ready-check expired and not both ready.
+  const expired = db
+    .prepare(
+      `SELECT * FROM arena_duels
+       WHERE game='cs2' AND status='active'
+         AND ready_deadline IS NOT NULL AND ready_deadline < ?
+         AND (COALESCE(p1_ready,0)=0 OR COALESCE(p2_ready,0)=0)`
+    )
+    .all(now) as DuelRow[];
+
+  const updCancel = db.prepare(
+    `UPDATE arena_duels SET status='cancelled', cancel_reason=?, ended_at=?, updated_at=? WHERE id=? AND status='active'`
+  );
+
+  for (const d of expired) {
+    // Refund both (no rake on cancel).
+    if (d.p1_user_id) creditBalance(db, d.p1_user_id, d.currency, Number(d.stake), d.id, { reason: "refund_ready_timeout" });
+    if (d.p2_user_id) creditBalance(db, d.p2_user_id, d.currency, Number(d.stake), d.id, { reason: "refund_ready_timeout" });
+    updCancel.run("ready_timeout", now, now, d.id);
+  }
+}
+
+export function finalizeDuel(duelId: string, winnerUserId: string, source: "server" | "admin" | "reports") {
+  const db = getDb();
+  const now = Date.now();
+
+  const t = db.transaction(() => {
+    const d = db.prepare("SELECT * FROM arena_duels WHERE id = ?").get(duelId) as DuelRow | undefined;
+    if (!d) return { ok: false as const, error: "NOT_FOUND" };
+    if (d.status === "done") return { ok: true as const, status: "done" as const };
+
+    if (winnerUserId !== d.p1_user_id && winnerUserId !== d.p2_user_id) {
+      return { ok: false as const, error: "BAD_WINNER" };
+    }
+
+    const pot = Number(d.stake) * 2;
+    const prize = Number((pot * (1 - Number(d.rake || 0))).toFixed(2));
+
+    creditBalance(db, winnerUserId, d.currency, prize, duelId, { source });
+
+    db.prepare(
+      `UPDATE arena_duels
+       SET status='done', winner_user_id=?, result_source=?, ended_at=?, updated_at=?
+       WHERE id=?`
+    ).run(winnerUserId, source, now, now, duelId);
+
+    return { ok: true as const, status: "done" as const, winner_user_id: winnerUserId, prize };
+  });
+
+  return t();
 }
 
 export function createCs2Duel(userId: string, stake: number, currency: string) {
@@ -152,11 +237,12 @@ export function createCs2Duel(userId: string, stake: number, currency: string) {
     if (!deb.ok) return deb;
 
     const map = pickCs2Map();
+    const matchToken = genPassword(18);
     db.prepare(
       `INSERT INTO arena_duels
-       (id, game, mode, stake, currency, rake, status, map, server, server_password, join_link, started_at, ended_at, p1_user_id, p2_user_id, winner_user_id, created_at, updated_at)
-       VALUES (?, 'cs2', '1v1', ?, ?, ?, 'open', ?, NULL, NULL, NULL, NULL, NULL, ?, NULL, NULL, ?, ?)`
-    ).run(id, s, cur, rake, map, userId, now, now);
+       (id, game, mode, stake, currency, rake, status, map, server, server_password, join_link, started_at, ended_at, p1_user_id, p2_user_id, winner_user_id, p1_ready, p2_ready, ready_deadline, live_state, match_token, created_at, updated_at)
+       VALUES (?, 'cs2', '1v1', ?, ?, ?, 'open', ?, NULL, NULL, NULL, NULL, NULL, ?, NULL, NULL, 0, 0, NULL, 'lobby', ?, ?, ?)`
+    ).run(id, s, cur, rake, map, userId, matchToken, now, now);
 
     return { ok: true as const, duelId: id };
   });
@@ -192,9 +278,11 @@ export function joinCs2Duel(userId: string, duelId: string) {
 
     db.prepare(
       `UPDATE arena_duels
-       SET p2_user_id = ?, status = 'active', server = ?, server_password = ?, join_link = ?, started_at = ?, updated_at = ?
+       SET p2_user_id = ?, status = 'active', server = ?, server_password = ?, join_link = ?, started_at = ?, updated_at = ?, p1_ready=0, p2_ready=0, ready_deadline=?, live_state='readycheck'
        WHERE id = ? AND status = 'open'`
-    ).run(userId, server, pass, joinLink, now, now, duelId);
+    ).run(userId, server, pass, joinLink, now, now, now + 60_000, duelId);
+
+    bestEffortSetupServer(server, pass, d.map, duelId);
 
     return { ok: true as const, duelId, server, server_password: pass, join_link: joinLink };
   });
@@ -202,6 +290,43 @@ export function joinCs2Duel(userId: string, duelId: string) {
   return t();
 }
 
+
+
+export function setDuelReady(duelId: string, userId: string) {
+  const db = getDb();
+  const now = Date.now();
+
+  const t = db.transaction(() => {
+    tickCs2Duels(db);
+
+    const d = db.prepare("SELECT * FROM arena_duels WHERE id = ?").get(duelId) as DuelRow | undefined;
+    if (!d) return { ok: false as const, error: "NOT_FOUND" };
+    if (d.status !== "active") return { ok: false as const, error: "NOT_ACTIVE" };
+    if (userId !== d.p1_user_id && userId !== d.p2_user_id) return { ok: false as const, error: "FORBIDDEN" };
+
+    const isP1 = userId === d.p1_user_id;
+    db.prepare(`UPDATE arena_duels SET ${isP1 ? "p1_ready" : "p2_ready"}=1, updated_at=? WHERE id=?`).run(now, duelId);
+
+    const row = db.prepare("SELECT p1_ready, p2_ready, server, server_password, map, match_token FROM arena_duels WHERE id=?").get(duelId) as any;
+    const p1r = Number(row?.p1_ready || 0);
+    const p2r = Number(row?.p2_ready || 0);
+
+    if (p1r === 1 && p2r === 1) {
+      db.prepare("UPDATE arena_duels SET live_state='ingame', updated_at=? WHERE id=?").run(now, duelId);
+
+      // Optional: lock match start on server (announce only).
+      const pwd = rconPassword();
+      if (row?.server && pwd) {
+        const { host, port } = splitHostPort(row.server);
+        void rconExec({ host, port, password: pwd, timeoutMs: 1800 }, `say [BeavBet] Duel started! Token ${row.match_token || ""}` ).catch(() => {});
+      }
+    }
+
+    return { ok: true as const };
+  });
+
+  return t();
+}
 export function reportDuelResult(duelId: string, userId: string, result: "win" | "lose") {
   const db = getDb();
   const now = Date.now();

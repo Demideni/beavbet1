@@ -21,13 +21,11 @@ type Duel = {
   p1_nick?: string | null;
   p2_user_id?: string | null;
   p2_nick?: string | null;
-  p2_nick?: string | null;
   p1_ready?: number | boolean | null;
   p2_ready?: number | boolean | null;
   ready_deadline?: number | null;
   winner_user_id?: string | null;
   winner_team?: number | null;
-  ready_deadline?: number | null;
   live_state?: string | null;
   players?: DuelPlayer[];
   team1_count?: number;

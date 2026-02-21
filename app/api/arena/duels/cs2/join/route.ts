@@ -24,8 +24,12 @@ export async function POST(req: Request) {
         const expected = `${host}:${port}`;
         if (String((r as any).server) === expected) {
           const pass = String((r as any).server_password);
-          await rconExec(`sv_password "${pass}"`);
-          await rconExec("mp_restartgame 1");
+          const rconPassword = process.env.ARENA_CS2_RCON_PASSWORD;
+          if (rconPassword) {
+            await rconExec({ host, port: Number(port), password: rconPassword }, `sv_password "${pass}"`);
+            await rconExec({ host, port: Number(port), password: rconPassword }, "mp_restartgame 1");
+          }
+          // mp_restartgame moved above
         }
       }
     }

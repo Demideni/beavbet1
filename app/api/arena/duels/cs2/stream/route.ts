@@ -23,8 +23,14 @@ export async function GET(req: NextRequest) {
       const interval = setInterval(() => {
         if (closed) return;
         try {
-          const payload = listCs2Duels(user.id);
-          send("duels", payload);
+          const data = listCs2Duels(user.id);
+          const duels = (data as any).duels || [];
+          const open = duels.filter((d: any) => d.status === "open");
+          const mine = duels.filter((d: any) => {
+            const pls = Array.isArray(d.players) ? d.players : [];
+            return d.p1_user_id === user.id || d.p2_user_id === user.id || pls.some((p: any) => p.user_id === user.id);
+          });
+          send("duels", { ok: true, open, mine, duels, myRating: (data as any).myRating, ratingName: (data as any).ratingName });
           controller.enqueue(encoder.encode(`event: ping\ndata: {}\n\n`));
         } catch {
           // ignore

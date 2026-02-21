@@ -233,6 +233,7 @@ function ensureSchema(db: any) {
       p1_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       p2_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       winner_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+      winner_team INTEGER,
       status TEXT NOT NULL DEFAULT 'open', -- open | in_progress | reported | pending_review | done
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
@@ -254,7 +255,8 @@ function ensureSchema(db: any) {
       id TEXT PRIMARY KEY,
       game TEXT NOT NULL,          -- cs2 | wot (later)
       mode TEXT NOT NULL,          -- 1v1
-      stake REAL NOT NULL,
+            team_size INTEGER NOT NULL DEFAULT 1,
+stake REAL NOT NULL,
       currency TEXT NOT NULL DEFAULT 'EUR',
       rake REAL NOT NULL DEFAULT 0.15, -- 15% fee (kept in air)
       status TEXT NOT NULL DEFAULT 'open', -- open | active | reported | pending_review | done | cancelled
@@ -267,6 +269,7 @@ function ensureSchema(db: any) {
       p1_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       p2_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
       winner_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+      winner_team INTEGER,
       p1_ready INTEGER NOT NULL DEFAULT 0,
       p2_ready INTEGER NOT NULL DEFAULT 0,
       ready_deadline INTEGER,
@@ -280,7 +283,29 @@ function ensureSchema(db: any) {
     CREATE INDEX IF NOT EXISTS idx_arena_duels_status ON arena_duels(status);
     CREATE INDEX IF NOT EXISTS idx_arena_duels_game ON arena_duels(game);
 
-    CREATE TABLE IF NOT EXISTS arena_duel_reports (
+    
+
+CREATE TABLE IF NOT EXISTS arena_duel_players (
+  duel_id TEXT NOT NULL REFERENCES arena_duels(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  team INTEGER NOT NULL DEFAULT 1, -- 1 or 2
+  is_captain INTEGER NOT NULL DEFAULT 0,
+  ready INTEGER NOT NULL DEFAULT 0,
+  joined_at INTEGER NOT NULL,
+  PRIMARY KEY (duel_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_arena_duel_players_duel ON arena_duel_players(duel_id);
+
+CREATE TABLE IF NOT EXISTS arena_ratings (
+  user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  dam_rank INTEGER NOT NULL DEFAULT 1000,
+  matches INTEGER NOT NULL DEFAULT 0,
+  wins INTEGER NOT NULL DEFAULT 0,
+  losses INTEGER NOT NULL DEFAULT 0,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_arena_ratings_rank ON arena_ratings(dam_rank);
+CREATE TABLE IF NOT EXISTS arena_duel_reports (
       id TEXT PRIMARY KEY,
       duel_id TEXT NOT NULL REFERENCES arena_duels(id) ON DELETE CASCADE,
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -310,6 +335,8 @@ function ensureSchema(db: any) {
   ensureColumn(db, "arena_duels", "match_token", "match_token TEXT");
   ensureColumn(db, "arena_duels", "result_source", "result_source TEXT");
   ensureColumn(db, "arena_duels", "cancel_reason", "cancel_reason TEXT");
+  ensureColumn(db, "arena_duels", "team_size", "team_size INTEGER NOT NULL DEFAULT 1");
+  ensureColumn(db, "arena_duels", "winner_team", "winner_team INTEGER");
 
 
   // Transactions: Passimpay / providers support

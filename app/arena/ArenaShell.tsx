@@ -4,7 +4,7 @@ import { ReactNode } from "react";
 
 export default function ArenaShell({ children }: { children: ReactNode }) {
   return (
-    <div className="relative min-h-[calc(100vh-72px)]">
+    <div className="relative min-h-screen">
       <div className="cs2-shell-bg" aria-hidden />
       <div className="cs2-fx" aria-hidden>
         <div className="cs2-glow" />

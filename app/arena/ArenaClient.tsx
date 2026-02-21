@@ -69,9 +69,7 @@ export default function ArenaClient() {
       <div className="relative">
         <div className="relative z-10">
       {/* Hero (Faceit-like) */}
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0 arena-hero-bg" aria-hidden />
-        <div className="absolute inset-0 bg-black/45" aria-hidden />
+      <section className="relative">
         <div className="absolute -top-24 left-1/2 h-[520px] w-[980px] -translate-x-1/2 rounded-full bg-accent/10 blur-3xl" aria-hidden />
 
         <div className="relative mx-auto max-w-[1100px] px-4 py-16 md:py-20">

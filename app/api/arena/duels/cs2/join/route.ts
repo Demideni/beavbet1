@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { joinCs2Duel } from "@/lib/arenaDuels";
-import { rconExec } from "@/lib/cs2Rcon";
 
 export async function POST(req: Request) {
   const user = await getSessionUser();
@@ -9,33 +8,10 @@ export async function POST(req: Request) {
 
   const body = await req.json().catch(() => ({}));
   const duelId = String(body?.duelId || "");
+  const team = body?.team != null ? Number(body.team) : undefined;
   if (!duelId) return NextResponse.json({ ok: false, error: "BAD_REQUEST" }, { status: 400 });
 
-  const r = joinCs2Duel(user.id, duelId);
+  const r = joinCs2Duel(user.id, duelId, team);
   if (!r.ok) return NextResponse.json(r, { status: 400 });
-
-  // Best-effort: set per-match server password via RCON (Variant B).
-  // If RCON is not configured, the duel still works (players can connect manually).
-  try {
-    if ((r as any).server && (r as any).server_password) {
-      const host = process.env.ARENA_CS2_HOST;
-      const port = process.env.ARENA_CS2_PORT;
-      if (host && port) {
-        const expected = `${host}:${port}`;
-        if (String((r as any).server) === expected) {
-          const pass = String((r as any).server_password);
-          const rconPassword = process.env.ARENA_CS2_RCON_PASSWORD;
-          if (rconPassword) {
-            await rconExec({ host, port: Number(port), password: rconPassword }, `sv_password "${pass}"`);
-            await rconExec({ host, port: Number(port), password: rconPassword }, "mp_restartgame 1");
-          }
-          // mp_restartgame moved above
-        }
-      }
-    }
-  } catch {
-    // ignore
-  }
-
   return NextResponse.json(r);
 }

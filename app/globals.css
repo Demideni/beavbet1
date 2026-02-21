@@ -155,7 +155,7 @@ body {
 }
 @keyframes cs2Flow{ 0%{transform:translate3d(0,0,0) scale(1)} 50%{transform:translate3d(0,-8px,0) scale(1.02)} 100%{transform:translate3d(0,0,0) scale(1)} }
 
-.cs2-wrap{ position:relative; z-index:2; }
+.cs2-wrap{ position:relative; z-index:3; min-height:100vh; }
 
 .cs2-panel{
   border-radius:24px;

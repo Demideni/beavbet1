@@ -112,7 +112,7 @@ export default function Cs2DuelsClient() {
     const r = await fetch("/api/arena/duels/cs2/ready", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ duelId, team }),
+      body: JSON.stringify({ duelId }),
       credentials: "include",
     });
     const j = await r.json().catch(() => ({}));
@@ -130,7 +130,7 @@ export default function Cs2DuelsClient() {
     const r = await fetch("/api/arena/duels/cs2/join", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ duelId, team }),
+      body: JSON.stringify({ duelId }),
       credentials: "include",
     });
     const j = await r.json().catch(() => ({}));

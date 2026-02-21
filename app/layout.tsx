@@ -11,14 +11,18 @@ import { I18nProvider } from "@/components/i18n/I18nProvider";
 import LanguageGate from "@/components/i18n/LanguageGate";
 import { LANG_COOKIE } from "@/lib/i18n";
 
-
 export const metadata: Metadata = {
   title: "BeavBet — Crypto Only",
   description: "BeavBet lobby (MVP UI).",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const initialLang = cookies().get(LANG_COOKIE)?.value ?? null;
+export default async function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const cookieStore = await cookies();
+  const initialLang = cookieStore.get(LANG_COOKIE)?.value ?? null;
 
   return (
     <html lang={initialLang ?? "en"}>

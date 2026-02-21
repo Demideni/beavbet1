@@ -62,9 +62,11 @@ export default function ArenaClient() {
   }, 0);
 
   return (
-    <div className="relative">
+    <div className="cs2-shell">
       {/* Full-page flowing background (fixed, works on desktop + mobile) */}
-      <div className="arena-page-bg" aria-hidden />
+      <div className="cs2-shell-bg" aria-hidden />
+      <div className="cs2-fx" aria-hidden />
+      <div className="cs2-noise" aria-hidden />
 
       <div className="relative z-10">
       {/* Hero (Faceit-like) */}

@@ -91,3 +91,7 @@ export async function rconExec(opts: RconOpts, command: string) {
     });
   });
 }
+
+
+// Back-compat alias (older code may import cs2RconExec)
+export const cs2RconExec = rconExec;

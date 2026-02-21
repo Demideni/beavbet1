@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { joinCs2Duel } from "@/lib/arenaDuels";
-import { cs2RconExec } from "@/lib/cs2Rcon";
+import { rconExec } from "@/lib/cs2Rcon";
 
 export async function POST(req: Request) {
   const user = await getSessionUser();
@@ -24,8 +24,8 @@ export async function POST(req: Request) {
         const expected = `${host}:${port}`;
         if (String((r as any).server) === expected) {
           const pass = String((r as any).server_password);
-          await cs2RconExec(`sv_password "${pass}"`);
-          await cs2RconExec("mp_restartgame 1");
+          await rconExec(`sv_password "${pass}"`);
+          await rconExec("mp_restartgame 1");
         }
       }
     }

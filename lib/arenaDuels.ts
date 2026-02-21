@@ -115,7 +115,16 @@ function debitBalance(db: any, userId: string, currency: string, amount: number,
     cur
   );
 
-  addWalletTx({ userId, type: "arena_debit", amount: -Number(amount), currency: cur, product: "arena", refId: ref, meta: { kind: "duel" } });
+  addWalletTx(db, {
+    id: randomUUID(),
+    user_id: userId,
+    type: "arena_debit",
+    amount: -Number(amount),
+    currency: cur,
+    ref,
+    meta_json: JSON.stringify({ kind: "duel" }),
+    created_at: Date.now(),
+  });
 
   return { ok: true as const };
 }
@@ -131,7 +140,16 @@ function creditBalance(db: any, userId: string, currency: string, amount: number
     cur
   );
 
-  addWalletTx({ userId, type: "arena_credit", amount: Number(amount), currency: cur, product: "arena", refId: ref, meta: meta || {} });
+  addWalletTx(db, {
+    id: randomUUID(),
+    user_id: userId,
+    type: "arena_credit",
+    amount: Number(amount),
+    currency: cur,
+    ref,
+    meta_json: JSON.stringify(meta || {}),
+    created_at: Date.now(),
+  });
 }
 
 function ensureRating(db: any, userId: string) {

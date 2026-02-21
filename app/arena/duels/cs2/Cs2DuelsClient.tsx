@@ -107,7 +107,7 @@ export default function Cs2DuelsClient() {
     window.dispatchEvent(new Event("wallet:refresh"));
     await load();
   }
-  async function ready(duelId: string) {
+  async function ready(duelId: string, team?: number) {
     setBusy(`ready:${duelId}`);
     const r = await fetch("/api/arena/duels/cs2/ready", {
       method: "POST",

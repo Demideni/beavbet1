@@ -23,7 +23,6 @@ type Duel = {
   p2_nick?: string | null;
   p1_ready?: number | boolean | null;
   p2_ready?: number | boolean | null;
-  me_is_p1?: boolean | null;
   ready_deadline?: number | null;
   winner_user_id?: string | null;
   winner_team?: number | null;
@@ -113,7 +112,7 @@ export default function Cs2DuelsClient() {
     const r = await fetch("/api/arena/duels/cs2/ready", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ duelId }),
+      body: JSON.stringify({ duelId, team }),
       credentials: "include",
     });
     const j = await r.json().catch(() => ({}));
@@ -131,7 +130,7 @@ export default function Cs2DuelsClient() {
     const r = await fetch("/api/arena/duels/cs2/join", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ duelId }),
+      body: JSON.stringify({ duelId, team }),
       credentials: "include",
     });
     const j = await r.json().catch(() => ({}));

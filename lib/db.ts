@@ -267,6 +267,13 @@ function ensureSchema(db: any) {
       p1_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       p2_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
       winner_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+      p1_ready INTEGER NOT NULL DEFAULT 0,
+      p2_ready INTEGER NOT NULL DEFAULT 0,
+      ready_deadline INTEGER,
+      live_state TEXT,
+      match_token TEXT,
+      result_source TEXT,
+      cancel_reason TEXT,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
@@ -294,6 +301,16 @@ function ensureSchema(db: any) {
   ensureColumn(db, "arena_matches", "p1_ready", "p1_ready INTEGER NOT NULL DEFAULT 0");
   ensureColumn(db, "arena_matches", "p2_ready", "p2_ready INTEGER NOT NULL DEFAULT 0");
   ensureColumn(db, "arena_matches", "started_at", "started_at INTEGER");
+
+  // Arena duels: add columns for ready-check, live state, server-verified results.
+  ensureColumn(db, "arena_duels", "p1_ready", "p1_ready INTEGER NOT NULL DEFAULT 0");
+  ensureColumn(db, "arena_duels", "p2_ready", "p2_ready INTEGER NOT NULL DEFAULT 0");
+  ensureColumn(db, "arena_duels", "ready_deadline", "ready_deadline INTEGER");
+  ensureColumn(db, "arena_duels", "live_state", "live_state TEXT");
+  ensureColumn(db, "arena_duels", "match_token", "match_token TEXT");
+  ensureColumn(db, "arena_duels", "result_source", "result_source TEXT");
+  ensureColumn(db, "arena_duels", "cancel_reason", "cancel_reason TEXT");
+
 
   // Transactions: Passimpay / providers support
   ensureColumn(db, "transactions", "provider", "provider TEXT");

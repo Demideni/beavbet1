@@ -83,24 +83,14 @@ function steamJoinLink(server: string, password?: string | null) {
   return `steam://rungameid/730//${args.join("%20")}`;
 }
 
-function ensureWalletRow(db: any, userId: string, currency: string) {
-  const w = getOrCreateWallet(db, userId);
-  const row = db
-    .prepare("SELECT * FROM wallets WHERE user_id = ? AND currency = ?")
-    .get(userId, currency);
-  if (!row) {
-    db.prepare("INSERT INTO wallets (user_id, currency, balance, updated_at) VALUES (?, ?, 0, ?)").run(
-      userId,
-      currency,
-      Date.now()
-    );
-  }
-  return w;
+function ensureWalletRow(userId: string, currency: string) {
+  // Centralized wallet helper owns schema/creation.
+  return getOrCreateWallet(userId, currency);
 }
 
 function debitBalance(db: any, userId: string, currency: string, amount: number, ref: string) {
   const cur = String(currency || "EUR").toUpperCase();
-  ensureWalletRow(db, userId, cur);
+  ensureWalletRow(userId, cur);
 
   const row = db.prepare("SELECT balance FROM wallets WHERE user_id = ? AND currency = ?").get(userId, cur) as
     | { balance: number }
@@ -115,15 +105,14 @@ function debitBalance(db: any, userId: string, currency: string, amount: number,
     cur
   );
 
-  addWalletTx(db, {
-    id: randomUUID(),
-    user_id: userId,
+  addWalletTx({
+    userId,
     type: "arena_debit",
     amount: -Number(amount),
     currency: cur,
-    ref,
-    meta_json: JSON.stringify({ kind: "duel" }),
-    created_at: Date.now(),
+    product: "arena",
+    refId: ref,
+    meta: { kind: "duel" },
   });
 
   return { ok: true as const };
@@ -131,7 +120,7 @@ function debitBalance(db: any, userId: string, currency: string, amount: number,
 
 function creditBalance(db: any, userId: string, currency: string, amount: number, ref: string, meta?: any) {
   const cur = String(currency || "EUR").toUpperCase();
-  ensureWalletRow(db, userId, cur);
+  ensureWalletRow(userId, cur);
 
   db.prepare("UPDATE wallets SET balance = balance + ?, updated_at = ? WHERE user_id = ? AND currency = ?").run(
     amount,
@@ -140,15 +129,14 @@ function creditBalance(db: any, userId: string, currency: string, amount: number
     cur
   );
 
-  addWalletTx(db, {
-    id: randomUUID(),
-    user_id: userId,
+  addWalletTx({
+    userId,
     type: "arena_credit",
     amount: Number(amount),
     currency: cur,
-    ref,
-    meta_json: JSON.stringify(meta || {}),
-    created_at: Date.now(),
+    product: "arena",
+    refId: ref,
+    meta: meta || {},
   });
 }
 

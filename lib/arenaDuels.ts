@@ -274,7 +274,17 @@ export function joinCs2Duel(userId: string, duelId: string) {
     const servers = singleServer ? [singleServer] : parseServers(process.env.ARENA_CS2_SERVERS);
     const server = servers.length ? servers[Math.floor(Math.random() * servers.length)] : null;
     const pass = server ? genPassword(10) : null;
-    const joinLink = server ? (pass ? `steam://connect/${server}/${pass}` : `steam://connect/${server}`) : null;
+    const joinLink = server
+      ? (() => {
+          // More reliable than steam://connect for Safari/macOS browsers:
+          // launches CS2 via Steam and passes +connect / +password arguments.
+          const s = encodeURIComponent(server);
+          const p = pass ? encodeURIComponent(pass) : "";
+          return pass
+            ? `steam://rungameid/730//+connect%20${s}%20+password%20${p}`
+            : `steam://rungameid/730//+connect%20${s}`;
+        })()
+      : null;
 
     db.prepare(
       `UPDATE arena_duels

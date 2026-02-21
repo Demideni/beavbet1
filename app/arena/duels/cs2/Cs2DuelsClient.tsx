@@ -29,6 +29,8 @@ type Duel = {
   live_state?: string | null;
   players?: DuelPlayer[];
   team1_count?: number;
+  // returned by /api/arena/duels/cs2/list for convenience
+  me_is_p1?: boolean;
   team2_count?: number;
 };
 
@@ -112,8 +114,6 @@ export default function Cs2DuelsClient() {
     const r = await fetch("/api/arena/duels/cs2/ready", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      // "ready" endpoint определяет команду по текущему пользователю,
-      // поэтому сюда достаточно отправить только duelId.
       body: JSON.stringify({ duelId }),
       credentials: "include",
     });

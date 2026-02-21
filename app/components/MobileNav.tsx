@@ -5,21 +5,23 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { cn } from "@/components/utils/cn";
+import { useI18n } from "@/components/i18n/I18nProvider";
 
 const items: Array<{
   href: string;
-  label: string;
+  labelKey: string;
   pngIcon?: string;
 }> = [
-  { href: "/", label: "Главная", pngIcon: "/icons/nav/nav-home.png" },
-  { href: "/casino", label: "Казино", pngIcon: "/icons/nav/nav-casino.png" },
+  { href: "/", labelKey: "nav.home", pngIcon: "/icons/nav/nav-home.png" },
+  { href: "/casino", labelKey: "nav.casino", pngIcon: "/icons/nav/nav-casino.png" },
   // Arena between Casino and Sport
-  { href: "/arena", label: "Arena", pngIcon: "/icons/nav/nav-arena.png" },
-  { href: "/sport", label: "Спорт", pngIcon: "/icons/nav/nav-sport.png" },
-  { href: "/tournaments", label: "Турниры", pngIcon: "/icons/nav/nav-tournaments.png" },
+  { href: "/arena", labelKey: "nav.arena", pngIcon: "/icons/nav/nav-arena.png" },
+  { href: "/sport", labelKey: "nav.sport", pngIcon: "/icons/nav/nav-sport.png" },
+  { href: "/tournaments", labelKey: "nav.tournaments", pngIcon: "/icons/nav/nav-tournaments.png" },
 ];
 
 export function MobileNav() {
+  const { t } = useI18n();
   const pathname = usePathname();
   const [bouncingHref, setBouncingHref] = useState<string | null>(null);
 
@@ -37,6 +39,7 @@ export function MobileNav() {
           <div className="grid grid-cols-5">
             {items.map((it) => {
               const active = pathname === it.href;
+              const label = t(it.labelKey);
               return (
                 <Link
                   key={it.href}
@@ -51,7 +54,7 @@ export function MobileNav() {
                 >
                   <Image
                     src={it.pngIcon ?? "/icons/nav/nav-home.png"}
-                    alt={it.label}
+                    alt={label}
                     width={22}
                     height={22}
                     className={cn(
@@ -61,7 +64,7 @@ export function MobileNav() {
                     priority={it.href === "/"}
                   />
                   <div className="text-[11px] leading-none">
-                    {it.label}
+                    {label}
                   </div>
                 </Link>
               );

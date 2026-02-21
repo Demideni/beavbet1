@@ -1,14 +1,17 @@
 "use client";
 
-import { Globe, Search, Settings, MessageCircle, Gift } from "lucide-react";
+import { Search, Settings, MessageCircle, Gift } from "lucide-react";
 import Link from "next/link";
 import { Logo } from "./Logo";
 import { cn } from "@/components/utils/cn";
 import { useEffect, useState } from "react";
+import { useI18n } from "@/components/i18n/I18nProvider";
+import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
 
 type MeUser = { id: string; email: string; nickname: string | null; currency?: string; balance?: number } | null;
 
 export function Topbar() {
+  const { t } = useI18n();
   const [user, setUser] = useState<MeUser>(null);
 
   async function fetchMe() {
@@ -37,7 +40,7 @@ export function Topbar() {
         <Link
           href="/bonuses"
           className="md:hidden inline-flex items-center justify-center size-11 rounded-2xl icon-pill text-white/85"
-          aria-label="Бонусы"
+          aria-label={t("topbar.bonuses")}
         >
           <Gift className="size-5" />
         </Link>
@@ -45,14 +48,14 @@ export function Topbar() {
         {/* Desktop: бонусы + search */}
         <button className="hidden md:inline-flex items-center gap-2 px-3 py-2 rounded-xl icon-pill text-sm text-white/80 hover:text-white">
           <span className="text-base">🎁</span>
-          Бонусы
+          {t("topbar.bonuses")}
         </button>
 
         <div className="hidden md:flex flex-1 items-center">
           <div className="w-full max-w-md relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-white/45" />
             <input
-              placeholder="Поиск игр"
+              placeholder={t("topbar.searchPlaceholder")}
               className={cn(
                 "w-full pl-10 pr-3 py-2.5 rounded-xl",
                 "bg-white/5 border border-white/10",
@@ -70,7 +73,7 @@ export function Topbar() {
                 <Link
                   href="/payments"
                   className="inline-flex items-center px-3 py-2 rounded-2xl bg-white/5 border border-white/10 text-sm text-white/85 hover:bg-white/8"
-                  aria-label="Баланс"
+                  aria-label={t("topbar.balance")}
                 >
                   {balanceText}
                 </Link>
@@ -78,12 +81,12 @@ export function Topbar() {
               <Link
                 href="/account"
                 className="inline-flex items-center gap-2 px-3 py-2 rounded-2xl bg-white/8 border border-white/10 text-sm hover:bg-white/10"
-                aria-label="Профиль"
+                aria-label={t("topbar.profile")}
               >
               <span className="size-8 rounded-2xl bg-white/10 border border-white/10 flex items-center justify-center font-semibold">
                 {initials}
               </span>
-              <span className="hidden sm:block">Кабинет</span>
+              <span className="hidden sm:block">{t("topbar.cabinet")}</span>
               </Link>
             </div>
           ) : (
@@ -92,20 +95,23 @@ export function Topbar() {
                 href="/auth?tab=login"
                 className="px-4 py-2 rounded-2xl bg-white/8 border border-white/10 text-sm hover:bg-white/10"
               >
-                Войти
+                {t("topbar.login")}
               </Link>
               <Link
                 href="/auth?tab=register"
                 className="px-4 py-2 rounded-2xl btn-accent text-sm font-semibold"
               >
-                Регистрация
+                {t("topbar.register")}
               </Link>
             </>
           )}
 
-          <button className="hidden md:inline-flex items-center justify-center size-10 rounded-xl bg-white/6 border border-white/10 hover:bg-white/8">
-            <Globe className="size-4" />
-          </button>
+          <div className="hidden md:block">
+            <LanguageSwitcher />
+          </div>
+          <div className="md:hidden">
+            <LanguageSwitcher compact />
+          </div>
           <button className="hidden md:inline-flex items-center justify-center size-10 rounded-xl bg-white/6 border border-white/10 hover:bg-white/8">
             <Settings className="size-4" />
           </button>

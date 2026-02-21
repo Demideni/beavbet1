@@ -4,22 +4,24 @@ import Link from "next/link";
 import { Home, Dice5, Trophy, Gift, Wallet, BarChart3, Users, Shield, Crown, User, Crosshair } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { cn } from "@/components/utils/cn";
+import { useI18n } from "@/components/i18n/I18nProvider";
 
 const items = [
-  { href: "/", icon: Home, label: "Главная" },
-  { href: "/account", icon: User, label: "Кабинет" },
-  { href: "/casino", icon: Dice5, label: "Казино" },
-  { href: "/arena", icon: Crosshair, label: "Arena" },
-  { href: "/tournaments", icon: Trophy, label: "Турниры" },
-  { href: "/bonuses", icon: Gift, label: "Бонусы" },
-  { href: "/payments", icon: Wallet, label: "Касса" },
-  { href: "/vip", icon: Crown, label: "VIP" },
-  { href: "/stats", icon: BarChart3, label: "Статистика" },
-  { href: "/community", icon: Users, label: "Комьюнити" },
-  { href: "/security", icon: Shield, label: "Безопасность" },
+  { href: "/", icon: Home, labelKey: "nav.home" },
+  { href: "/account", icon: User, labelKey: "nav.account" },
+  { href: "/casino", icon: Dice5, labelKey: "nav.casino" },
+  { href: "/arena", icon: Crosshair, labelKey: "nav.arena" },
+  { href: "/tournaments", icon: Trophy, labelKey: "nav.tournaments" },
+  { href: "/bonuses", icon: Gift, labelKey: "nav.bonuses" },
+  { href: "/payments", icon: Wallet, labelKey: "nav.payments" },
+  { href: "/vip", icon: Crown, labelKey: "nav.vip" },
+  { href: "/stats", icon: BarChart3, labelKey: "nav.stats" },
+  { href: "/community", icon: Users, labelKey: "nav.community" },
+  { href: "/security", icon: Shield, labelKey: "nav.security" },
 ];
 
 export function Sidebar() {
+  const { t } = useI18n();
   const pathname = usePathname();
 
   return (
@@ -28,11 +30,12 @@ export function Sidebar() {
       {items.map((it) => {
         const active = pathname === it.href;
         const Icon = it.icon;
+        const label = t(it.labelKey);
         return (
           <Link
             key={it.href}
             href={it.href}
-            title={it.label}
+            title={label}
             className={cn(
               "group relative w-[52px] lg:w-[58px] h-[44px] rounded-2xl",
               "flex items-center justify-center",

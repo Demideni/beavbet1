@@ -22,7 +22,7 @@ export default function ArenaMatchesPage() {
 
   return (
     <ArenaShell>
-    <div className="mx-auto max-w-[980px] px-4 py-6">
+      <div className="mx-auto max-w-[980px] px-4 py-6">
       <div className="flex items-end justify-between gap-3">
         <div>
           <div className="text-white text-2xl font-extrabold">Мои матчи</div>
@@ -59,8 +59,7 @@ export default function ArenaMatchesPage() {
           ))
         )}
       </div>
-    </div>
-    </div>
+      </div>
     </ArenaShell>
   );
 }

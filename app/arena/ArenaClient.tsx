@@ -66,9 +66,8 @@ export default function ArenaClient() {
 
   return (
     <ArenaShell>
-    <div className="relative">
-
-      <div className="relative z-10">
+      <div className="relative">
+        <div className="relative z-10">
       {/* Hero (Faceit-like) */}
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 arena-hero-bg" aria-hidden />
@@ -209,10 +208,9 @@ export default function ArenaClient() {
           })
         )}
         </div>
-      </section>
+          </section>
+        </div>
       </div>
-    </div>
-    </div>
     </ArenaShell>
   );
 }

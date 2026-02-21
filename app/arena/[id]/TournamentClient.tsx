@@ -47,10 +47,11 @@ export default function TournamentClient() {
 
   if (!t) {
     return (
-    <ArenaShell>
-      <div className="mx-auto max-w-[980px] px-4 py-6 text-white/60">
-        Загрузка…
-      </div>
+      <ArenaShell>
+        <div className="mx-auto max-w-[980px] px-4 py-6 text-white/60">
+          Загрузка…
+        </div>
+      </ArenaShell>
     );
   }
 

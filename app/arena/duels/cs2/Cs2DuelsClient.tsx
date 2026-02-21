@@ -313,7 +313,6 @@ export default function Cs2DuelsClient() {
         )}
       </div>
     </div>
-    </div>
     </ArenaShell>
   );
 }

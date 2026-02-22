@@ -1,6 +1,9 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
+import { useI18n } from "@/components/i18n/I18nProvider";
 
 function Tile({
   title,
@@ -65,6 +68,8 @@ function Tile({
 }
 
 export function PromoTiles() {
+  const { t } = useI18n();
+
   return (
     <section
       className={
@@ -73,21 +78,21 @@ export function PromoTiles() {
       }
     >
       <Tile
-        title="Казино"
+        title={t("nav.casino")}
         desc=""
         href="/casino"
         desktopArt="/images/tiles/casino-tile-desktop.png"
         mobileBg="/images/tiles/casino-tile-mobile.png"
       />
       <Tile
-        title="Arena"
+        title={t("nav.arena")}
         desc=""
         href="/arena"
         desktopArt="/images/tiles/arena-tile-desktop.png"
         mobileBg="/images/tiles/arena-tile-mobile.png"
       />
       <Tile
-        title="Спорт"
+        title={t("nav.sport")}
         desc=""
         href="/sport"
         desktopArt="/images/tiles/sport-tile-desktop.png"

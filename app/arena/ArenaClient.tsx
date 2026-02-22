@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useState } from "react";
+import { useI18n } from "@/components/i18n/I18nProvider";
 import { cn } from "@/components/utils/cn";
 import ArenaShell from "./ArenaShell";
 import { Crosshair, Swords, Trophy, Flame, Wallet, ListOrdered, User } from "lucide-react";
@@ -43,6 +45,7 @@ type ActivityItem = {
 };
 
 export default function ArenaClient() {
+  const { t } = useI18n();
   const [items, setItems] = useState<T[]>([]);
   const [openDuels, setOpenDuels] = useState<DuelCard[]>([]);
   const [myDuels, setMyDuels] = useState<DuelCard[]>([]);
@@ -138,7 +141,7 @@ export default function ArenaClient() {
                   </div>
                   <h1 className="mt-6 text-3xl md:text-4xl font-extrabold text-white">Duels • Tournaments • Ladder</h1>
                   <p className="mt-2 text-white/65 max-w-[720px]">
-                    Соревнуйся как на Faceit: рейтинги, серия побед, турниры и быстрые 1v1.
+                    {t("arena.hero.subtitle")}
                   </p>
                 </div>
 
@@ -164,7 +167,10 @@ export default function ArenaClient() {
               <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div className="rounded-3xl card-glass p-5 flex items-center justify-between">
                   <div>
-                    <div className="text-white/60 text-sm">Your ELO</div>
+                    <div className="text-white/60 text-sm flex items-center gap-2">
+                      <Image src="/brand/beavrank.png" alt="BeavRank" width={16} height={16} className="opacity-90" />
+                      {t("arena.beavrank")}
+                    </div>
                     <div className="text-white text-2xl font-extrabold mt-1">{myRating}</div>
                     <div className="text-white/70 text-sm mt-1">{ratingName}</div>
                   </div>
@@ -242,7 +248,7 @@ export default function ArenaClient() {
                   <div className="flex items-end justify-between gap-3">
                     <div>
                       <div className="text-white text-xl font-extrabold">Active duels</div>
-                      <div className="text-white/60 text-sm mt-1">Вступай в открытые 1v1 или смотри свои.</div>
+                      <div className="text-white/60 text-sm mt-1">{t("arena.activeDuels.subtitle")}</div>
                     </div>
                     <Link href="/arena/duels/cs2" className="text-white/80 hover:text-white text-sm">
                       Open all →
@@ -251,9 +257,9 @@ export default function ArenaClient() {
 
                   <div className="mt-4 grid gap-2">
                     {loading ? (
-                      <div className="text-white/60">Загрузка…</div>
+                      <div className="text-white/60">{t("common.loading")}</div>
                     ) : openDuels.length === 0 ? (
-                      <div className="text-white/60">Нет открытых дуэлей</div>
+                      <div className="text-white/60">{t("arena.noOpenDuels")}</div>
                     ) : (
                       openDuels.slice(0, 6).map((d) => (
                         <Link
@@ -289,7 +295,7 @@ export default function ArenaClient() {
 
                   <div className="mt-4 grid gap-2">
                     {loading ? (
-                      <div className="text-white/60">Загрузка…</div>
+                      <div className="text-white/60">{t("common.loading")}</div>
                     ) : visible.length === 0 ? (
                       <div className="text-white/60">Нет турниров</div>
                     ) : (
@@ -371,7 +377,7 @@ export default function ArenaClient() {
                   <div className="text-white font-semibold">My duels</div>
                   <div className="mt-3 grid gap-2">
                     {loading ? (
-                      <div className="text-white/60 text-sm">Загрузка…</div>
+                      <div className="text-white/60 text-sm">{t("common.loading")}</div>
                     ) : myDuels.length === 0 ? (
                       <div className="text-white/60 text-sm">Пока нет</div>
                     ) : (

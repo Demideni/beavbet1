@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef } from "react";
+import { useI18n } from "@/components/i18n/I18nProvider";
 
 type LeagueShortcut = {
   key: string;
@@ -28,6 +29,7 @@ const TOP_LEAGUES: LeagueShortcut[] = [
 ];
 
 export function TopLeagues() {
+  const { t } = useI18n();
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const pauseRef = useRef(false);
   const resumeTimerRef = useRef<number | null>(null);
@@ -105,10 +107,10 @@ export function TopLeagues() {
     <section className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <div className="text-base font-semibold text-white/90">
-          <span className="text-[#39ff6b]">ТОП</span> Лиги
+          <span className="text-[#39ff6b]">TOP</span> {t("leagues.title")}
         </div>
         <Link href="/sport" className="text-sm text-white/60 hover:text-white/90">
-          Go to Sports
+          {t("sports.goTo")}
         </Link>
       </div>
 

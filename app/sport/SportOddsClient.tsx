@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useI18n } from "@/components/i18n/I18nProvider";
 
 type SportItem = {
   key: string;
@@ -109,6 +110,7 @@ function OddsButton({
 }
 
 export default function SportOddsClient() {
+  const { t } = useI18n();
   const [viewTab, setViewTab] = useState<ViewTab>("line");
   const [filtersOpen, setFiltersOpen] = useState(false);
 
@@ -166,11 +168,11 @@ export default function SportOddsClient() {
       try {
         const r = await fetch("/api/odds/sports", { cache: "no-store" });
         const j = await r.json();
-        if (!r.ok) throw new Error(j?.error || "Не удалось загрузить список лиг");
+        if (!r.ok) throw new Error(j?.error || t("sport.err.loadLeagues"));
         setSports(Array.isArray(j.data) ? j.data : []);
       } catch (e: any) {
         setSports([]);
-        setErr(e?.message || "Не удалось загрузить список лиг");
+        setErr(e?.message || t("sport.err.loadLeagues"));
       }
     })();
   }, []);
@@ -209,11 +211,11 @@ export default function SportOddsClient() {
 
       const r = await fetch(url.toString(), { cache: "no-store" });
       const j = await r.json();
-      if (!r.ok) throw new Error(j?.error || "Не удалось загрузить события");
+      if (!r.ok) throw new Error(j?.error || t("sport.err.loadEvents"));
       setEvents(Array.isArray(j.data) ? j.data : []);
     } catch (e: any) {
       setEvents([]);
-      setErr(e?.message || "Не удалось загрузить события");
+      setErr(e?.message || t("sport.err.loadEvents"));
     } finally {
       setLoading(false);
     }
@@ -233,11 +235,11 @@ export default function SportOddsClient() {
     try {
       const r = await fetch("/api/account/bets?limit=20", { credentials: "include" });
       const j = await r.json();
-      if (!r.ok) throw new Error(j?.error || "Не удалось загрузить ставки");
+      if (!r.ok) throw new Error(j?.error || t("sport.err.loadBets"));
       setBets(Array.isArray(j.data) ? j.data : []);
     } catch (e: any) {
       setBets([]);
-      setBetsErr(e?.message || "Не удалось загрузить ставки");
+      setBetsErr(e?.message || t("sport.err.loadBets"));
     } finally {
       setBetsLoading(false);
     }
@@ -308,12 +310,12 @@ export default function SportOddsClient() {
         }),
       });
       const j = await r.json();
-      if (!r.ok) throw new Error(j?.error || "Не удалось поставить");
-      setPlaceMsg("Ставка принята");
+      if (!r.ok) throw new Error(j?.error || t("sport.err.placeBet"));
+      setPlaceMsg(t("sport.betAccepted"));
       setSlip(null);
       window.dispatchEvent(new Event("bets:refresh"));
     } catch (e: any) {
-      setPlaceErr(e?.message || "Не удалось поставить");
+      setPlaceErr(e?.message || t("sport.err.placeBet"));
     } finally {
       setPlacing(false);
     }
@@ -336,15 +338,15 @@ export default function SportOddsClient() {
     <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
       <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
         <div>
-          <div className="text-lg font-bold text-white">Спорт</div>
-          <div className="text-sm text-white/60">Линия и ставки</div>
+          <div className="text-lg font-bold text-white">{t("nav.sport")}</div>
+          <div className="text-sm text-white/60">{t("sport.lineAndBets")}</div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           {(
             [
-              { key: "line", label: "Линия" },
-              { key: "history", label: "История ставок" },
+              { key: "line", label: t("sport.line") },
+              { key: "history", label: t("sport.betHistory") },
             ] as const
           ).map((t) => (
             <button
@@ -382,9 +384,9 @@ export default function SportOddsClient() {
             </div>
           )}
           {betsLoading ? (
-            <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-white/60">Загрузка…</div>
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-white/60">{t("common.loading")}</div>
           ) : bets.length === 0 ? (
-            <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-white/60">Нет ставок</div>
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-white/60">{t("sport.noBets")}</div>
           ) : (
             <div className="space-y-3">
               {bets.map((b: any) => (
@@ -516,7 +518,7 @@ export default function SportOddsClient() {
           )}
 
           {loading ? (
-            <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-white/60">Загрузка…</div>
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-white/60">{t("common.loading")}</div>
           ) : (events || []).length === 0 ? (
             <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-white/60">
               Нет событий для этой лиги/рынка. Попробуй другую лигу или регион.
@@ -576,7 +578,7 @@ export default function SportOddsClient() {
           {slip && (
             <div className="mt-6 rounded-3xl border border-white/10 bg-black/30 p-4">
               <div className="flex items-center justify-between">
-                <div className="text-white font-bold">Купон</div>
+                <div className="text-white font-bold">{t("sport.slip")}</div>
                 <button
                   type="button"
                   onClick={() => setSlip(null)}
@@ -597,7 +599,7 @@ export default function SportOddsClient() {
               </div>
 
               <div className="mt-4 flex items-center gap-3">
-                <div className="text-sm text-white/60">Ставка</div>
+                <div className="text-sm text-white/60">{t("sport.stake")}</div>
                 <input
                   value={stake}
                   onChange={(e) => setStake(Number(e.target.value) || 0)}
@@ -642,7 +644,7 @@ export default function SportOddsClient() {
               />
               <div className="absolute bottom-0 left-0 right-0 rounded-t-3xl border border-white/10 bg-[#0b1220]/95 backdrop-blur p-5">
                 <div className="flex items-center justify-between">
-                  <div className="text-lg font-bold text-white">Фильтры</div>
+                  <div className="text-lg font-bold text-white">{t("sport.filters")}</div>
                   <button
                     type="button"
                     onClick={() => setFiltersOpen(false)}
@@ -654,7 +656,7 @@ export default function SportOddsClient() {
 
                 <div className="mt-4 grid grid-cols-1 gap-3">
                   <label className="flex flex-col gap-1">
-                    <span className="text-[11px] text-white/50">Категория</span>
+                    <span className="text-[11px] text-white/50">{t("sport.category")}</span>
                     <select
                       className="h-11 rounded-2xl border border-white/10 bg-black/30 px-3 text-sm text-white outline-none"
                       value={selectedGroup}
@@ -673,7 +675,7 @@ export default function SportOddsClient() {
                   </label>
 
                   <label className="flex flex-col gap-1">
-                    <span className="text-[11px] text-white/50">Лига</span>
+                    <span className="text-[11px] text-white/50">{t("sport.league")}</span>
                     <select
                       className="h-11 rounded-2xl border border-white/10 bg-black/30 px-3 text-sm text-white outline-none"
                       value={sportKey}
@@ -686,14 +688,14 @@ export default function SportOddsClient() {
                           </option>
                         ))
                       ) : (
-                        <option value="">— Нет лиг —</option>
+                        <option value="">{t("sport.noLeagues")}</option>
                       )}
                     </select>
                   </label>
 
                   <div className="grid grid-cols-2 gap-3">
                     <label className="flex flex-col gap-1">
-                      <span className="text-[11px] text-white/50">Рынок</span>
+                      <span className="text-[11px] text-white/50">{t("sport.market")}</span>
                       <select
                         className="h-11 rounded-2xl border border-white/10 bg-black/30 px-3 text-sm text-white outline-none"
                         value={market}
@@ -705,7 +707,7 @@ export default function SportOddsClient() {
                       </select>
                     </label>
                     <label className="flex flex-col gap-1">
-                      <span className="text-[11px] text-white/50">Регион</span>
+                      <span className="text-[11px] text-white/50">{t("sport.region")}</span>
                       <select
                         className="h-11 rounded-2xl border border-white/10 bg-black/30 px-3 text-sm text-white outline-none"
                         value={regions}

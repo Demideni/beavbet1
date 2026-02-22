@@ -3,6 +3,7 @@
 import type React from "react";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import ArenaShell from "../ArenaShell";
 import { BadgeCheck, ChevronLeft, Flame, Swords, Trophy } from "lucide-react";
 
@@ -77,13 +78,18 @@ export default function ArenaProfileClient() {
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
               <div>
                 <div className="text-white text-2xl md:text-3xl font-extrabold">{title}</div>
-                <div className="text-white/60 mt-1">HLTV-style stats • Arena rating</div>
+                <div className="text-white/60 mt-1">HLTV-style stats • BeavRank</div>
               </div>
 
               {profile ? (
                 <div className="flex items-center gap-3">
                   <div className="rounded-2xl bg-white/6 border border-white/10 px-4 py-3">
-                    <div className="text-white/60 text-xs">ELO</div>
+                    <div className="text-white/60 text-xs">
+                  <span className="inline-flex items-center gap-2">
+                    <Image src="/brand/beavrank.png" alt="BeavRank" width={14} height={14} className="opacity-90" />
+                    BeavRank
+                  </span>
+                </div>
                     <div className="text-white font-extrabold text-xl mt-1">{profile.elo}</div>
                   </div>
                   <div className="h-12 w-12 rounded-2xl bg-white/6 border border-white/10 flex items-center justify-center">

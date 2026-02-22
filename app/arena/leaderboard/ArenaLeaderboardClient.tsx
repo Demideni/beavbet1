@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import ArenaShell from "../ArenaShell";
 import { ChevronLeft, Crown, Flame } from "lucide-react";
 
@@ -49,7 +50,7 @@ export default function ArenaLeaderboardClient() {
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
               <div>
                 <div className="text-white text-2xl md:text-3xl font-extrabold">Leaderboard</div>
-                <div className="text-white/60 mt-1">Top players by Arena ELO.</div>
+                <div className="text-white/60 mt-1">Top players by BeavRank.</div>
               </div>
               <div className="h-12 w-12 rounded-2xl bg-white/6 border border-white/10 flex items-center justify-center">
                 <Crown className="h-5 w-5 text-white" />
@@ -64,7 +65,12 @@ export default function ArenaLeaderboardClient() {
                   <th className="text-left font-semibold py-2">#</th>
                   <th className="text-left font-semibold py-2">Player</th>
                   <th className="text-left font-semibold py-2">Division</th>
-                  <th className="text-left font-semibold py-2">ELO</th>
+                  <th className="text-left font-semibold py-2">
+                    <span className="inline-flex items-center gap-2">
+                      <Image src="/brand/beavrank.png" alt="BeavRank" width={14} height={14} className="opacity-90" />
+                      BeavRank
+                    </span>
+                  </th>
                   <th className="text-left font-semibold py-2">Matches</th>
                   <th className="text-left font-semibold py-2">Winrate</th>
                 </tr>

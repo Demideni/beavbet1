@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import ArenaShell from "../../../ArenaShell";
 import { cn } from "@/components/utils/cn";
 import { ChevronLeft, Copy, Shield, Swords, Timer, Trophy } from "lucide-react";
@@ -146,7 +147,7 @@ export default function Cs2DuelRoomClient({ duelId }: { duelId: string }) {
                     <div className="text-white font-extrabold text-xl mt-1">{duel ? `${duel.stake} ${duel.currency}` : "—"}</div>
                   </div>
                   <div className="rounded-2xl bg-white/6 border border-white/10 px-4 py-3">
-                    <div className="text-white/60 text-xs">Your ELO</div>
+                    <div className="text-white/60 text-xs">BeavRank</div>
                     <div className="text-white font-extrabold text-xl mt-1">{duel ? duel.myRating : "—"}</div>
                     <div className="text-white/60 text-xs mt-1">{duel?.ratingName}</div>
                   </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useI18n } from "@/components/i18n/I18nProvider";
 
 type Game = {
   uuid?: string;
@@ -28,6 +29,7 @@ function getImg(g: Game) {
 }
 
 export default function CasinoClient() {
+  const { t } = useI18n();
   const [loading, setLoading] = useState(true);
   const [games, setGames] = useState<Game[]>([]);
   const [q, setQ] = useState("");
@@ -107,9 +109,9 @@ export default function CasinoClient() {
     <div className="space-y-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-white">Казино</h1>
+          <h1 className="text-xl font-semibold text-white">{t("nav.casino")}</h1>
           <div className="text-sm text-white/50">
-            Seamless-режим через iframe (тестовая валюта провайдера: <span className="font-semibold text-white/70">EUR</span>)
+            {t("casino.seamlessNote")} ( <span className="font-semibold text-white/70">EUR</span>)
           </div>
         </div>
 
@@ -117,7 +119,7 @@ export default function CasinoClient() {
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Поиск игр"
+            placeholder={t("topbar.searchPlaceholder")}
             className="w-full sm:w-72 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/40 outline-none focus:border-white/20"
           />
           <button

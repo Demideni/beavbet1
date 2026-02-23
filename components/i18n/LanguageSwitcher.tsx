@@ -47,7 +47,7 @@ export function LanguageSwitcher({ compact }: { compact?: boolean }) {
         aria-label="Language"
       >
         {compact ? (
-          <Globe className="size-4" />
+          <span className="text-lg leading-none">{FLAGS[lang]}</span>
         ) : (
           <span className="flex items-center gap-2 text-sm">
             <span className="text-lg leading-none">{FLAGS[lang]}</span>

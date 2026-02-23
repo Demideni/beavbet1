@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import ArenaShell from "../../../ArenaShell";
 import { cn } from "@/components/utils/cn";
 import { ChevronLeft, Copy, Shield, Swords, Timer, Trophy } from "lucide-react";
-import { FaceitButton } from "@/components/ui/FaceitButton";
-import Image from "next/image";
+import { armAudioOnce, playTrainHorn } from "@/lib/sfx";
 
 type Duel = {
   id: string;
@@ -37,6 +36,7 @@ export default function Cs2DuelRoomClient({ duelId }: { duelId: string }) {
   const [duel, setDuel] = useState<Duel | null>(null);
   const [players, setPlayers] = useState<any[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
+  const prevOppJoined = useRef<boolean>(false);
 
   async function load() {
     const r = await fetch(`/api/arena/duels/cs2/one?id=${encodeURIComponent(duelId)}`, { cache: "no-store" });
@@ -53,6 +53,22 @@ export default function Cs2DuelRoomClient({ duelId }: { duelId: string }) {
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [duelId]);
+
+  // Arm audio on first user gesture so we can play the horn later.
+  useEffect(() => {
+    armAudioOnce();
+  }, []);
+
+  // Loud horn when opponent accepts the duel (goes from "waiting" to "has opponent").
+  useEffect(() => {
+    if (!duel) return;
+    const oppNow = Boolean(duel.p2_user_id);
+    // Both players should hear it: when the second player joins, both clients will observe oppNow=true.
+    if (!prevOppJoined.current && oppNow) {
+      playTrainHorn();
+    }
+    prevOppJoined.current = oppNow;
+  }, [duel?.p2_user_id, duel]);
 
   const title = useMemo(() => {
     if (!duel) return "Duel";
@@ -148,10 +164,7 @@ export default function Cs2DuelRoomClient({ duelId }: { duelId: string }) {
                     <div className="text-white font-extrabold text-xl mt-1">{duel ? `${duel.stake} ${duel.currency}` : "—"}</div>
                   </div>
                   <div className="rounded-2xl bg-white/6 border border-white/10 px-4 py-3">
-                    <div className="text-white/60 text-xs flex items-center gap-2">
-                      <Image src="/brand/beavrank.png" alt="BeavRank" width={16} height={16} className="opacity-90" />
-                      <span>BeavRank</span>
-                    </div>
+                    <div className="text-white/60 text-xs">Your ELO</div>
                     <div className="text-white font-extrabold text-xl mt-1">{duel ? duel.myRating : "—"}</div>
                     <div className="text-white/60 text-xs mt-1">{duel?.ratingName}</div>
                   </div>
@@ -178,22 +191,29 @@ export default function Cs2DuelRoomClient({ duelId }: { duelId: string }) {
                   <div className="mt-5 w-full grid grid-cols-1 gap-2">
                     {canJoin ? (
                       <>
-                        <FaceitButton onClick={() => join(1)} disabled={busy === "join:1"} variant="secondary" size="lg">
-                          {busy === "join:1" ? "…" : "Join Team 1"}
-                        </FaceitButton>
-                        <FaceitButton onClick={() => join(2)} disabled={busy === "join:2"} variant="primary" size="lg">
-                          {busy === "join:2" ? "…" : "Join Team 2"}
-                        </FaceitButton>
+                        <button
+                          onClick={() => join(1)}
+                          disabled={busy === "join:1"}
+                          className={cn("cs2-btn", busy === "join:1" && "opacity-70")}
+                        >
+                          Join Team 1
+                        </button>
+                        <button
+                          onClick={() => join(2)}
+                          disabled={busy === "join:2"}
+                          className={cn("cs2-btn", busy === "join:2" && "opacity-70")}
+                        >
+                          Join Team 2
+                        </button>
                       </>
                     ) : (
-                      <FaceitButton
+                      <button
                         onClick={ready}
                         disabled={!canReady || busy === "ready" || Boolean(duel?.me_ready)}
-                        variant="primary"
-                        size="lg"
+                        className="cs2-btn disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         {duel?.me_ready ? "READY ✓" : busy === "ready" ? "…" : "READY"}
-                      </FaceitButton>
+                      </button>
                     )}
                   </div>
                 </div>

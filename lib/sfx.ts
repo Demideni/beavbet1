@@ -1,91 +1,95 @@
 "use client";
 
-// Tiny shutter-ish sound made with WebAudio.
-// No external assets needed. Hover sound will only work after the first user gesture unlocks audio.
+// Lightweight sound effects without external assets.
+// NOTE: Browsers require a user gesture before audio can play.
 
 let ctx: AudioContext | null = null;
-let unlocked = false;
+let armed = false;
 
 function getCtx(): AudioContext | null {
   if (typeof window === "undefined") return null;
-  // @ts-ignore
-  const AC = window.AudioContext || window.webkitAudioContext;
-  if (!AC) return null;
-  if (!ctx) ctx = new AC();
+  if (!ctx) {
+    const AC = (window.AudioContext || (window as any).webkitAudioContext) as typeof AudioContext | undefined;
+    if (!AC) return null;
+    ctx = new AC();
+  }
   return ctx;
 }
 
-function ensureUnlocked() {
-  if (unlocked) return;
-  const c = getCtx();
-  if (!c) return;
+export function armAudioOnce() {
+  if (armed) return;
+  armed = true;
 
-  const unlock = async () => {
-    try {
-      if (c.state === "suspended") await c.resume();
-      // A tiny silent buffer to fully unlock on iOS
-      const buf = c.createBuffer(1, 1, c.sampleRate);
-      const src = c.createBufferSource();
-      src.buffer = buf;
-      src.connect(c.destination);
-      src.start(0);
-      unlocked = true;
-      window.removeEventListener("pointerdown", unlock);
-      window.removeEventListener("keydown", unlock);
-      window.removeEventListener("touchstart", unlock);
-    } catch {
-      // ignore
+  const tryResume = async () => {
+    const c = getCtx();
+    if (!c) return;
+    if (c.state !== "running") {
+      try {
+        await c.resume();
+      } catch {
+        // ignore
+      }
     }
+    window.removeEventListener("pointerdown", tryResume);
+    window.removeEventListener("keydown", tryResume);
   };
 
-  window.addEventListener("pointerdown", unlock, { once: true });
-  window.addEventListener("keydown", unlock, { once: true });
-  window.addEventListener("touchstart", unlock, { once: true });
+  window.addEventListener("pointerdown", tryResume, { once: true });
+  window.addEventListener("keydown", tryResume, { once: true });
 }
 
-export function playShutter(opts?: { kind?: "hover" | "click" }) {
-  ensureUnlocked();
+export function playTrainHorn() {
   const c = getCtx();
   if (!c) return;
+  // If not yet running, don't hard-fail; the next user gesture will arm audio.
+  if (c.state !== "running") return;
 
-  // For hover, only play after unlocked to avoid annoying blocked promises.
-  if (opts?.kind === "hover" && !unlocked) return;
+  const now = c.currentTime;
+  const dur = 1.35;
 
-  try {
-    const now = c.currentTime;
+  const out = c.createGain();
+  out.gain.setValueAtTime(0.0001, now);
+  // fast attack -> sustain -> release
+  out.gain.exponentialRampToValueAtTime(0.9, now + 0.05);
+  out.gain.setValueAtTime(0.75, now + dur - 0.25);
+  out.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+  out.connect(c.destination);
 
-    // noise burst
-    const bufferSize = Math.floor(c.sampleRate * 0.045);
-    const buffer = c.createBuffer(1, bufferSize, c.sampleRate);
-    const data = buffer.getChannelData(0);
+  // Two oscillators to imitate a horn (fundamental + octave-ish)
+  const o1 = c.createOscillator();
+  const o2 = c.createOscillator();
+  o1.type = "sawtooth";
+  o2.type = "square";
 
-    // A short filtered noise that resembles a camera shutter / bolt click.
-    for (let i = 0; i < bufferSize; i++) {
-      const t = i / bufferSize;
-      const decay = Math.exp(-t * 12);
-      data[i] = (Math.random() * 2 - 1) * decay;
-    }
+  // Slight detune + wobble
+  o1.frequency.setValueAtTime(110, now);
+  o2.frequency.setValueAtTime(220, now);
+  o2.detune.setValueAtTime(-12, now);
 
-    const src = c.createBufferSource();
-    src.buffer = buffer;
+  const lfo = c.createOscillator();
+  const lfoGain = c.createGain();
+  lfo.type = "sine";
+  lfo.frequency.setValueAtTime(6.5, now);
+  lfoGain.gain.setValueAtTime(18, now);
+  lfo.connect(lfoGain);
+  lfoGain.connect(o1.detune);
+  lfoGain.connect(o2.detune);
 
-    const filter = c.createBiquadFilter();
-    filter.type = "bandpass";
-    filter.frequency.value = opts?.kind === "click" ? 1800 : 1400;
-    filter.Q.value = 0.9;
+  // Mild filtering to remove harsh highs
+  const lp = c.createBiquadFilter();
+  lp.type = "lowpass";
+  lp.frequency.setValueAtTime(900, now);
+  lp.Q.setValueAtTime(0.8, now);
 
-    const gain = c.createGain();
-    gain.gain.setValueAtTime(0.0, now);
-    gain.gain.linearRampToValueAtTime(opts?.kind === "click" ? 0.16 : 0.09, now + 0.004);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.06);
+  o1.connect(lp);
+  o2.connect(lp);
+  lp.connect(out);
 
-    src.connect(filter);
-    filter.connect(gain);
-    gain.connect(c.destination);
+  o1.start(now);
+  o2.start(now);
+  lfo.start(now);
 
-    src.start(now);
-    src.stop(now + 0.07);
-  } catch {
-    // ignore
-  }
+  o1.stop(now + dur);
+  o2.stop(now + dur);
+  lfo.stop(now + dur);
 }

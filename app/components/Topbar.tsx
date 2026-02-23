@@ -7,11 +7,13 @@ import { cn } from "@/components/utils/cn";
 import { useEffect, useState } from "react";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
+import { usePathname } from "next/navigation";
 
 type MeUser = { id: string; email: string; nickname: string | null; currency?: string; balance?: number } | null;
 
 export function Topbar() {
   const { t } = useI18n();
+  const pathname = usePathname();
   const [user, setUser] = useState<MeUser>(null);
 
   async function fetchMe() {
@@ -30,6 +32,61 @@ export function Topbar() {
 
   const initials = user?.nickname?.slice(0, 2).toUpperCase() || user?.email?.slice(0, 2).toUpperCase();
   const balanceText = user?.balance != null ? `${user.balance.toFixed(2)} ${user.currency || "EUR"}` : null;
+
+  const isArena = pathname?.startsWith("/arena");
+
+  if (isArena) {
+    return (
+      <header className="sticky top-0 z-40 backdrop-blur-md bg-bg/70 border-b border-white/5">
+        <div className="h-16 px-4 lg:px-6 flex items-center gap-3">
+          <Logo subtitle="ARENA" href="/arena" />
+
+          <div className="flex items-center gap-2 ml-auto">
+            {user ? (
+              <>
+                {balanceText ? (
+                  <Link
+                    href="/payments"
+                    className="inline-flex items-center px-3 py-2 rounded-2xl bg-white/5 border border-white/10 text-sm text-white/85 hover:bg-white/8"
+                    aria-label={t("topbar.balance")}
+                  >
+                    {balanceText}
+                  </Link>
+                ) : null}
+
+                {/* flag-only */}
+                <LanguageSwitcher compact />
+
+                <Link
+                  href="/account"
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-2xl bg-white/8 border border-white/10 text-sm hover:bg-white/10"
+                  aria-label={t("topbar.profile")}
+                >
+                  <span className="size-8 rounded-2xl bg-white/10 border border-white/10 flex items-center justify-center font-semibold">
+                    {initials}
+                  </span>
+                  <span className="hidden sm:block">{t("topbar.profile")}</span>
+                </Link>
+              </>
+            ) : (
+              <>
+                <LanguageSwitcher compact />
+                <Link
+                  href="/auth?tab=login"
+                  className="px-4 py-2 rounded-2xl bg-white/8 border border-white/10 text-sm hover:bg-white/10"
+                >
+                  {t("topbar.login")}
+                </Link>
+              </>
+            )}
+          </div>
+        </div>
+        <div className="h-[2px] bg-white/5">
+          <div className="h-full w-[18%] bg-white/35" />
+        </div>
+      </header>
+    );
+  }
 
   return (
     <header className="sticky top-0 z-40 backdrop-blur-md bg-bg/70 border-b border-white/5">

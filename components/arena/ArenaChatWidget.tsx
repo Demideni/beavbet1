@@ -22,7 +22,7 @@ export default function ArenaChatWidget() {
   const [msgs, setMsgs] = useState<ChatMsg[]>([]);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
-  const [openWith, setOpenWith] = useState<{ id: string; nick?: string | null } | null>(null);
+  const [openDm, setOpenDm] = useState<{ id: string; nick?: string | null } | null>(null);
   const boxRef = useRef<HTMLDivElement | null>(null);
 
   const isMobile = useMemo(() => {
@@ -112,9 +112,9 @@ export default function ArenaChatWidget() {
               <div className="text-white/35 shrink-0 w-[42px]">{fmtTime(m.created_at)}</div>
               <div className="min-w-0">
                 <button
-                  onClick={() => setOpenWith({ id: m.user_id, nick: m.nickname })}
                   className="text-orange-400 font-semibold hover:underline"
-                  title="Send DM"
+                  onClick={() => setOpenDm({ id: m.user_id, nick: m.nickname })}
+                  title="Message"
                 >
                   {m.nickname || "Player"}
                 </button>
@@ -170,9 +170,16 @@ export default function ArenaChatWidget() {
             <div className="relative">{panel}</div>
           </div>
         ) : null}
+
+        <DmModal open={Boolean(openDm)} onClose={() => setOpenDm(null)} withUserId={openDm?.id || ""} withNick={openDm?.nick} />
       </>
     );
   }
 
-  return <div className="fixed bottom-6 right-6 z-[60]">{panel}</div>;
+  return (
+    <>
+      <div className="fixed bottom-6 right-6 z-[60]">{panel}</div>
+      <DmModal open={Boolean(openDm)} onClose={() => setOpenDm(null)} withUserId={openDm?.id || ""} withNick={openDm?.nick} />
+    </>
+  );
 }

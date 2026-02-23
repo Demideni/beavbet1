@@ -27,7 +27,6 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403 });
   }
 
-  // Fetch newest first (fast with index), then reverse for UI oldest->newest
   const rows = db
     .prepare(
       `
@@ -46,17 +45,16 @@ export async function GET(req: Request) {
     )
     .all(threadId, limit) as any[];
 
-  rows.reverse();
-
   // Mark as read
   const now = Date.now();
-  db.prepare("INSERT OR REPLACE INTO arena_dm_reads (thread_id, user_id, last_read_at) VALUES (?, ?, ?)").run(
-    threadId,
-    session.id,
-    now
-  );
+  db.prepare(
+    "INSERT OR REPLACE INTO arena_dm_reads (thread_id, user_id, last_read_at) VALUES (?, ?, ?)"
+  ).run(threadId, session.id, now);
 
-  return NextResponse.json({ ok: true, messages: rows });
+  // UI expects oldest -> newest
+  const messages = Array.isArray(rows) ? rows.slice().reverse() : [];
+  return NextResponse.json({ ok: true, messages });
+
 }
 
 export async function POST(req: Request) {
@@ -67,7 +65,7 @@ export async function POST(req: Request) {
   const threadId = String(body?.threadId || "").trim();
   const message = String(body?.message || "").trim();
   if (!threadId || !message) return NextResponse.json({ ok: false, error: "BAD_REQUEST" }, { status: 400 });
-  if (message.length > 2000) return NextResponse.json({ ok: false, error: "TOO_LONG" }, { status: 400 });
+  if (message.length > 500) return NextResponse.json({ ok: false, error: "TOO_LONG" }, { status: 400 });
 
   const db = getDb();
   if (!canAccessThread(db, session.id, threadId)) {
@@ -76,32 +74,21 @@ export async function POST(req: Request) {
 
   const id = randomUUID();
   const now = Date.now();
-  db.prepare("INSERT INTO arena_dm_messages (id, thread_id, sender_id, message, created_at) VALUES (?, ?, ?, ?, ?)").run(
-    id,
-    threadId,
-    session.id,
-    message,
-    now
-  );
+  db.prepare(
+    "INSERT INTO arena_dm_messages (id, thread_id, sender_id, message, created_at) VALUES (?, ?, ?, ?, ?)"
+  ).run(id, threadId, session.id, message, now);
   db.prepare("UPDATE arena_dm_threads SET updated_at = ? WHERE id = ?").run(now, threadId);
   // Sender has read their own message
-  db.prepare("INSERT OR REPLACE INTO arena_dm_reads (thread_id, user_id, last_read_at) VALUES (?, ?, ?)").run(
-    threadId,
-    session.id,
-    now
-  );
+  db.prepare("INSERT OR REPLACE INTO arena_dm_reads (thread_id, user_id, last_read_at) VALUES (?, ?, ?)").run(threadId, session.id, now);
 
-  const senderNick =
-    (
-      db.prepare("SELECT nickname FROM profiles WHERE user_id = ?").get(session.id) as { nickname?: string } | undefined
-    )?.nickname ?? null;
+  const senderNick = (
+    db.prepare("SELECT nickname FROM profiles WHERE user_id = ?").get(session.id) as { nickname?: string } | undefined
+  )?.nickname ?? null;
 
   const payload = { id, thread_id: threadId, sender_id: session.id, sender_nick: senderNick, message, created_at: now };
   broadcastDm(payload);
 
-  const t = db
-    .prepare("SELECT user1_id, user2_id FROM arena_dm_threads WHERE id = ?")
-    .get(threadId) as { user1_id: string; user2_id: string } | undefined;
+  const t = db.prepare("SELECT user1_id, user2_id FROM arena_dm_threads WHERE id = ?").get(threadId) as { user1_id: string; user2_id: string } | undefined;
   const otherId = t ? (t.user1_id === session.id ? t.user2_id : t.user1_id) : null;
   if (otherId) {
     publishToUser(otherId, {
@@ -110,11 +97,7 @@ export async function POST(req: Request) {
       fromNick: senderNick,
       threadId,
       createdAt: now,
-      preview: message.startsWith("__AUDIO__")
-        ? "🎤 Voice message"
-        : message.startsWith("__IMG__")
-          ? "🖼️ Photo"
-          : message.slice(0, 80),
+      preview: message.slice(0, 80),
     });
   }
 

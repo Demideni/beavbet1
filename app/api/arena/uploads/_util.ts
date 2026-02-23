@@ -1,17 +1,26 @@
 import fs from "node:fs";
 import path from "node:path";
 
-/** Prefer Render persistent disk (/var/data). Fallback to project-local .data for local dev. */
-export function getDataDir() {
-  const p = process.env.DATA_DIR || "/var/data";
-  const dir = fs.existsSync(p) ? p : path.join(process.cwd(), ".data");
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+export function getUploadsDir() {
+  // Render persistent disk is usually mounted at /var/data
+  const base = fs.existsSync("/var/data") ? "/var/data" : process.cwd();
+  const dir = path.join(base, "uploads", "arena");
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+  } catch {}
   return dir;
 }
 
-export function getUploadsDir() {
-  const base = getDataDir();
-  const dir = path.join(base, "uploads");
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  return dir;
+export function contentTypeFromName(name: string) {
+  const ext = path.extname(name).toLowerCase();
+  if (ext === ".webm") return "audio/webm";
+  if (ext === ".mp3") return "audio/mpeg";
+  if (ext === ".wav") return "audio/wav";
+  if (ext === ".mp4" || ext === ".m4a") return "audio/mp4";
+  if (ext === ".ogg") return "audio/ogg";
+  if (ext === ".png") return "image/png";
+  if (ext === ".jpg" || ext === ".jpeg") return "image/jpeg";
+  if (ext === ".gif") return "image/gif";
+  if (ext === ".webp") return "image/webp";
+  return "application/octet-stream";
 }

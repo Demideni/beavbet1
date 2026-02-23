@@ -96,14 +96,9 @@ export default function ArenaProfileClient() {
             <Link href="/arena" className="inline-flex items-center gap-2 text-white/80 hover:text-white">
               <ChevronLeft className="h-4 w-4" /> Back to Arena
             </Link>
-            <div className="flex items-center gap-4">
-              <Link href="/arena/clans" className="text-white/80 hover:text-white">
-                Clans →
-              </Link>
-              <Link href="/arena/leaderboard" className="text-white/80 hover:text-white">
-                Leaderboard →
-              </Link>
-            </div>
+            <Link href="/arena/leaderboard" className="text-white/80 hover:text-white">
+              Leaderboard →
+            </Link>
           </div>
 
           <div className="mt-6 rounded-3xl card-glass p-6">

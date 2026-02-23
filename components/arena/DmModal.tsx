@@ -13,17 +13,6 @@ type Msg = {
   createdAt: number;
 };
 
-function parseSpecial(msg: string): { kind: "audio" | "img" | "text"; url?: string; text?: string } {
-  const s = String(msg || "");
-  const audio = s.match(/^__AUDIO__(?:[:\s]+)(.+)$/i);
-  if (audio?.[1]) return { kind: "audio", url: audio[1].trim() };
-
-  const img = s.match(/^__IMG__(?:[:\s]+)(.+)$/i);
-  if (img?.[1]) return { kind: "img", url: img[1].trim() };
-
-  return { kind: "text", text: s };
-}
-
 export default function DmModal({
   open,
   onClose,
@@ -40,14 +29,11 @@ export default function DmModal({
   const [text, setText] = useState("");
   const [meId, setMeId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-
-  const [recState, setRecState] = useState<"idle" | "recording" | "uploading">("idle");
-  const recRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<BlobPart[]>([]);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-
+  const [rec, setRec] = useState<MediaRecorder | null>(null);
+  const [recording, setRecording] = useState(false);
   const esRef = useRef<EventSource | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const fileRef = useRef<HTMLInputElement | null>(null);
 
   const title = useMemo(() => withNick || "Direct message", [withNick]);
 
@@ -71,7 +57,12 @@ export default function DmModal({
   async function loadMessages(tid: string) {
     const r = await fetch(`/api/arena/dm/messages?threadId=${encodeURIComponent(tid)}&limit=80`, { cache: "no-store" });
     const j = await r.json().catch(() => ({} as any));
-    const arr = Array.isArray((j as any)?.messages) ? ((j as any).messages as Msg[]) : Array.isArray(j) ? (j as Msg[]) : [];
+    // Backend can return either { messages: Msg[] } or Msg[]; also guard against non-array shapes.
+    const arr = Array.isArray((j as any)?.messages)
+      ? ((j as any).messages as Msg[])
+      : Array.isArray(j)
+        ? (j as Msg[])
+        : [];
     setMessages(arr);
   }
 
@@ -87,17 +78,7 @@ export default function DmModal({
           const m = data.msg;
           setMessages((prev) => {
             if (prev.some((x) => x.id === m.id)) return prev;
-            return [
-              ...prev,
-              {
-                id: m.id,
-                threadId: m.thread_id,
-                senderId: m.sender_id,
-                senderNick: m.sender_nick ?? null,
-                message: m.message,
-                createdAt: m.created_at,
-              } as any,
-            ];
+            return [...prev, { id: m.id, threadId: m.thread_id, senderId: m.sender_id, senderNick: m.sender_nick ?? null, message: m.message, createdAt: m.created_at } as any];
           });
         }
       } catch {
@@ -132,116 +113,100 @@ export default function DmModal({
         esRef.current?.close();
       } catch {}
       esRef.current = null;
-      // stop recorder if open closes
-      try {
-        recRef.current?.stop();
-      } catch {}
-      recRef.current = null;
-      chunksRef.current = [];
-      setRecState("idle");
     };
   }, [open, withUserId]);
 
   useEffect(() => {
     if (!open) return;
+    // autoscroll
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, open]);
 
-  async function sendMessage(message: string) {
-    if (!threadId) return;
-    const r = await fetch("/api/arena/dm/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ threadId, message }),
-    });
-    if (!r.ok) throw new Error("Send failed");
-  }
-
-  async function sendText() {
+  async function send() {
     if (!threadId) return;
     const msg = text.trim();
     if (!msg) return;
     setBusy(true);
     setText("");
-    try {
-      await sendMessage(msg);
-    } catch {
+    const r = await fetch("/api/arena/dm/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ threadId, message: msg }),
+    });
+    setBusy(false);
+    if (!r.ok) {
+      // restore
       setText(msg);
-    } finally {
-      setBusy(false);
     }
   }
 
-  async function uploadFile(endpoint: "/api/arena/uploads/audio" | "/api/arena/uploads/image", file: File) {
-    const fd = new FormData();
-    fd.append("file", file);
-    const r = await fetch(endpoint, { method: "POST", body: fd });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(j?.error || "UPLOAD_FAILED");
-    return String(j?.url || "");
-  }
-
-  async function onPickImage(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0];
-    e.target.value = "";
-    if (!f) return;
+  async function sendSpecial(raw: string) {
     if (!threadId) return;
     setBusy(true);
-    try {
-      const url = await uploadFile("/api/arena/uploads/image", f);
-      if (!url) throw new Error("NO_URL");
-      await sendMessage(`__IMG__: ${url}`);
-    } catch {
-      // ignore
-    } finally {
-      setBusy(false);
+    const r = await fetch("/api/arena/dm/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ threadId, message: raw }),
+    });
+    setBusy(false);
+    if (!r.ok) {
+      // noop
     }
   }
 
-  async function toggleRec() {
-    if (recState === "recording") {
-      try {
-        recRef.current?.stop();
-      } catch {}
-      return;
-    }
-    if (recState !== "idle") return;
+  async function uploadAndSendImage(file: File) {
+    const fd = new FormData();
+    fd.set("file", file);
+    const r = await fetch("/api/arena/uploads/image", { method: "POST", body: fd });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) return alert(j?.error || "Upload failed");
+    await sendSpecial(`__IMG__:${j.url}`);
+  }
 
+  async function startRec() {
+    if (recording) return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mr = new MediaRecorder(stream);
-      chunksRef.current = [];
-      mr.ondataavailable = (ev) => {
-        if (ev.data && ev.data.size > 0) chunksRef.current.push(ev.data);
+      // Prefer webm for broad support; Safari may vary but will still download.
+      const mimeCandidates = [
+        "audio/webm;codecs=opus",
+        "audio/webm",
+        "audio/mp4",
+      ];
+      const mimeType = mimeCandidates.find((m) => (window as any).MediaRecorder?.isTypeSupported?.(m)) || "";
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      const chunks: BlobPart[] = [];
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) chunks.push(e.data);
       };
-      mr.onstop = async () => {
-        stream.getTracks().forEach((t) => t.stop());
-        const blob = new Blob(chunksRef.current, { type: mr.mimeType || "audio/webm" });
-        chunksRef.current = [];
-        recRef.current = null;
-
-        if (!threadId) {
-          setRecState("idle");
-          return;
-        }
-
-        setRecState("uploading");
+      recorder.onstop = async () => {
         try {
-          const file = new File([blob], "voice.webm", { type: blob.type || "audio/webm" });
-          const url = await uploadFile("/api/arena/uploads/audio", file);
-          if (url) await sendMessage(`__AUDIO__: ${url}`);
-        } catch {
-          // ignore
-        } finally {
-          setRecState("idle");
-        }
+          stream.getTracks().forEach((t) => t.stop());
+        } catch {}
+        setRecording(false);
+        setRec(null);
+        if (!chunks.length) return;
+        const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+        const fd = new FormData();
+        fd.set("file", new File([blob], "voice.webm", { type: blob.type }));
+        const r = await fetch("/api/arena/uploads/audio", { method: "POST", body: fd });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) return alert(j?.error || "Upload failed");
+        await sendSpecial(`__AUDIO__:${j.url}`);
       };
-      recRef.current = mr;
-      mr.start();
-      setRecState("recording");
+      recorder.start();
+      setRec(recorder);
+      setRecording(true);
     } catch {
-      setRecState("idle");
+      alert("Microphone permission denied");
     }
+  }
+
+  function stopRec() {
+    if (!rec) return;
+    try {
+      rec.stop();
+    } catch {}
   }
 
   if (!open) return null;
@@ -251,11 +216,7 @@ export default function DmModal({
       <div className="w-full max-w-[620px] rounded-3xl border border-white/12 bg-black/55 shadow-2xl overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
           <div className="text-white font-extrabold">{title}</div>
-          <button
-            onClick={onClose}
-            className="h-9 w-9 rounded-2xl bg-white/6 border border-white/10 hover:bg-white/10 flex items-center justify-center"
-            aria-label="Close"
-          >
+          <button onClick={onClose} className="h-9 w-9 rounded-2xl bg-white/6 border border-white/10 hover:bg-white/10 flex items-center justify-center" aria-label="Close">
             <X className="h-4 w-4 text-white" />
           </button>
         </div>
@@ -263,31 +224,23 @@ export default function DmModal({
         <div className="h-[55vh] md:h-[420px] overflow-y-auto px-4 py-3 space-y-2">
           {messages.map((m) => {
             const mine = meId && m.senderId === meId;
-            const parsed = parseSpecial(m.message);
+            const msg = String(m.message || "");
+            const isAudio = msg.startsWith("__AUDIO__:");
+            const isImg = msg.startsWith("__IMG__:");
+            const url = (isAudio ? msg.slice("__AUDIO__:".length) : isImg ? msg.slice("__IMG__:".length) : "").trim();
             return (
-              <div key={m.id} className={cn("flex", mine ? "justify-end" : "justify-start")}>
-                <div
-                  className={cn(
-                    "max-w-[85%] rounded-2xl px-3 py-2 text-sm border",
-                    mine ? "bg-accent/20 border-accent/30 text-white" : "bg-white/6 border-white/10 text-white/90"
-                  )}
-                >
+              <div key={m.id} className={cn("flex", mine ? "justify-end" : "justify-start")}> 
+                <div className={cn("max-w-[85%] rounded-2xl px-3 py-2 text-sm border", mine ? "bg-accent/20 border-accent/30 text-white" : "bg-white/6 border-white/10 text-white/90")}> 
                   {!mine ? (
                     <div className="text-[11px] text-orange-400 font-semibold mb-1">{m.senderNick || ""}</div>
                   ) : null}
-
-                  {parsed.kind === "audio" ? (
-                    <audio className="w-[260px] max-w-full" controls src={parsed.url} />
-                  ) : parsed.kind === "img" ? (
+                  {isAudio ? (
+                    <audio controls preload="none" src={url} className="w-[260px] max-w-full" />
+                  ) : isImg ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={parsed.url}
-                      alt="image"
-                      className="max-w-[320px] w-full h-auto rounded-2xl border border-white/10"
-                      loading="lazy"
-                    />
+                    <img src={url} alt="image" className="max-w-[260px] rounded-xl border border-white/10" />
                   ) : (
-                    <div className="whitespace-pre-wrap break-words">{parsed.text}</div>
+                    <div className="whitespace-pre-wrap break-words">{m.message}</div>
                   )}
                 </div>
               </div>
@@ -299,34 +252,38 @@ export default function DmModal({
         <div className="p-3 border-t border-white/10">
           <div className="flex items-center gap-2">
             <input
-              ref={fileInputRef}
+              ref={fileRef}
               type="file"
-              accept="image/png,image/jpeg,image/webp,image/gif"
+              accept="image/*"
               className="hidden"
-              onChange={onPickImage}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                e.target.value = "";
+                if (f) uploadAndSendImage(f);
+              }}
             />
 
             <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={busy || !threadId}
-              className="h-11 w-11 rounded-2xl bg-white/6 border border-white/10 hover:bg-white/10 flex items-center justify-center disabled:opacity-50"
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              className="h-11 w-11 rounded-2xl bg-white/6 border border-white/10 hover:bg-white/10 flex items-center justify-center"
               aria-label="Attach image"
-              title="Attach image"
+              disabled={busy}
             >
-              <ImageIcon className="h-5 w-5 text-white" />
+              <ImageIcon className="h-4 w-4 text-white/85" />
             </button>
 
             <button
-              onClick={toggleRec}
-              disabled={busy || !threadId}
+              type="button"
+              onClick={() => (recording ? stopRec() : startRec())}
               className={cn(
-                "h-11 w-11 rounded-2xl border flex items-center justify-center disabled:opacity-50",
-                recState === "recording" ? "bg-red-500/20 border-red-400/30" : "bg-white/6 border-white/10 hover:bg-white/10"
+                "h-11 w-11 rounded-2xl border flex items-center justify-center",
+                recording ? "bg-accent text-black border-accent" : "bg-white/6 border-white/10 hover:bg-white/10"
               )}
-              aria-label="Voice message"
-              title={recState === "recording" ? "Stop" : "Record"}
+              aria-label={recording ? "Stop recording" : "Record voice"}
+              disabled={busy}
             >
-              {recState === "recording" ? <Square className="h-5 w-5 text-white" /> : <Mic className="h-5 w-5 text-white" />}
+              {recording ? <Square className="h-4 w-4" /> : <Mic className="h-4 w-4 text-white/85" />}
             </button>
 
             <input
@@ -335,26 +292,21 @@ export default function DmModal({
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
-                  sendText();
+                  send();
                 }
               }}
-              placeholder={recState === "uploading" ? "Uploading…" : "Write a message…"}
+              placeholder="Write a message…"
               className="flex-1 h-11 rounded-2xl bg-white/6 border border-white/10 px-3 text-white placeholder:text-white/40 outline-none"
-              disabled={busy || recState === "uploading"}
             />
-
             <button
-              onClick={sendText}
-              disabled={busy || recState === "uploading"}
+              onClick={send}
+              disabled={busy}
               className="h-11 px-4 rounded-2xl bg-accent text-black font-bold hover:opacity-95 disabled:opacity-60"
             >
               Send
             </button>
           </div>
-
-          <div className="text-white/40 text-xs mt-2">
-            Tip: Enter to send • Shift+Enter new line • {recState === "recording" ? "Recording…" : recState === "uploading" ? "Uploading voice…" : "Attach photo or voice"}
-          </div>
+          <div className="text-white/40 text-xs mt-2">Tip: Enter to send • Shift+Enter new line</div>
         </div>
       </div>
     </div>

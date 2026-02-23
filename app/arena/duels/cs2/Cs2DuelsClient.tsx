@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import ArenaShell from "../../ArenaShell";
+import { FaceitButton } from "@/components/ui/FaceitButton";
 
 type DuelPlayer = { user_id: string; team: number; is_captain: number; ready: number };
 
@@ -45,7 +46,7 @@ export default function Cs2DuelsClient() {
   const [stakePreset, setStakePreset] = useState<number>(5);
   const [customStake, setCustomStake] = useState<string>("");
   const [myRating, setMyRating] = useState<{ dam_rank: number; matches: number; wins: number; losses: number } | null>(null);
-  const [ratingName, setRatingName] = useState<string>("DamRank");
+  const [ratingName, setRatingName] = useState<string>("BeavRank");
 
   async function load() {
     setLoading(true);
@@ -199,19 +200,15 @@ export default function Cs2DuelsClient() {
           <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
             <div className="text-white/70 text-xs font-semibold tracking-wide">ФОРМАТ</div>
             <div className="mt-2 flex flex-wrap gap-2">
-              {[1,2,3,4,5].map((n) => (
-                <button
+              {[1, 2, 3, 4, 5].map((n) => (
+                <FaceitButton
                   key={n}
                   onClick={() => setTeamSize(n)}
-                  className={
-                    "px-3 py-2 rounded-xl border text-sm font-bold transition " +
-                    (teamSize === n
-                      ? "bg-accent text-black border-accent"
-                      : "bg-white/5 text-white/80 border-white/10 hover:bg-white/10")
-                  }
+                  variant={teamSize === n ? "primary" : "secondary"}
+                  size="sm"
                 >
                   {n}v{n}
-                </button>
+                </FaceitButton>
               ))}
             </div>
             <div className="mt-2 text-white/50 text-xs">
@@ -242,21 +239,17 @@ export default function Cs2DuelsClient() {
             <div className="text-white/70 text-xs font-semibold tracking-wide">СТАВКА (EUR)</div>
             <div className="mt-2 flex flex-wrap gap-2">
               {[5, 10, 20].map((s) => (
-                <button
+                <FaceitButton
                   key={s}
                   onClick={() => {
                     setStakePreset(s);
                     setCustomStake("");
                   }}
-                  className={
-                    "px-3 py-2 rounded-xl border text-sm font-bold transition " +
-                    (!customStake && stakePreset === s
-                      ? "bg-accent text-black border-accent"
-                      : "bg-white/5 text-white/80 border-white/10 hover:bg-white/10")
-                  }
+                  variant={!customStake && stakePreset === s ? "primary" : "secondary"}
+                  size="sm"
                 >
                   {s}
-                </button>
+                </FaceitButton>
               ))}
             </div>
 
@@ -277,13 +270,9 @@ export default function Cs2DuelsClient() {
         </div>
 
         <div className="mt-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-          <button
-            onClick={() => create()}
-            disabled={busy === "create"}
-            className="px-5 py-3 rounded-2xl bg-accent text-black font-extrabold disabled:opacity-60"
-          >
+          <FaceitButton onClick={() => create()} disabled={busy === "create"} variant="primary" size="lg">
             {busy === "create" ? "Создаём..." : "Создать дуэль"}
-          </button>
+          </FaceitButton>
 
           <div className="text-white/55 text-sm">
             После заполнения команд появится ready-check на 60 секунд.
@@ -335,13 +324,12 @@ export default function Cs2DuelsClient() {
                       </div>
 
                       <div className="mt-3 flex flex-wrap items-center gap-2">
-                        <button
+                        <FaceitButton
                           onClick={() => ready(d.id)}
                           disabled={busy === `ready:${d.id}` || ((d.me_is_p1 ? d.p1_ready : d.p2_ready) ? true : false)}
-                          className="cs2-btn disabled:opacity-60 disabled:cursor-not-allowed"
-                        >
+                          variant="primary" size="md" className="disabled:opacity-60 disabled:cursor-not-allowed">
                           {(d.me_is_p1 ? d.p1_ready : d.p2_ready) ? "READY ✓" : "READY"}
-                        </button>
+                        </FaceitButton>
                         <div className="text-white/60 text-xs">
                           Если не нажать READY вовремя — дуэль отменится и ставки вернутся.
                         </div>
@@ -370,20 +358,12 @@ export default function Cs2DuelsClient() {
                 </div>
 
                 <div className="flex gap-2">
-                  <button
-                    onClick={() => report(d.id, "win")}
-                    disabled={busy === d.id + ":win"}
-                    className="px-4 py-2 rounded-2xl bg-white/10 border border-white/15 text-white hover:bg-white/15 disabled:opacity-60"
-                  >
+                  <FaceitButton onClick={() => report(d.id, "win")} disabled={busy === d.id + ":win"} variant="secondary" size="md">
                     Я выиграл
-                  </button>
-                  <button
-                    onClick={() => report(d.id, "lose")}
-                    disabled={busy === d.id + ":lose"}
-                    className="px-4 py-2 rounded-2xl bg-white/10 border border-white/15 text-white hover:bg-white/15 disabled:opacity-60"
-                  >
+                  </FaceitButton>
+                  <FaceitButton onClick={() => report(d.id, "lose")} disabled={busy === d.id + ":lose"} variant="secondary" size="md">
                     Я проиграл
-                  </button>
+                  </FaceitButton>
                 </div>
               </div>
               {d.status === "pending_review" ? (
@@ -417,20 +397,12 @@ export default function Cs2DuelsClient() {
     {d.mode} • Team A {d.team1_count ?? 1}/{d.team_size} • Team B {d.team2_count ?? 0}/{d.team_size}
   </div>
   <div className="flex gap-2 justify-end">
-    <button
-      onClick={() => join(d.id, 1)}
-      disabled={busy === d.id}
-      className="px-4 py-2 rounded-2xl bg-white/10 border border-white/12 text-white/90 font-bold hover:bg-white/15 disabled:opacity-60"
-    >
+    <FaceitButton onClick={() => join(d.id, 1)} disabled={busy === d.id} variant="secondary" size="md">
       {busy === d.id ? "..." : "В A"}
-    </button>
-    <button
-      onClick={() => join(d.id, 2)}
-      disabled={busy === d.id}
-      className="px-4 py-2 rounded-2xl bg-accent text-black font-bold disabled:opacity-60"
-    >
+    </FaceitButton>
+    <FaceitButton onClick={() => join(d.id, 2)} disabled={busy === d.id} variant="primary" size="md">
       {busy === d.id ? "..." : "В B"}
-    </button>
+    </FaceitButton>
   </div>
 </div>
               </div>

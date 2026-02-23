@@ -2,10 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import ArenaShell from "../../../ArenaShell";
 import { cn } from "@/components/utils/cn";
 import { ChevronLeft, Copy, Shield, Swords, Timer, Trophy } from "lucide-react";
+import { FaceitButton } from "@/components/ui/FaceitButton";
+import Image from "next/image";
 
 type Duel = {
   id: string;
@@ -147,7 +148,10 @@ export default function Cs2DuelRoomClient({ duelId }: { duelId: string }) {
                     <div className="text-white font-extrabold text-xl mt-1">{duel ? `${duel.stake} ${duel.currency}` : "—"}</div>
                   </div>
                   <div className="rounded-2xl bg-white/6 border border-white/10 px-4 py-3">
-                    <div className="text-white/60 text-xs">BeavRank</div>
+                    <div className="text-white/60 text-xs flex items-center gap-2">
+                      <Image src="/brand/beavrank.png" alt="BeavRank" width={16} height={16} className="opacity-90" />
+                      <span>BeavRank</span>
+                    </div>
                     <div className="text-white font-extrabold text-xl mt-1">{duel ? duel.myRating : "—"}</div>
                     <div className="text-white/60 text-xs mt-1">{duel?.ratingName}</div>
                   </div>
@@ -174,29 +178,22 @@ export default function Cs2DuelRoomClient({ duelId }: { duelId: string }) {
                   <div className="mt-5 w-full grid grid-cols-1 gap-2">
                     {canJoin ? (
                       <>
-                        <button
-                          onClick={() => join(1)}
-                          disabled={busy === "join:1"}
-                          className={cn("cs2-btn", busy === "join:1" && "opacity-70")}
-                        >
-                          Join Team 1
-                        </button>
-                        <button
-                          onClick={() => join(2)}
-                          disabled={busy === "join:2"}
-                          className={cn("cs2-btn", busy === "join:2" && "opacity-70")}
-                        >
-                          Join Team 2
-                        </button>
+                        <FaceitButton onClick={() => join(1)} disabled={busy === "join:1"} variant="secondary" size="lg">
+                          {busy === "join:1" ? "…" : "Join Team 1"}
+                        </FaceitButton>
+                        <FaceitButton onClick={() => join(2)} disabled={busy === "join:2"} variant="primary" size="lg">
+                          {busy === "join:2" ? "…" : "Join Team 2"}
+                        </FaceitButton>
                       </>
                     ) : (
-                      <button
+                      <FaceitButton
                         onClick={ready}
                         disabled={!canReady || busy === "ready" || Boolean(duel?.me_ready)}
-                        className="cs2-btn disabled:opacity-60 disabled:cursor-not-allowed"
+                        variant="primary"
+                        size="lg"
                       >
                         {duel?.me_ready ? "READY ✓" : busy === "ready" ? "…" : "READY"}
-                      </button>
+                      </FaceitButton>
                     )}
                   </div>
                 </div>

@@ -54,7 +54,7 @@ export const FaceitButton = forwardRef<HTMLButtonElement, Props>(function Faceit
       const now = Date.now();
       if (now - hoverCooldown.current < 120) return;
       hoverCooldown.current = now;
-      playShutter({ kind: "hover" });
+      playShutter();
     },
     [onMouseEnter, sound]
   );
@@ -63,7 +63,7 @@ export const FaceitButton = forwardRef<HTMLButtonElement, Props>(function Faceit
     (e: React.MouseEvent<HTMLButtonElement>) => {
       onClick?.(e);
       if (!sound) return;
-      playShutter({ kind: "click" });
+      playShutter();
     },
     [onClick, sound]
   );

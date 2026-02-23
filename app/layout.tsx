@@ -10,6 +10,7 @@ import { cookies } from "next/headers";
 import { I18nProvider } from "@/components/i18n/I18nProvider";
 import LanguageGate from "@/components/i18n/LanguageGate";
 import { LANG_COOKIE } from "@/lib/i18n";
+import ArenaChatMount from "@/components/arena/ArenaChatMount";
 
 export const metadata: Metadata = {
   title: "BeavBet — Crypto Only",
@@ -52,6 +53,9 @@ export default async function RootLayout({
 
           {/* Mobile bottom tab bar (matches the reference mobile UI) */}
           <MobileNav />
+
+          {/* Arena: global realtime chat */}
+          <ArenaChatMount />
         </I18nProvider>
       </body>
     </html>

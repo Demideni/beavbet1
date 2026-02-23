@@ -315,6 +315,16 @@ CREATE TABLE IF NOT EXISTS arena_duel_reports (
     );
     CREATE INDEX IF NOT EXISTS idx_arena_duel_reports_duel ON arena_duel_reports(duel_id);
 
+    -- Arena global chat (lightweight)
+    CREATE TABLE IF NOT EXISTS arena_chat_messages (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      nickname TEXT,
+      message TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_arena_chat_created ON arena_chat_messages(created_at DESC);
+
   `);
 
   // Arena matches: add newer columns for CS2 (and other games) matchmaking/launch info.

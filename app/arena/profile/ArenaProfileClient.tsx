@@ -2,6 +2,7 @@
 
 import type React from "react";
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import ArenaShell from "../ArenaShell";
@@ -39,19 +40,41 @@ export default function ArenaProfileClient() {
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [history, setHistory] = useState<HistoryRow[]>([]);
+  const [nickInput, setNickInput] = useState("");
+  const [avatarUrlInput, setAvatarUrlInput] = useState("");
+  const [saving, setSaving] = useState(false);
+  const search = useSearchParams();
   const [tab, setTab] = useState<"history" | "friends" | "messages">("history");
+
+  async function saveProfile() {
+    setSaving(true);
+    const r = await fetch("/api/arena/profile", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nickname: nickInput, avatarUrl: avatarUrlInput }),
+    });
+    const j = await r.json().catch(() => ({}));
+    setSaving(false);
+    if (!r.ok) return alert(j?.error || "Error");
+    load();
+  }
 
   async function load() {
     setLoading(true);
     const r = await fetch("/api/arena/profile", { cache: "no-store" });
     const j = await r.json().catch(() => ({}));
     setProfile(j?.profile ?? null);
+    setNickInput(j?.profile?.nickname ?? "");
+    setAvatarUrlInput(j?.profile?.avatarUrl ?? "");
     setHistory(j?.history ?? []);
     setLoading(false);
   }
 
   useEffect(() => {
+    const q = String(search.get("tab") || "").toLowerCase();
+    if (q === "friends" || q === "messages" || q === "history") setTab(q as any);
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const title = useMemo(() => {
@@ -100,7 +123,39 @@ export default function ArenaProfileClient() {
                   </div>
                 </div>
               ) : null}
+            
+            <div className="mt-5 grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="rounded-3xl bg-black/20 border border-white/10 p-4">
+                <div className="text-white/60 text-xs">Nickname</div>
+                <input
+                  value={nickInput}
+                  onChange={(e) => setNickInput(e.target.value)}
+                  className="mt-2 w-full h-11 rounded-2xl bg-black/30 border border-white/10 px-3 text-white outline-none"
+                  placeholder="Your nick"
+                />
+              </div>
+              <div className="rounded-3xl bg-black/20 border border-white/10 p-4 md:col-span-2">
+                <div className="text-white/60 text-xs">Avatar URL</div>
+                <input
+                  value={avatarUrlInput}
+                  onChange={(e) => setAvatarUrlInput(e.target.value)}
+                  className="mt-2 w-full h-11 rounded-2xl bg-black/30 border border-white/10 px-3 text-white outline-none"
+                  placeholder="https://..."
+                />
+              </div>
             </div>
+
+            <div className="mt-3 flex items-center gap-2">
+              <button
+                onClick={saveProfile}
+                disabled={saving}
+                className={cn("h-11 px-4 rounded-2xl bg-accent text-black font-extrabold", saving ? "opacity-70" : "hover:brightness-110")}
+              >
+                {saving ? "Saving…" : "Save profile"}
+              </button>
+              <div className="text-white/45 text-xs">Tip: you can use any image URL for now. Later we can add uploads.</div>
+            </div>
+</div>
 
             <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
               <StatCard icon={<Trophy className="h-4 w-4" />} label="Winrate" value={profile ? `${profile.winrate}%` : "—"} />

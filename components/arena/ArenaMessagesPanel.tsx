@@ -8,8 +8,10 @@ type ThreadRow = {
   threadId: string;
   otherUserId: string;
   otherNick?: string | null;
+  otherAvatar?: string | null;
   updatedAt: number;
   lastMessage?: string | null;
+  unreadCount?: number;
 };
 
 export default function ArenaMessagesPanel() {
@@ -54,7 +56,14 @@ export default function ArenaMessagesPanel() {
                 )}
               >
                 <div className="flex items-center justify-between gap-3">
-                  <div className="text-white font-extrabold truncate">{t.otherNick || t.otherUserId.slice(0, 6)}</div>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="text-white font-extrabold truncate">{t.otherNick || t.otherUserId.slice(0, 6)}</div>
+                    {Number(t.unreadCount || 0) > 0 ? (
+                      <span className="shrink-0 h-5 min-w-5 px-1 rounded-full bg-accent text-black text-xs font-extrabold flex items-center justify-center">
+                        {t.unreadCount}
+                      </span>
+                    ) : null}
+                  </div>
                   <div className="text-white/45 text-xs">{new Date(Number(t.updatedAt)).toLocaleString()}</div>
                 </div>
                 <div className="text-white/65 text-sm mt-1 truncate">{t.lastMessage || ""}</div>

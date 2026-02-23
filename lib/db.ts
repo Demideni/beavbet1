@@ -356,9 +356,32 @@ CREATE TABLE IF NOT EXISTS arena_duel_reports (
     );
     CREATE INDEX IF NOT EXISTS idx_arena_dm_msg_thread_created ON arena_dm_messages(thread_id, created_at DESC);
 
+    CREATE TABLE IF NOT EXISTS arena_dm_reads (
+      thread_id TEXT NOT NULL REFERENCES arena_dm_threads(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      last_read_at INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (thread_id, user_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_arena_dm_reads_user ON arena_dm_reads(user_id, last_read_at DESC);
+
+    CREATE TABLE IF NOT EXISTS arena_gifts (
+      id TEXT PRIMARY KEY,
+      from_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      to_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      amount REAL NOT NULL,
+      currency TEXT NOT NULL,
+      note TEXT,
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_arena_gifts_to ON arena_gifts(to_user_id, created_at DESC);
+
   `);
 
-  // Arena matches: add newer columns for CS2 (and other games) matchmaking/launch info.
+  
+  // Profiles: extend with avatar (URL) for Arena/website
+  ensureColumn(db, "profiles", "avatar_url", "avatar_url TEXT");
+
+// Arena matches: add newer columns for CS2 (and other games) matchmaking/launch info.
   ensureColumn(db, "arena_matches", "game", "game TEXT");
   ensureColumn(db, "arena_matches", "map", "map TEXT");
   ensureColumn(db, "arena_matches", "server", "server TEXT");

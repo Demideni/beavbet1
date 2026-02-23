@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { upsertFriendRequest } from "@/lib/arenaSocial";
+import { publishToUser } from "@/lib/arenaNotify";
 
 export async function GET() {
   const session = await getSessionUser();
@@ -62,6 +63,12 @@ export async function POST(req: Request) {
 
   const res = upsertFriendRequest(db, session.id, targetUserId);
   if (!res.ok) return NextResponse.json(res, { status: 400 });
+
+
+  if (res.status === "pending") {
+    const meNick = db.prepare("SELECT nickname FROM profiles WHERE user_id = ?").get(session.id) as { nickname?: string | null } | undefined;
+    publishToUser(targetUserId, { type: "friend_request", fromUserId: session.id, fromNick: meNick?.nickname ?? null, createdAt: Date.now() });
+  }
 
   return NextResponse.json({ ok: true, status: res.status });
 }

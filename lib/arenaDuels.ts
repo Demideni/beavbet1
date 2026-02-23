@@ -633,6 +633,7 @@ export function getArenaProfile(userId: string, limit = 30) {
   ensureRating(db, userId);
   const r = getDamRank(db, userId);
   const nick = getNick(db, userId);
+  const avatarUrl = (db.prepare("SELECT avatar_url FROM profiles WHERE user_id = ?").get(userId) as any)?.avatar_url ?? null;
 
   const history = db
     .prepare(
@@ -657,6 +658,7 @@ export function getArenaProfile(userId: string, limit = 30) {
     profile: {
       userId,
       nickname: nick,
+      avatarUrl,
       elo: r.dam_rank,
       division: ratingNameFromElo(r.dam_rank),
       matches: r.matches,

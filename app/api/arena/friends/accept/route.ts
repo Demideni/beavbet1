@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { acceptFriend } from "@/lib/arenaSocial";
+import { publishToUser } from "@/lib/arenaNotify";
 
 export async function POST(req: Request) {
   const session = await getSessionUser();
@@ -13,6 +14,10 @@ export async function POST(req: Request) {
 
   const db = getDb();
   const res = acceptFriend(db, session.id, userId);
+  if (res.ok) {
+    const meNick = (db.prepare("SELECT nickname FROM profiles WHERE user_id = ?").get(session.id) as any)?.nickname ?? null;
+    publishToUser(userId, { type: "friend_accepted", byUserId: session.id, byNick: meNick, createdAt: Date.now() });
+  }
   if (!res.ok) return NextResponse.json(res, { status: 400 });
   return NextResponse.json({ ok: true });
 }

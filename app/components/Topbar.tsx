@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, Settings, MessageCircle, Gift } from "lucide-react";
+import { Search, Settings, MessageCircle, Gift, Bell } from "lucide-react";
 import Link from "next/link";
 import { Logo } from "./Logo";
 import { cn } from "@/components/utils/cn";
@@ -15,6 +15,18 @@ export function Topbar() {
   const { t } = useI18n();
   const pathname = usePathname();
   const [user, setUser] = useState<MeUser>(null);
+  const [incomingFriends, setIncomingFriends] = useState(0);
+  const [unreadDm, setUnreadDm] = useState(0);
+
+
+  async function fetchNotif() {
+    const r = await fetch("/api/arena/notifications", { cache: "no-store" });
+    const j = await r.json().catch(() => ({}));
+    if (j?.ok) {
+      setIncomingFriends(Number(j.incomingFriends || 0));
+      setUnreadDm(Number(j.unreadDm || 0));
+    }
+  }
 
   async function fetchMe() {
     const r = await fetch("/api/auth/me", { credentials: "include", cache: "no-store" });
@@ -24,10 +36,41 @@ export function Topbar() {
 
   useEffect(() => {
     fetchMe();
+    fetchNotif();
 
     const onRefresh = () => fetchMe();
     window.addEventListener("wallet:refresh", onRefresh);
-    return () => window.removeEventListener("wallet:refresh", onRefresh);
+
+    let es: EventSource | null = null;
+    let poll: any = null;
+    // Arena notifications stream (single-instance realtime). Also keep polling as fallback.
+    es = new EventSource("/api/arena/notifications/stream");
+    es.onmessage = (ev) => {
+      try {
+        const data = JSON.parse(ev.data);
+        if (data?.type === "friend_request") {
+          setIncomingFriends((c) => c + 1);
+        }
+        if (data?.type === "dm_message") {
+          setUnreadDm((c) => c + 1);
+        }
+        if (data?.type === "gift") {
+          // optional: could show toast later
+        }
+      } catch {}
+    };
+    es.onerror = () => {
+      try { es?.close(); } catch {}
+      es = null;
+    };
+
+    poll = setInterval(fetchNotif, 12000);
+
+    return () => {
+      window.removeEventListener("wallet:refresh", onRefresh);
+      try { es?.close(); } catch {}
+      if (poll) clearInterval(poll);
+    };
   }, []);
 
   const initials = user?.nickname?.slice(0, 2).toUpperCase() || user?.email?.slice(0, 2).toUpperCase();
@@ -54,11 +97,28 @@ export function Topbar() {
                   </Link>
                 ) : null}
 
+                <button
+                  onClick={() => {
+                    // quick jump: if there are friend requests -> open friends tab, else open messages
+                    if (incomingFriends > 0) window.location.href = "/arena/profile?tab=friends";
+                    else window.location.href = "/arena/profile?tab=messages";
+                  }}
+                  className="relative inline-flex items-center justify-center size-11 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/8"
+                  aria-label="Notifications"
+                >
+                  <Bell className="size-5 text-white/85" />
+                  {(incomingFriends + unreadDm) > 0 ? (
+                    <span className="absolute -top-1 -right-1 h-5 min-w-5 px-1 rounded-full bg-accent text-black text-xs font-extrabold flex items-center justify-center">
+                      {incomingFriends + unreadDm}
+                    </span>
+                  ) : null}
+                </button>
+
                 {/* flag-only */}
                 <LanguageSwitcher compact />
 
                 <Link
-                  href="/account"
+                  href="/arena/profile"
                   className="inline-flex items-center gap-2 px-3 py-2 rounded-2xl bg-white/8 border border-white/10 text-sm hover:bg-white/10"
                   aria-label={t("topbar.profile")}
                 >
@@ -80,9 +140,6 @@ export function Topbar() {
               </>
             )}
           </div>
-        </div>
-        <div className="h-[2px] bg-white/5">
-          <div className="h-full w-[18%] bg-white/35" />
         </div>
       </header>
     );
@@ -136,7 +193,7 @@ export function Topbar() {
                 </Link>
               ) : null}
               <Link
-                href="/account"
+                href="/arena/profile"
                 className="inline-flex items-center gap-2 px-3 py-2 rounded-2xl bg-white/8 border border-white/10 text-sm hover:bg-white/10"
                 aria-label={t("topbar.profile")}
               >

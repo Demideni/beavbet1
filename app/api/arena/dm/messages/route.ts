@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { getSessionUser } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { broadcastDm } from "@/lib/arenaDmBus";
+import { publishToUser } from "@/lib/arenaNotify";
 
 function canAccessThread(db: any, userId: string, threadId: string) {
   const t = db
@@ -38,10 +39,15 @@ export async function GET(req: Request) {
       LIMIT ?
       `
     )
-    .all(threadId, limit)
-    .reverse();
+
+    // Mark as read
+  const now = Date.now();
+  db.prepare(
+    "INSERT OR REPLACE INTO arena_dm_reads (thread_id, user_id, last_read_at) VALUES (?, ?, ?)"
+  ).run(threadId, session.id, now);
 
   return NextResponse.json({ ok: true, messages: rows });
+
 }
 
 export async function POST(req: Request) {
@@ -65,6 +71,8 @@ export async function POST(req: Request) {
     "INSERT INTO arena_dm_messages (id, thread_id, sender_id, message, created_at) VALUES (?, ?, ?, ?, ?)"
   ).run(id, threadId, session.id, message, now);
   db.prepare("UPDATE arena_dm_threads SET updated_at = ? WHERE id = ?").run(now, threadId);
+  // Sender has read their own message
+  db.prepare("INSERT OR REPLACE INTO arena_dm_reads (thread_id, user_id, last_read_at) VALUES (?, ?, ?)").run(threadId, session.id, now);
 
   const senderNick = (
     db.prepare("SELECT nickname FROM profiles WHERE user_id = ?").get(session.id) as { nickname?: string } | undefined
@@ -72,6 +80,19 @@ export async function POST(req: Request) {
 
   const payload = { id, thread_id: threadId, sender_id: session.id, sender_nick: senderNick, message, created_at: now };
   broadcastDm(payload);
+
+  const t = db.prepare("SELECT user1_id, user2_id FROM arena_dm_threads WHERE id = ?").get(threadId) as { user1_id: string; user2_id: string } | undefined;
+  const otherId = t ? (t.user1_id === session.id ? t.user2_id : t.user1_id) : null;
+  if (otherId) {
+    publishToUser(otherId, {
+      type: "dm_message",
+      fromUserId: session.id,
+      fromNick: senderNick,
+      threadId,
+      createdAt: now,
+      preview: message.slice(0, 80),
+    });
+  }
 
   return NextResponse.json({ ok: true, message: payload });
 }

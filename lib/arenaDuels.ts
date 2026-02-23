@@ -162,6 +162,28 @@ export function getDamRank(db: any, userId: string) {
 function tickCs2Duels(db: any) {
   const now = Date.now();
 
+  // Auto-cancel stale OPEN duels (no opponent accepted) after 30 minutes.
+  // This prevents creators from getting stuck with ALREADY_HAS_DUEL.
+  const staleCutoff = now - 30 * 60 * 1000;
+  const staleOpen = db
+    .prepare(
+      `SELECT * FROM arena_duels
+       WHERE game='cs2' AND status='open' AND (p2_user_id IS NULL OR p2_user_id='')
+         AND created_at IS NOT NULL AND created_at < ?`
+    )
+    .all(staleCutoff) as DuelRow[];
+
+  for (const d of staleOpen) {
+    // Cancel and refund the creator (p1) who paid the stake on create.
+    db.prepare(
+      `UPDATE arena_duels
+       SET status='cancelled', cancel_reason=?, ended_at=?, updated_at=?
+       WHERE id=? AND status='open'`
+    ).run("NO_ACCEPT_TIMEOUT", now, now, d.id);
+
+    creditBalance(db, d.p1_user_id, d.currency, Number(d.stake), d.id, { kind: "refund", reason: "NO_ACCEPT_TIMEOUT" });
+  }
+
   const active = db
     .prepare(
       `SELECT * FROM arena_duels
@@ -251,6 +273,8 @@ export function createCs2Duel(
   opts?: { teamSize?: number; map?: string | null }
 ) {
   const db = getDb();
+  // keep timeouts consistent even if user never opened the list page
+  tickCs2Duels(db);
   const s = Number(stake);
   if (!Number.isFinite(s) || s <= 0) return { ok: false as const, error: "BAD_STAKE" };
   if (s < 1 || s > 1000) return { ok: false as const, error: "STAKE_OUT_OF_RANGE" };

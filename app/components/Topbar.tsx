@@ -81,6 +81,9 @@ export function Topbar() {
             )}
           </div>
         </div>
+        <div className="h-[2px] bg-white/5">
+          <div className="h-full w-[18%] bg-white/35" />
+        </div>
       </header>
     );
   }

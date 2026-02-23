@@ -315,7 +315,7 @@ CREATE TABLE IF NOT EXISTS arena_duel_reports (
     );
     CREATE INDEX IF NOT EXISTS idx_arena_duel_reports_duel ON arena_duel_reports(duel_id);
 
-    -- Arena global chat (lightweight)
+    -- Arena global chat (MVP)
     CREATE TABLE IF NOT EXISTS arena_chat_messages (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -323,7 +323,7 @@ CREATE TABLE IF NOT EXISTS arena_duel_reports (
       message TEXT NOT NULL,
       created_at INTEGER NOT NULL
     );
-    CREATE INDEX IF NOT EXISTS idx_arena_chat_created ON arena_chat_messages(created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_arena_chat_created ON arena_chat_messages(created_at);
 
   `);
 

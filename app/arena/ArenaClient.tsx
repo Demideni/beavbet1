@@ -165,7 +165,7 @@ export default function ArenaClient() {
               </div>
 
               <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div className="rounded-3xl card-glass p-5 flex items-center justify-between">
+                <div className="rounded-3xl card-glass p-5 flex items-center justify-between relative overflow-hidden">
                   <div>
                     <div className="text-white/60 text-sm flex items-center gap-2">
                       <Image src="/brand/beavrank.png" alt="BeavRank" width={16} height={16} className="opacity-90" />
@@ -174,30 +174,48 @@ export default function ArenaClient() {
                     <div className="text-white text-2xl font-extrabold mt-1">{myRating}</div>
                     <div className="text-white/70 text-sm mt-1">{ratingName}</div>
                   </div>
-                  <div className="h-11 w-11 rounded-2xl bg-white/6 border border-white/10 flex items-center justify-center">
-                    <Flame className="h-5 w-5 text-white" />
+                  <div className="relative h-full w-[96px] shrink-0">
+                    <Image
+                      src="/arena/cards/beavrank.png"
+                      alt="BeavRank"
+                      fill
+                      className="object-contain opacity-90"
+                      sizes="96px"
+                    />
                   </div>
                 </div>
 
-                <div className="rounded-3xl card-glass p-5 flex items-center justify-between">
+                <div className="rounded-3xl card-glass p-5 flex items-center justify-between relative overflow-hidden">
                   <div>
                     <div className="text-white/60 text-sm">Open duels</div>
                     <div className="text-white text-2xl font-extrabold mt-1">{openDuels.length}</div>
                     <div className="text-white/70 text-sm mt-1">CS2 • 1v1</div>
                   </div>
-                  <div className="h-11 w-11 rounded-2xl bg-white/6 border border-white/10 flex items-center justify-center">
-                    <Crosshair className="h-5 w-5 text-white" />
+                  <div className="relative h-full w-[96px] shrink-0">
+                    <Image
+                      src="/arena/cards/open-duels.png"
+                      alt="Open duels"
+                      fill
+                      className="object-contain opacity-90"
+                      sizes="96px"
+                    />
                   </div>
                 </div>
 
-                <div className="rounded-3xl card-glass p-5 flex items-center justify-between">
+                <div className="rounded-3xl card-glass p-5 flex items-center justify-between relative overflow-hidden">
                   <div>
                     <div className="text-white/60 text-sm">Today prize pool</div>
                     <div className="text-white text-2xl font-extrabold mt-1">€{todayPool.toFixed(0)}</div>
                     <div className="text-white/70 text-sm mt-1">Tournaments</div>
                   </div>
-                  <div className="h-11 w-11 rounded-2xl bg-white/6 border border-white/10 flex items-center justify-center">
-                    <Trophy className="h-5 w-5 text-white" />
+                  <div className="relative h-full w-[96px] shrink-0">
+                    <Image
+                      src="/arena/cards/tournaments.png"
+                      alt="Tournaments"
+                      fill
+                      className="object-contain opacity-90"
+                      sizes="96px"
+                    />
                   </div>
                 </div>
               </div>

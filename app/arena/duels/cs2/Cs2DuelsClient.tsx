@@ -104,10 +104,28 @@ export default function Cs2DuelsClient() {
     const j = await r.json().catch(() => ({}));
     setBusy(null);
     if (!r.ok) {
+      // Friendly UX for common errors.
+      if (j?.error === "ALREADY_HAS_DUEL" && j?.duelId) {
+        // Take user to their existing duel instead of showing a raw code.
+        window.location.href = `/arena/duels/cs2/${j.duelId}`;
+        return;
+      }
+      if (j?.error === "BAD_STAKE" || j?.error === "STAKE_OUT_OF_RANGE") {
+        alert("Некорректная ставка (1 - 1000 EUR)");
+        return;
+      }
+      if (j?.error === "BAD_MAP") {
+        alert("Некорректная карта");
+        return;
+      }
       alert(j?.error || "Ошибка");
       return;
     }
     window.dispatchEvent(new Event("wallet:refresh"));
+    if (j?.duelId) {
+      window.location.href = `/arena/duels/cs2/${j.duelId}`;
+      return;
+    }
     await load();
   }
   async function ready(duelId: string) {

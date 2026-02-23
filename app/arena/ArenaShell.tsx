@@ -1,6 +1,7 @@
 "use client";
 
 import { ReactNode } from "react";
+import ArenaChatWidget from "@/components/arena/ArenaChatWidget";
 
 export default function ArenaShell({ children }: { children: ReactNode }) {
   return (
@@ -14,6 +15,7 @@ export default function ArenaShell({ children }: { children: ReactNode }) {
       </div>
 
       <div className="cs2-wrap">{children}</div>
+      <ArenaChatWidget />
     </div>
   );
 }

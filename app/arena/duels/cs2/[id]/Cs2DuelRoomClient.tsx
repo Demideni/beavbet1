@@ -6,6 +6,7 @@ import ArenaShell from "../../../ArenaShell";
 import { cn } from "@/components/utils/cn";
 import { ChevronLeft, Copy, Shield, Swords, Timer, Trophy } from "lucide-react";
 import { armAudioOnce, playTrainHorn } from "@/lib/sfx";
+import DmModal from "@/components/arena/DmModal";
 
 type Duel = {
   id: string;
@@ -37,6 +38,8 @@ export default function Cs2DuelRoomClient({ duelId }: { duelId: string }) {
   const [players, setPlayers] = useState<any[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const prevOppJoined = useRef<boolean>(false);
+  const [dmOpen, setDmOpen] = useState(false);
+  const [friendBusy, setFriendBusy] = useState(false);
 
   async function load() {
     const r = await fetch(`/api/arena/duels/cs2/one?id=${encodeURIComponent(duelId)}`, { cache: "no-store" });
@@ -77,6 +80,35 @@ export default function Cs2DuelRoomClient({ duelId }: { duelId: string }) {
 
   const canJoin = duel?.status === "open" && !duel?.me_team;
   const canReady = Boolean(duel?.me_team) && (duel?.status === "active" || duel?.status === "open");
+
+  const opponentUserId = useMemo(() => {
+    if (!duel?.me_team) return null;
+    if (duel.me_team === 1) return duel.p2_user_id || null;
+    return duel.p1_user_id || null;
+  }, [duel?.me_team, duel?.p1_user_id, duel?.p2_user_id]);
+
+  const opponentNick = useMemo(() => {
+    if (!duel?.me_team) return null;
+    if (duel.me_team === 1) return duel.p2_nick || "Opponent";
+    return duel.p1_nick || "Opponent";
+  }, [duel?.me_team, duel?.p1_nick, duel?.p2_nick]);
+
+  async function addFriend() {
+    if (!opponentUserId) return;
+    setFriendBusy(true);
+    const r = await fetch("/api/arena/friends", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ targetUserId: opponentUserId }),
+    });
+    const j = await r.json().catch(() => ({}));
+    setFriendBusy(false);
+    if (!r.ok) {
+      alert(j?.error || "Ошибка");
+      return;
+    }
+    alert(j?.status === "accepted" ? "Friend added" : "Friend request sent");
+  }
 
   async function join(team: 1 | 2) {
     if (!duel) return;
@@ -159,6 +191,23 @@ export default function Cs2DuelRoomClient({ duelId }: { duelId: string }) {
                 </div>
 
                 <div className="flex items-center gap-3">
+                  {opponentUserId ? (
+                    <div className="hidden md:flex items-center gap-2 mr-2">
+                      <button
+                        onClick={() => setDmOpen(true)}
+                        className="h-11 px-4 rounded-2xl bg-white/6 border border-white/10 text-white/85 hover:bg-white/10"
+                      >
+                        Message
+                      </button>
+                      <button
+                        onClick={addFriend}
+                        disabled={friendBusy}
+                        className="h-11 px-4 rounded-2xl bg-accent text-black font-bold disabled:opacity-60"
+                      >
+                        {friendBusy ? "…" : "Add friend"}
+                      </button>
+                    </div>
+                  ) : null}
                   <div className="rounded-2xl bg-white/6 border border-white/10 px-4 py-3">
                     <div className="text-white/60 text-xs">Stake</div>
                     <div className="text-white font-extrabold text-xl mt-1">{duel ? `${duel.stake} ${duel.currency}` : "—"}</div>
@@ -170,6 +219,14 @@ export default function Cs2DuelRoomClient({ duelId }: { duelId: string }) {
                   </div>
                 </div>
               </div>
+
+              {/* DM modal */}
+              <DmModal
+                open={dmOpen}
+                onClose={() => setDmOpen(false)}
+                withUserId={opponentUserId || ""}
+                withNick={opponentNick}
+              />
 
               {/* VS block */}
               <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-3 items-stretch">

@@ -325,6 +325,37 @@ CREATE TABLE IF NOT EXISTS arena_duel_reports (
     );
     CREATE INDEX IF NOT EXISTS idx_arena_chat_created ON arena_chat_messages(created_at);
 
+    -- Arena social: friends + direct messages (MVP)
+    CREATE TABLE IF NOT EXISTS arena_friends (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      friend_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      status TEXT NOT NULL, -- pending | accepted
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      PRIMARY KEY (user_id, friend_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_arena_friends_user ON arena_friends(user_id, status, updated_at DESC);
+
+    CREATE TABLE IF NOT EXISTS arena_dm_threads (
+      id TEXT PRIMARY KEY,
+      user1_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      user2_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      UNIQUE(user1_id, user2_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_arena_dm_threads_u1 ON arena_dm_threads(user1_id, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_arena_dm_threads_u2 ON arena_dm_threads(user2_id, updated_at DESC);
+
+    CREATE TABLE IF NOT EXISTS arena_dm_messages (
+      id TEXT PRIMARY KEY,
+      thread_id TEXT NOT NULL REFERENCES arena_dm_threads(id) ON DELETE CASCADE,
+      sender_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      message TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_arena_dm_msg_thread_created ON arena_dm_messages(thread_id, created_at DESC);
+
   `);
 
   // Arena matches: add newer columns for CS2 (and other games) matchmaking/launch info.

@@ -6,6 +6,8 @@ import Link from "next/link";
 import Image from "next/image";
 import ArenaShell from "../ArenaShell";
 import { BadgeCheck, ChevronLeft, Flame, Swords, Trophy } from "lucide-react";
+import ArenaFriendsPanel from "@/components/arena/ArenaFriendsPanel";
+import ArenaMessagesPanel from "@/components/arena/ArenaMessagesPanel";
 
 type Profile = {
   userId: string;
@@ -37,6 +39,7 @@ export default function ArenaProfileClient() {
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [history, setHistory] = useState<HistoryRow[]>([]);
+  const [tab, setTab] = useState<"history" | "friends" | "messages">("history");
 
   async function load() {
     setLoading(true);
@@ -107,66 +110,113 @@ export default function ArenaProfileClient() {
             </div>
           </div>
 
-          <div className="mt-6 rounded-3xl card-glass p-6">
-            <div className="text-white text-xl font-extrabold">Match history</div>
-            <div className="text-white/60 text-sm mt-1">Последние матчи в Arena.</div>
+          <div className="mt-6 flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setTab("history")}
+              className={
+                tab === "history"
+                  ? "h-11 px-4 rounded-2xl bg-accent text-black font-bold"
+                  : "h-11 px-4 rounded-2xl bg-white/6 border border-white/10 text-white/85 hover:bg-white/10"
+              }
+            >
+              Match history
+            </button>
+            <button
+              onClick={() => setTab("friends")}
+              className={
+                tab === "friends"
+                  ? "h-11 px-4 rounded-2xl bg-accent text-black font-bold"
+                  : "h-11 px-4 rounded-2xl bg-white/6 border border-white/10 text-white/85 hover:bg-white/10"
+              }
+            >
+              Friends
+            </button>
+            <button
+              onClick={() => setTab("messages")}
+              className={
+                tab === "messages"
+                  ? "h-11 px-4 rounded-2xl bg-accent text-black font-bold"
+                  : "h-11 px-4 rounded-2xl bg-white/6 border border-white/10 text-white/85 hover:bg-white/10"
+              }
+            >
+              Messages
+            </button>
+          </div>
 
-            <div className="mt-4 overflow-x-auto">
-              <table className="min-w-[760px] w-full text-sm">
-                <thead>
-                  <tr className="text-white/60">
-                    <th className="text-left font-semibold py-2">Date</th>
-                    <th className="text-left font-semibold py-2">Game</th>
-                    <th className="text-left font-semibold py-2">Match</th>
-                    <th className="text-left font-semibold py-2">Stake</th>
-                    <th className="text-left font-semibold py-2">Result</th>
-                    <th className="text-left font-semibold py-2">Open</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loading ? (
-                    <tr>
-                      <td className="py-4 text-white/60" colSpan={6}>
-                        Loading…
-                      </td>
+          {tab === "friends" ? (
+            <div className="mt-4">
+              <ArenaFriendsPanel />
+            </div>
+          ) : null}
+
+          {tab === "messages" ? (
+            <div className="mt-4">
+              <ArenaMessagesPanel />
+            </div>
+          ) : null}
+
+          {tab === "history" ? (
+            <div className="mt-4 rounded-3xl card-glass p-6">
+              <div className="text-white text-xl font-extrabold">Match history</div>
+              <div className="text-white/60 text-sm mt-1">Последние матчи в Arena.</div>
+
+              <div className="mt-4 overflow-x-auto">
+                <table className="min-w-[760px] w-full text-sm">
+                  <thead>
+                    <tr className="text-white/60">
+                      <th className="text-left font-semibold py-2">Date</th>
+                      <th className="text-left font-semibold py-2">Game</th>
+                      <th className="text-left font-semibold py-2">Match</th>
+                      <th className="text-left font-semibold py-2">Stake</th>
+                      <th className="text-left font-semibold py-2">Result</th>
+                      <th className="text-left font-semibold py-2">Open</th>
                     </tr>
-                  ) : history.length === 0 ? (
-                    <tr>
-                      <td className="py-4 text-white/60" colSpan={6}>
-                        No matches yet.
-                      </td>
-                    </tr>
-                  ) : (
-                    history.map((h) => (
-                      <tr key={h.id} className="border-t border-white/10">
-                        <td className="py-3 text-white/70">{prettyDate(Number(h.ended_at || h.updated_at))}</td>
-                        <td className="py-3 text-white">{String(h.game || "").toUpperCase()}</td>
-                        <td className="py-3 text-white/85">
-                          {h.p1_nick || "P1"} <span className="text-white/35">vs</span> {h.p2_nick || "P2"}
-                        </td>
-                        <td className="py-3 text-white font-semibold">
-                          {h.stake} {h.currency}
-                        </td>
-                        <td className="py-3">
-                          <span className="inline-flex items-center rounded-full border border-white/12 bg-white/6 px-3 py-1 text-white/85">
-                            {String(h.status).toUpperCase()}
-                          </span>
-                        </td>
-                        <td className="py-3">
-                          <Link
-                            className="text-accent hover:opacity-90"
-                            href={h.game === "cs2" ? `/arena/duels/cs2/${h.id}` : `/arena/match/${h.id}`}
-                          >
-                            Open
-                          </Link>
+                  </thead>
+                  <tbody>
+                    {loading ? (
+                      <tr>
+                        <td className="py-4 text-white/60" colSpan={6}>
+                          Loading…
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                    ) : history.length === 0 ? (
+                      <tr>
+                        <td className="py-4 text-white/60" colSpan={6}>
+                          No matches yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      history.map((h) => (
+                        <tr key={h.id} className="border-t border-white/10">
+                          <td className="py-3 text-white/70">{prettyDate(Number(h.ended_at || h.updated_at))}</td>
+                          <td className="py-3 text-white">{String(h.game || "").toUpperCase()}</td>
+                          <td className="py-3 text-white/85">
+                            {h.p1_nick || "P1"} <span className="text-white/35">vs</span> {h.p2_nick || "P2"}
+                          </td>
+                          <td className="py-3 text-white font-semibold">
+                            {h.stake} {h.currency}
+                          </td>
+                          <td className="py-3">
+                            <span className="inline-flex items-center rounded-full border border-white/12 bg-white/6 px-3 py-1 text-white/85">
+                              {String(h.status).toUpperCase()}
+                            </span>
+                          </td>
+                          <td className="py-3">
+                            <Link
+                              className="text-accent hover:opacity-90"
+                              href={h.game === "cs2" ? `/arena/duels/cs2/${h.id}` : `/arena/match/${h.id}`}
+                            >
+                              Open
+                            </Link>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
+          ) : null}
         </div>
       </div>
     </ArenaShell>

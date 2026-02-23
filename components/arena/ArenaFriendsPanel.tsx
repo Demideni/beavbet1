@@ -50,6 +50,7 @@ export default function ArenaFriendsPanel() {
   }
 
   return (
+    <>
     <div className="rounded-3xl card-glass p-6">
       <div className="text-white text-xl font-extrabold">Friends</div>
       <div className="text-white/60 text-sm mt-1">Добавляй игроков в друзья и общайся в личке.</div>
@@ -132,6 +133,7 @@ export default function ArenaFriendsPanel() {
           withNick={dmNick}
         />
       ) : null}
+    </>
   );
 }
 

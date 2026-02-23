@@ -1,7 +1,8 @@
+import type React from "react";
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { X } from "lucide-react";
+import { X, Image as ImageIcon, Paperclip } from "lucide-react";
 import { cn } from "@/components/utils/cn";
 
 type Msg = {
@@ -29,11 +30,10 @@ export default function DmModal({
   const [text, setText] = useState("");
   const [meId, setMeId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [recState, setRecState] = useState<"idle" | "recording" | "uploading">("idle");
   const esRef = useRef<EventSource | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
-  const recRef = useRef<MediaRecorder | null>(null);
-  const recChunksRef = useRef<BlobPart[]>([]);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   const title = useMemo(() => withNick || "Direct message", [withNick]);
 
@@ -122,6 +122,18 @@ export default function DmModal({
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, open]);
 
+
+  async function uploadImage(file: File) {
+  const maxBytes = 5 * 1024 * 1024;
+  if (file.size > maxBytes) throw new Error("Image too large (max 5MB)");
+  const fd = new FormData();
+  fd.append("file", file);
+  const r = await fetch("/api/arena/uploads/image", { method: "POST", body: fd });
+  const j = await r.json().catch(() => ({} as any));
+  if (!r.ok) throw new Error(j?.error || "Upload failed");
+  return String(j.url);
+}
+
   async function send() {
     if (!threadId) return;
     const msg = text.trim();
@@ -140,59 +152,26 @@ export default function DmModal({
     }
   }
 
-  async function sendAudio(blob: Blob) {
-    if (!threadId) return;
-    setRecState("uploading");
-    try {
-      const fd = new FormData();
-      fd.append("file", blob, "voice.webm");
-      const up = await fetch("/api/arena/uploads/audio", { method: "POST", body: fd });
-      const uj = await up.json().catch(() => ({}));
-      if (!up.ok || !uj?.url) throw new Error(uj?.error || "UPLOAD_FAILED");
-      const url = String(uj.url);
-      await fetch("/api/arena/dm/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ threadId, message: `__AUDIO__:${url}` }),
-      });
-    } catch {
-      // ignore
-    } finally {
-      setRecState("idle");
-    }
-  }
 
-  async function toggleRecord() {
-    if (recState === "uploading") return;
-    if (recState === "recording") {
-      try {
-        recRef.current?.stop();
-      } catch {}
-      return;
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mr = new MediaRecorder(stream);
-      recChunksRef.current = [];
-      mr.ondataavailable = (e) => {
-        if (e.data && e.data.size > 0) recChunksRef.current.push(e.data);
-      };
-      mr.onstop = async () => {
-        try {
-          stream.getTracks().forEach((t) => t.stop());
-        } catch {}
-        const blob = new Blob(recChunksRef.current, { type: mr.mimeType || "audio/webm" });
-        recRef.current = null;
-        if (blob.size > 0) await sendAudio(blob);
-        else setRecState("idle");
-      };
-      recRef.current = mr;
-      setRecState("recording");
-      mr.start();
-    } catch {
-      setRecState("idle");
-    }
+async function onPickImage(e: React.ChangeEvent<HTMLInputElement>) {
+  const f = e.target.files?.[0];
+  e.target.value = "";
+  if (!f) return;
+  if (!threadId) return;
+  setUploading(true);
+  try {
+    const url = await uploadImage(f);
+    await fetch("/api/arena/dm/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ threadId, message: `__IMG__:${url}` }),
+    });
+  } catch (err: any) {
+    alert(err?.message || "Failed to upload image");
+  } finally {
+    setUploading(false);
   }
+}
 
   if (!open) return null;
 
@@ -209,16 +188,16 @@ export default function DmModal({
         <div className="h-[55vh] md:h-[420px] overflow-y-auto px-4 py-3 space-y-2">
           {messages.map((m) => {
             const mine = meId && m.senderId === meId;
-            const isAudio = typeof m.message === "string" && m.message.startsWith("__AUDIO__:");
-            const audioUrl = isAudio ? m.message.slice("__AUDIO__:".length) : null;
             return (
               <div key={m.id} className={cn("flex", mine ? "justify-end" : "justify-start")}> 
                 <div className={cn("max-w-[85%] rounded-2xl px-3 py-2 text-sm border", mine ? "bg-accent/20 border-accent/30 text-white" : "bg-white/6 border-white/10 text-white/90")}> 
                   {!mine ? (
                     <div className="text-[11px] text-orange-400 font-semibold mb-1">{m.senderNick || ""}</div>
                   ) : null}
-                  {isAudio && audioUrl ? (
-                    <audio controls src={audioUrl} className="w-[240px] max-w-full" />
+                  {m.message?.startsWith("__IMG__:") ? (
+                    <a href={m.message.slice(8)} target="_blank" rel="noreferrer" className="block">
+                      <img src={m.message.slice(8)} alt="image" className="max-h-[280px] rounded-xl border border-white/10" />
+                    </a>
                   ) : (
                     <div className="whitespace-pre-wrap break-words">{m.message}</div>
                   )}
@@ -231,20 +210,21 @@ export default function DmModal({
 
         <div className="p-3 border-t border-white/10">
           <div className="flex items-center gap-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={onPickImage}
+              className="hidden"
+            />
             <button
-              onClick={toggleRecord}
-              disabled={recState === "uploading"}
-              className={cn(
-                "h-11 w-11 rounded-2xl border flex items-center justify-center",
-                recState === "recording"
-                  ? "bg-accent text-black border-accent"
-                  : "bg-white/6 border-white/10 text-white/85 hover:bg-white/10",
-                recState === "uploading" ? "opacity-60" : ""
-              )}
-              title={recState === "recording" ? "Stop recording" : "Record voice"}
-              aria-label={recState === "recording" ? "Stop recording" : "Record voice"}
+              onClick={() => fileInputRef.current?.click()}
+              disabled={busy || uploading}
+              className="h-11 w-11 rounded-2xl bg-white/6 border border-white/10 hover:bg-white/10 flex items-center justify-center disabled:opacity-60"
+              aria-label="Attach image"
+              title="Attach image"
             >
-              {recState === "recording" ? "■" : "🎤"}
+              <ImageIcon className="h-5 w-5 text-white/85" />
             </button>
             <input
               value={text}
@@ -260,15 +240,13 @@ export default function DmModal({
             />
             <button
               onClick={send}
-              disabled={busy || recState !== "idle"}
+              disabled={busy || uploading}
               className="h-11 px-4 rounded-2xl bg-accent text-black font-bold hover:opacity-95 disabled:opacity-60"
             >
               Send
             </button>
           </div>
-          <div className="text-white/40 text-xs mt-2">
-            Tip: Enter to send • Shift+Enter new line • 🎤 to record voice
-          </div>
+          <div className="text-white/40 text-xs mt-2">Tip: Enter to send • Shift+Enter new line</div>
         </div>
       </div>
     </div>

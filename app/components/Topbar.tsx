@@ -11,51 +11,12 @@ import { usePathname } from "next/navigation";
 
 type MeUser = { id: string; email: string; nickname: string | null; currency?: string; balance?: number } | null;
 
-type ToastItem = {
-  id: string;
-  title: string;
-  body: string;
-  href?: string;
-  ts: number;
-};
-
-function playNotifyBeep() {
-  // WebAudio beep (no asset needed). Might be blocked until user interaction; failures are OK.
-  try {
-    const w = window as any;
-    const AudioCtx = w.AudioContext || w.webkitAudioContext;
-    if (!AudioCtx) return;
-    if (!w.__beav_audio_ctx) w.__beav_audio_ctx = new AudioCtx();
-    const ctx: AudioContext = w.__beav_audio_ctx;
-    // If suspended, try resume (may still require gesture)
-    if (ctx.state === "suspended") {
-      ctx.resume().catch(() => {});
-    }
-    const o = ctx.createOscillator();
-    const g = ctx.createGain();
-    o.type = "sine";
-    o.frequency.value = 880;
-    g.gain.value = 0.0001;
-    o.connect(g);
-    g.connect(ctx.destination);
-    const now = ctx.currentTime;
-    g.gain.setValueAtTime(0.0001, now);
-    g.gain.exponentialRampToValueAtTime(0.15, now + 0.01);
-    g.gain.exponentialRampToValueAtTime(0.0001, now + 0.14);
-    o.start(now);
-    o.stop(now + 0.16);
-  } catch {
-    // ignore
-  }
-}
-
 export function Topbar() {
   const { t } = useI18n();
   const pathname = usePathname();
   const [user, setUser] = useState<MeUser>(null);
   const [incomingFriends, setIncomingFriends] = useState(0);
   const [unreadDm, setUnreadDm] = useState(0);
-  const [toasts, setToasts] = useState<ToastItem[]>([]);
 
 
   async function fetchNotif() {
@@ -74,66 +35,109 @@ export function Topbar() {
   }
 
   useEffect(() => {
-    fetchMe();
-    fetchNotif();
+  fetchMe();
+  fetchNotif();
 
-    const onRefresh = () => fetchMe();
-    window.addEventListener("wallet:refresh", onRefresh);
+  const onRefresh = () => fetchMe();
+  window.addEventListener("wallet:refresh", onRefresh);
 
-    let es: EventSource | null = null;
-    let poll: any = null;
-    // Arena notifications stream (single-instance realtime). Also keep polling as fallback.
-    es = new EventSource("/api/arena/notifications/stream");
-    es.onmessage = (ev) => {
-      try {
-        const data = JSON.parse(ev.data);
-        if (data?.type === "friend_request") {
-          setIncomingFriends((c) => c + 1);
-        }
-        if (data?.type === "dm_message") {
-          setUnreadDm((c) => c + 1);
+  // mobile detector for positioning
+  let mq: MediaQueryList | null = null;
+  const onMq = () => {
+    try {
+      setIsMobile(Boolean(mq?.matches));
+    } catch {}
+  };
+  try {
+    mq = window.matchMedia("(max-width: 768px)");
+    onMq();
+    mq.addEventListener?.("change", onMq);
+  } catch {}
 
-          const title = data?.fromNick ? String(data.fromNick) : "New message";
-          const body = String(data?.preview || "");
-          const href = "/arena/profile?tab=messages";
-          const id = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
-          setToasts((prev) => [{ id, title, body, href, ts: Date.now() }, ...prev].slice(0, 3));
+  function playBeep() {
+    try {
+      // WebAudio beep (works without assets)
+      const AudioCtx = (window.AudioContext || (window as any).webkitAudioContext);
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.connect(g);
+      g.connect(ctx.destination);
+      o.type = "sine";
+      o.frequency.value = 880;
+      g.gain.value = 0.08;
+      o.start();
+      setTimeout(() => {
+        try { o.stop(); } catch {}
+        try { ctx.close(); } catch {}
+      }, 140);
+    } catch {}
+  }
 
-          // In-app sound
-          playNotifyBeep();
+  function pushToast(title: string, body: string) {
+    const id = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    setToasts((prev) => {
+      const next = [...prev, { id, title, body, ts: Date.now() }];
+      return next.slice(-3);
+    });
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4500);
+  }
 
-          // System notification if permitted (works best on desktop; iOS requires PWA).
-          try {
-            const N = (window as any).Notification;
-            if (N && N.permission === "granted" && document.hidden) {
-              const n = new N(title, { body, tag: `dm_${String(data?.threadId || "")}`, silent: true });
-              n.onclick = () => {
-                try {
-                  window.focus();
-                  window.location.href = href;
-                } catch {}
-              };
+  let es: EventSource | null = null;
+  let poll: any = null;
+
+  // Arena notifications stream. Also keep polling as fallback.
+  es = new EventSource("/api/arena/notifications/stream");
+  es.onmessage = (ev) => {
+    try {
+      const data = JSON.parse(ev.data);
+      if (data?.type === "friend_request") {
+        setIncomingFriends((c) => c + 1);
+      }
+      if (data?.type === "dm_message") {
+        setUnreadDm((c) => c + 1);
+
+        const title = data?.fromNick ? String(data.fromNick) : "New message";
+        const body = data?.preview ? String(data.preview) : "New message";
+        pushToast(title, body);
+
+        // sound
+        playBeep();
+
+        // system notification (best-effort; on iOS needs PWA)
+        try {
+          const canNotify = typeof window !== "undefined" && "Notification" in window;
+          if (canNotify) {
+            if (Notification.permission === "granted") {
+              // show only if tab is not focused
+              if (document.visibilityState !== "visible") {
+                new Notification(title, { body });
+              }
+            } else if (Notification.permission === "default") {
+              // don't spam prompts; request once after a user gesture is better
             }
-          } catch {}
-        }
-        if (data?.type === "gift") {
-          // optional: could show toast later
-        }
-      } catch {}
-    };
-    es.onerror = () => {
-      try { es?.close(); } catch {}
-      es = null;
-    };
+          }
+        } catch {}
+      }
+    } catch {}
+  };
+  es.onerror = () => {
+    try { es?.close(); } catch {}
+    es = null;
+  };
 
-    poll = setInterval(fetchNotif, 12000);
+  poll = setInterval(fetchNotif, 12000);
 
-    return () => {
-      window.removeEventListener("wallet:refresh", onRefresh);
-      try { es?.close(); } catch {}
-      if (poll) clearInterval(poll);
-    };
-  }, []);
+  return () => {
+    window.removeEventListener("wallet:refresh", onRefresh);
+    try { es?.close(); } catch {}
+    if (poll) clearInterval(poll);
+    try { mq?.removeEventListener?.("change", onMq); } catch {}
+  };
+}, []);
 
   const initials = user?.nickname?.slice(0, 2).toUpperCase() || user?.email?.slice(0, 2).toUpperCase();
   const balanceText = user?.balance != null ? `${user.balance.toFixed(2)} ${user.currency || "EUR"}` : null;
@@ -204,40 +208,27 @@ export function Topbar() {
           </div>
         </div>
 
-        {/* In-app toasts (desktop: bottom-left, mobile: top). */}
-        {toasts.length > 0 ? (
-          <div className="fixed z-[90] left-3 right-3 md:left-4 md:right-auto bottom-auto md:bottom-4 top-3 md:top-auto w-auto md:w-[360px] space-y-2">
-            {toasts.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => {
-                  if (t.href) window.location.href = t.href;
-                  setToasts((prev) => prev.filter((x) => x.id !== t.id));
-                }}
-                className={cn(
-                  "w-full text-left rounded-3xl bg-black/70 border border-white/12 backdrop-blur-xl shadow-2xl",
-                  "px-4 py-3 hover:bg-black/80 transition"
-                )}
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="text-white font-extrabold truncate">{t.title}</div>
-                  <span
-                    className="text-white/40 text-xs shrink-0"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setToasts((prev) => prev.filter((x) => x.id !== t.id));
-                    }}
-                  >
-                    ✕
-                  </span>
-                </div>
-                <div className="text-white/70 text-sm mt-1 break-words">{t.body}</div>
-                <div className="text-white/35 text-xs mt-1">Tap to open</div>
-              </button>
-            ))}
-          </div>
-        ) : null}
+{/* In-app message toasts */}
+{toasts.length > 0 ? (
+  <div
+    className={cn(
+      "fixed z-[9999] pointer-events-none",
+      isMobile ? "top-4 left-4 right-4" : "left-6 bottom-24"
+    )}
+  >
+    <div className={cn("space-y-2", isMobile ? "" : "w-[360px]")}>
+      {toasts.map((t) => (
+        <div
+          key={t.id}
+          className="pointer-events-auto rounded-2xl border border-white/10 bg-black/55 backdrop-blur-xl shadow-2xl px-4 py-3"
+        >
+          <div className="text-white font-extrabold text-sm truncate">{t.title}</div>
+          <div className="text-white/80 text-sm mt-0.5 break-words">{t.body}</div>
+        </div>
+      ))}
+    </div>
+  </div>
+) : null}
       </header>
     );
   }

@@ -1,36 +1,44 @@
+import { NextResponse } from "next/server";
 import fs from "node:fs";
 import path from "node:path";
 import { getSessionUser } from "@/lib/auth";
 
-function getUploadsDir() {
-  const base =
-    process.env.RENDER_DISK_PATH ||
-    process.env.BEAVBET_DATA_DIR ||
-    (process.env.RENDER ? "/var/data" : path.join(process.cwd(), "data"));
-  return path.join(base, "uploads");
+function dataDir() {
+  return (
+    process.env.DB_PATH
+      ? path.dirname(process.env.DB_PATH)
+      : (process.env.RENDER_DISK_PATH ||
+          process.env.BEAVBET_DATA_DIR ||
+          (process.env.RENDER ? "/var/data" : path.join(process.cwd(), "data")))
+  );
 }
 
 export async function GET(_req: Request, ctx: { params: Promise<{ name: string }> }) {
-  // Protect uploads behind auth (these are private DMs).
   const session = await getSessionUser();
-  if (!session) return new Response("Unauthorized", { status: 401 });
+  if (!session) return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });
 
   const { name } = await ctx.params;
-  const safe = String(name || "").replace(/[^a-zA-Z0-9._-]/g, "");
-  if (!safe) return new Response("Not found", { status: 404 });
+  const fileName = String(name || "");
+  if (!/^[a-f0-9\-]{36}\.[a-z0-9]{1,6}$/i.test(fileName)) {
+    return NextResponse.json({ ok: false, error: "BAD_NAME" }, { status: 400 });
+  }
 
-  const filePath = path.join(getUploadsDir(), safe);
-  if (!fs.existsSync(filePath)) return new Response("Not found", { status: 404 });
+  const full = path.join(dataDir(), "uploads", fileName);
+  if (!fs.existsSync(full)) return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
 
-  const stat = fs.statSync(filePath);
-  const ext = safe.split(".").pop()?.toLowerCase();
-  const contentType = ext === "mp4" ? "audio/mp4" : "audio/webm";
-  const stream = fs.createReadStream(filePath);
-  return new Response(stream as any, {
+  const buf = fs.readFileSync(full);
+  const ext = fileName.split(".").pop()?.toLowerCase();
+  const mime =
+    ext === "jpg" || ext === "jpeg" ? "image/jpeg" :
+    ext === "webp" ? "image/webp" :
+    ext === "gif" ? "image/gif" :
+    "image/png";
+
+  return new NextResponse(buf, {
+    status: 200,
     headers: {
-      "Content-Type": contentType,
-      "Content-Length": String(stat.size),
-      "Cache-Control": "private, max-age=86400",
+      "Content-Type": mime,
+      "Cache-Control": "public, max-age=86400",
     },
   });
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MessageSquare, Send, X } from "lucide-react";
+import DmModal from "@/components/arena/DmModal";
 
 type ChatMsg = {
   id: string;
@@ -21,6 +22,7 @@ export default function ArenaChatWidget() {
   const [msgs, setMsgs] = useState<ChatMsg[]>([]);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  const [openWith, setOpenWith] = useState<{ id: string; nick?: string | null } | null>(null);
   const boxRef = useRef<HTMLDivElement | null>(null);
 
   const isMobile = useMemo(() => {
@@ -109,7 +111,13 @@ export default function ArenaChatWidget() {
             <div key={m.id} className="flex gap-2 py-1">
               <div className="text-white/35 shrink-0 w-[42px]">{fmtTime(m.created_at)}</div>
               <div className="min-w-0">
-                <span className="text-orange-400 font-semibold">{m.nickname || "Player"}</span>
+                <button
+                  onClick={() => setOpenWith({ id: m.user_id, nick: m.nickname })}
+                  className="text-orange-400 font-semibold hover:underline"
+                  title="Send DM"
+                >
+                  {m.nickname || "Player"}
+                </button>
                 <span className="text-white/55">: </span>
                 <span className="text-white/80 break-words">{m.message}</span>
               </div>

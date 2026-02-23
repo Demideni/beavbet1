@@ -2,6 +2,7 @@
 
 import type React from "react";
 import { useEffect, useState } from "react";
+import DmModal from "@/components/arena/DmModal";
 import { cn } from "@/components/utils/cn";
 
 type Row = { userId: string; nickname?: string | null; createdAt?: number; updatedAt?: number };
@@ -11,6 +12,9 @@ export default function ArenaFriendsPanel() {
   const [incoming, setIncoming] = useState<Row[]>([]);
   const [outgoing, setOutgoing] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dmOpen, setDmOpen] = useState(false);
+  const [dmUserId, setDmUserId] = useState<string | null>(null);
+  const [dmNick, setDmNick] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -33,6 +37,12 @@ export default function ArenaFriendsPanel() {
       body: JSON.stringify({ userId }),
     });
     load();
+  }
+
+  function openDm(userId: string, nick?: string | null) {
+    setDmUserId(userId);
+    setDmNick(nick ?? null);
+    setDmOpen(true);
   }
 
   async function remove(userId: string) {
@@ -81,7 +91,10 @@ export default function ArenaFriendsPanel() {
                   key={u.userId}
                   nick={u.nickname || u.userId.slice(0, 6)}
                   right={
-                    <button onClick={() => remove(u.userId)} className="h-9 px-3 rounded-2xl bg-white/6 border border-white/10 text-white/80">Remove</button>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => openDm(u.userId, u.nickname)} className="h-9 px-3 rounded-2xl bg-white/6 border border-white/10 text-white/80 hover:bg-white/10">Message</button>
+                      <button onClick={() => remove(u.userId)} className="h-9 px-3 rounded-2xl bg-white/6 border border-white/10 text-white/80">Remove</button>
+                    </div>
                   }
                 />
               ))
@@ -123,7 +136,12 @@ function RowItem({ nick, right }: { nick: string; right: React.ReactNode }) {
     <div className={cn("flex items-center justify-between gap-3 rounded-2xl bg-white/6 border border-white/10 px-3 py-2")}> 
       <div className="text-white font-semibold truncate">{nick}</div>
       <div className="shrink-0">{right}</div>
-    </div>
+    
+
+      {dmUserId ? (
+        <DmModal open={dmOpen} onClose={() => setDmOpen(false)} withUserId={dmUserId} withNick={dmNick} />
+      ) : null}
+</div>
   );
 }
 

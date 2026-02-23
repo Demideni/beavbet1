@@ -53,8 +53,14 @@ export default function DmModal({
 
   async function loadMessages(tid: string) {
     const r = await fetch(`/api/arena/dm/messages?threadId=${encodeURIComponent(tid)}&limit=80`, { cache: "no-store" });
-    const j = await r.json().catch(() => ({}));
-    setMessages(j?.messages ?? []);
+    const j = await r.json().catch(() => ({} as any));
+    // Backend can return either { messages: Msg[] } or Msg[]; also guard against non-array shapes.
+    const arr = Array.isArray((j as any)?.messages)
+      ? ((j as any).messages as Msg[])
+      : Array.isArray(j)
+        ? (j as Msg[])
+        : [];
+    setMessages(arr);
   }
 
   function connectSse(tid: string) {

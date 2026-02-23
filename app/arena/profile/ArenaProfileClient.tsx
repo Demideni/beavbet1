@@ -9,6 +9,7 @@ import ArenaShell from "../ArenaShell";
 import { BadgeCheck, ChevronLeft, Flame, Swords, Trophy } from "lucide-react";
 import ArenaFriendsPanel from "@/components/arena/ArenaFriendsPanel";
 import ArenaMessagesPanel from "@/components/arena/ArenaMessagesPanel";
+import { cn } from "@/components/utils/cn";
 
 type Profile = {
   userId: string;

@@ -375,6 +375,38 @@ CREATE TABLE IF NOT EXISTS arena_duel_reports (
     );
     CREATE INDEX IF NOT EXISTS idx_arena_gifts_to ON arena_gifts(to_user_id, created_at DESC);
 
+    -- Arena Clans (MVP)
+    CREATE TABLE IF NOT EXISTS arena_clans (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      tag TEXT,
+      owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      avatar_url TEXT,
+      created_at INTEGER NOT NULL
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_arena_clans_name ON arena_clans(name);
+
+    CREATE TABLE IF NOT EXISTS arena_clan_members (
+      clan_id TEXT NOT NULL REFERENCES arena_clans(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      role TEXT NOT NULL DEFAULT 'member', -- owner | admin | member
+      joined_at INTEGER NOT NULL,
+      PRIMARY KEY (clan_id, user_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_arena_clan_members_user ON arena_clan_members(user_id, joined_at DESC);
+
+    CREATE TABLE IF NOT EXISTS arena_clan_invites (
+      id TEXT PRIMARY KEY,
+      clan_id TEXT NOT NULL REFERENCES arena_clans(id) ON DELETE CASCADE,
+      invited_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      invited_by_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      status TEXT NOT NULL DEFAULT 'pending', -- pending | accepted | declined | revoked
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      UNIQUE(clan_id, invited_user_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_arena_clan_invites_user ON arena_clan_invites(invited_user_id, status, updated_at DESC);
+
   `);
 
   

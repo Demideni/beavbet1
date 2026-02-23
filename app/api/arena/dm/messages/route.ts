@@ -30,7 +30,11 @@ export async function GET(req: Request) {
   const rows = db
     .prepare(
       `
-      SELECT m.id, m.thread_id as threadId, m.sender_id as senderId, m.message, m.created_at as createdAt,
+      SELECT m.id,
+             m.thread_id as threadId,
+             m.sender_id as senderId,
+             m.message,
+             m.created_at as createdAt,
              p.nickname as senderNick
       FROM arena_dm_messages m
       LEFT JOIN profiles p ON p.user_id = m.sender_id
@@ -39,13 +43,23 @@ export async function GET(req: Request) {
       LIMIT ?
       `
     )
+    .all(threadId, limit) as Array<{
+      id: string;
+      threadId: string;
+      senderId: string;
+      message: string;
+      createdAt: number;
+      senderNick?: string | null;
+    }>;
 
-    // Mark as read
+  // Mark as read
   const now = Date.now();
   db.prepare(
     "INSERT OR REPLACE INTO arena_dm_reads (thread_id, user_id, last_read_at) VALUES (?, ?, ?)"
   ).run(threadId, session.id, now);
 
+  // We selected DESC for perf, but UI expects chronological order.
+  rows.reverse();
   return NextResponse.json({ ok: true, messages: rows });
 
 }
@@ -78,6 +92,7 @@ export async function POST(req: Request) {
     db.prepare("SELECT nickname FROM profiles WHERE user_id = ?").get(session.id) as { nickname?: string } | undefined
   )?.nickname ?? null;
 
+  // Keep snake_case for the SSE bus payload.
   const payload = { id, thread_id: threadId, sender_id: session.id, sender_nick: senderNick, message, created_at: now };
   broadcastDm(payload);
 
@@ -94,5 +109,16 @@ export async function POST(req: Request) {
     });
   }
 
-  return NextResponse.json({ ok: true, message: payload });
+  // For REST callers (React), return camelCase shape.
+  return NextResponse.json({
+    ok: true,
+    message: {
+      id,
+      threadId,
+      senderId: session.id,
+      senderNick,
+      message,
+      createdAt: now,
+    },
+  });
 }

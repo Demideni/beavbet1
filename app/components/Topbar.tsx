@@ -17,6 +17,8 @@ export function Topbar() {
   const [user, setUser] = useState<MeUser>(null);
   const [incomingFriends, setIncomingFriends] = useState(0);
   const [unreadDm, setUnreadDm] = useState(0);
+  const [isMobile, setIsMobile] = useState(false);
+  const [toasts, setToasts] = useState<Array<{ id: string; title: string; body: string; ts: number }>>([]);
 
 
   async function fetchNotif() {

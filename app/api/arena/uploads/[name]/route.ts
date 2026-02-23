@@ -1,65 +1,42 @@
-import { NextResponse } from "next/server";
+import fs from "node:fs/promises";
 import path from "node:path";
-import fs from "node:fs";
+import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
+import { getUploadsDir } from "../_util";
 
-import path from "node:path";
-import fs from "node:fs";
-
-function getDataDir() {
-  // Mirror lib/db.ts rules
-  const fromDbPath = process.env.DB_PATH ? path.dirname(process.env.DB_PATH) : null;
-  return (
-    fromDbPath ||
-    process.env.RENDER_DISK_PATH ||
-    process.env.BEAVBET_DATA_DIR ||
-    (process.env.RENDER ? "/var/data" : path.join(process.cwd(), "data"))
-  );
-}
-
-function ensureUploadsDir() {
-  const dir = path.join(getDataDir(), "uploads");
-  fs.mkdirSync(dir, { recursive: true });
-  return dir;
-}
-
-function contentTypeByExt(ext: string) {
-  const e = ext.toLowerCase();
-  if (e === ".png") return "image/png";
-  if (e === ".jpg" || e === ".jpeg") return "image/jpeg";
-  if (e === ".webp") return "image/webp";
-  if (e === ".gif") return "image/gif";
-  if (e === ".mp3") return "audio/mpeg";
-  if (e === ".wav") return "audio/wav";
-  if (e === ".m4a") return "audio/mp4";
-  if (e === ".mp4") return "audio/mp4";
-  if (e === ".webm") return "audio/webm";
+function guessContentType(filename: string) {
+  const ext = path.extname(filename).toLowerCase();
+  if (ext === ".webm") return "audio/webm";
+  if (ext === ".mp4" || ext === ".m4a") return "audio/mp4";
+  if (ext === ".mp3") return "audio/mpeg";
+  if (ext === ".wav") return "audio/wav";
+  if (ext === ".ogg") return "audio/ogg";
+  if (ext === ".png") return "image/png";
+  if (ext === ".jpg" || ext === ".jpeg") return "image/jpeg";
+  if (ext === ".gif") return "image/gif";
+  if (ext === ".webp") return "image/webp";
   return "application/octet-stream";
 }
 
-
-export async function GET(_: Request, ctx: { params: Promise<{ name: string }> }) {
-  const session = await getSessionUser();
-  if (!session) return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });
+export async function GET(_req: NextRequest, ctx: { params: Promise<{ name: string }> }) {
+  const u = await getSessionUser();
+  if (!u) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { name } = await ctx.params;
-  const safe = String(name || "");
-  // basic traversal protection
-  if (!safe || safe.includes("..") || safe.includes("/") || safe.includes("\\")) {
-    return NextResponse.json({ ok: false, error: "BAD_REQUEST" }, { status: 400 });
+  const safeName = path.basename(name); // prevents traversal
+  const filePath = path.join(getUploadsDir(), safeName);
+
+  try {
+    const buf = await fs.readFile(filePath);
+    const ct = guessContentType(safeName);
+    return new NextResponse(buf, {
+      status: 200,
+      headers: {
+        "Content-Type": ct,
+        "Cache-Control": "private, max-age=3600",
+      },
+    });
+  } catch {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
-
-  const dir = ensureUploadsDir();
-  const filePath = path.join(dir, safe);
-  if (!fs.existsSync(filePath)) return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
-
-  const ext = path.extname(safe);
-  const ct = contentTypeByExt(ext);
-  const buf = fs.readFileSync(filePath);
-  return new Response(buf, {
-    headers: {
-      "Content-Type": ct,
-      "Cache-Control": "private, max-age=3600",
-    },
-  });
 }

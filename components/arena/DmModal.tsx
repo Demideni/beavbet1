@@ -1,8 +1,7 @@
-import type React from "react";
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { X, Image as ImageIcon, Paperclip } from "lucide-react";
+import { Image as ImageIcon, Mic, Square, X } from "lucide-react";
 import { cn } from "@/components/utils/cn";
 
 type Msg = {
@@ -13,6 +12,17 @@ type Msg = {
   message: string;
   createdAt: number;
 };
+
+function parseSpecial(msg: string): { kind: "audio" | "img" | "text"; url?: string; text?: string } {
+  const s = String(msg || "");
+  const audio = s.match(/^__AUDIO__(?:[:\s]+)(.+)$/i);
+  if (audio?.[1]) return { kind: "audio", url: audio[1].trim() };
+
+  const img = s.match(/^__IMG__(?:[:\s]+)(.+)$/i);
+  if (img?.[1]) return { kind: "img", url: img[1].trim() };
+
+  return { kind: "text", text: s };
+}
 
 export default function DmModal({
   open,
@@ -30,10 +40,14 @@ export default function DmModal({
   const [text, setText] = useState("");
   const [meId, setMeId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const [recState, setRecState] = useState<"idle" | "recording" | "uploading">("idle");
+  const recRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<BlobPart[]>([]);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
   const esRef = useRef<EventSource | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [uploading, setUploading] = useState(false);
 
   const title = useMemo(() => withNick || "Direct message", [withNick]);
 
@@ -57,12 +71,7 @@ export default function DmModal({
   async function loadMessages(tid: string) {
     const r = await fetch(`/api/arena/dm/messages?threadId=${encodeURIComponent(tid)}&limit=80`, { cache: "no-store" });
     const j = await r.json().catch(() => ({} as any));
-    // Backend can return either { messages: Msg[] } or Msg[]; also guard against non-array shapes.
-    const arr = Array.isArray((j as any)?.messages)
-      ? ((j as any).messages as Msg[])
-      : Array.isArray(j)
-        ? (j as Msg[])
-        : [];
+    const arr = Array.isArray((j as any)?.messages) ? ((j as any).messages as Msg[]) : Array.isArray(j) ? (j as Msg[]) : [];
     setMessages(arr);
   }
 
@@ -78,7 +87,17 @@ export default function DmModal({
           const m = data.msg;
           setMessages((prev) => {
             if (prev.some((x) => x.id === m.id)) return prev;
-            return [...prev, { id: m.id, threadId: m.thread_id, senderId: m.sender_id, senderNick: m.sender_nick ?? null, message: m.message, createdAt: m.created_at } as any];
+            return [
+              ...prev,
+              {
+                id: m.id,
+                threadId: m.thread_id,
+                senderId: m.sender_id,
+                senderNick: m.sender_nick ?? null,
+                message: m.message,
+                createdAt: m.created_at,
+              } as any,
+            ];
           });
         }
       } catch {
@@ -113,65 +132,117 @@ export default function DmModal({
         esRef.current?.close();
       } catch {}
       esRef.current = null;
+      // stop recorder if open closes
+      try {
+        recRef.current?.stop();
+      } catch {}
+      recRef.current = null;
+      chunksRef.current = [];
+      setRecState("idle");
     };
   }, [open, withUserId]);
 
   useEffect(() => {
     if (!open) return;
-    // autoscroll
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, open]);
 
+  async function sendMessage(message: string) {
+    if (!threadId) return;
+    const r = await fetch("/api/arena/dm/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ threadId, message }),
+    });
+    if (!r.ok) throw new Error("Send failed");
+  }
 
-  async function uploadImage(file: File) {
-  const maxBytes = 5 * 1024 * 1024;
-  if (file.size > maxBytes) throw new Error("Image too large (max 5MB)");
-  const fd = new FormData();
-  fd.append("file", file);
-  const r = await fetch("/api/arena/uploads/image", { method: "POST", body: fd });
-  const j = await r.json().catch(() => ({} as any));
-  if (!r.ok) throw new Error(j?.error || "Upload failed");
-  return String(j.url);
-}
-
-  async function send() {
+  async function sendText() {
     if (!threadId) return;
     const msg = text.trim();
     if (!msg) return;
     setBusy(true);
     setText("");
-    const r = await fetch("/api/arena/dm/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ threadId, message: msg }),
-    });
-    setBusy(false);
-    if (!r.ok) {
-      // restore
+    try {
+      await sendMessage(msg);
+    } catch {
       setText(msg);
+    } finally {
+      setBusy(false);
     }
   }
 
-
-async function onPickImage(e: React.ChangeEvent<HTMLInputElement>) {
-  const f = e.target.files?.[0];
-  e.target.value = "";
-  if (!f) return;
-  if (!threadId) return;
-  setUploading(true);
-  try {
-    const url = await uploadImage(f);
-    await fetch("/api/arena/dm/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ threadId, message: `__IMG__:${url}` }),
-    });
-  } catch (err: any) {
-    alert(err?.message || "Failed to upload image");
-  } finally {
-    setUploading(false);
+  async function uploadFile(endpoint: "/api/arena/uploads/audio" | "/api/arena/uploads/image", file: File) {
+    const fd = new FormData();
+    fd.append("file", file);
+    const r = await fetch(endpoint, { method: "POST", body: fd });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j?.error || "UPLOAD_FAILED");
+    return String(j?.url || "");
   }
-}
+
+  async function onPickImage(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    if (!threadId) return;
+    setBusy(true);
+    try {
+      const url = await uploadFile("/api/arena/uploads/image", f);
+      if (!url) throw new Error("NO_URL");
+      await sendMessage(`__IMG__: ${url}`);
+    } catch {
+      // ignore
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function toggleRec() {
+    if (recState === "recording") {
+      try {
+        recRef.current?.stop();
+      } catch {}
+      return;
+    }
+    if (recState !== "idle") return;
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream);
+      chunksRef.current = [];
+      mr.ondataavailable = (ev) => {
+        if (ev.data && ev.data.size > 0) chunksRef.current.push(ev.data);
+      };
+      mr.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const blob = new Blob(chunksRef.current, { type: mr.mimeType || "audio/webm" });
+        chunksRef.current = [];
+        recRef.current = null;
+
+        if (!threadId) {
+          setRecState("idle");
+          return;
+        }
+
+        setRecState("uploading");
+        try {
+          const file = new File([blob], "voice.webm", { type: blob.type || "audio/webm" });
+          const url = await uploadFile("/api/arena/uploads/audio", file);
+          if (url) await sendMessage(`__AUDIO__: ${url}`);
+        } catch {
+          // ignore
+        } finally {
+          setRecState("idle");
+        }
+      };
+      recRef.current = mr;
+      mr.start();
+      setRecState("recording");
+    } catch {
+      setRecState("idle");
+    }
+  }
 
   if (!open) return null;
 
@@ -180,7 +251,11 @@ async function onPickImage(e: React.ChangeEvent<HTMLInputElement>) {
       <div className="w-full max-w-[620px] rounded-3xl border border-white/12 bg-black/55 shadow-2xl overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
           <div className="text-white font-extrabold">{title}</div>
-          <button onClick={onClose} className="h-9 w-9 rounded-2xl bg-white/6 border border-white/10 hover:bg-white/10 flex items-center justify-center" aria-label="Close">
+          <button
+            onClick={onClose}
+            className="h-9 w-9 rounded-2xl bg-white/6 border border-white/10 hover:bg-white/10 flex items-center justify-center"
+            aria-label="Close"
+          >
             <X className="h-4 w-4 text-white" />
           </button>
         </div>
@@ -188,18 +263,31 @@ async function onPickImage(e: React.ChangeEvent<HTMLInputElement>) {
         <div className="h-[55vh] md:h-[420px] overflow-y-auto px-4 py-3 space-y-2">
           {messages.map((m) => {
             const mine = meId && m.senderId === meId;
+            const parsed = parseSpecial(m.message);
             return (
-              <div key={m.id} className={cn("flex", mine ? "justify-end" : "justify-start")}> 
-                <div className={cn("max-w-[85%] rounded-2xl px-3 py-2 text-sm border", mine ? "bg-accent/20 border-accent/30 text-white" : "bg-white/6 border-white/10 text-white/90")}> 
+              <div key={m.id} className={cn("flex", mine ? "justify-end" : "justify-start")}>
+                <div
+                  className={cn(
+                    "max-w-[85%] rounded-2xl px-3 py-2 text-sm border",
+                    mine ? "bg-accent/20 border-accent/30 text-white" : "bg-white/6 border-white/10 text-white/90"
+                  )}
+                >
                   {!mine ? (
                     <div className="text-[11px] text-orange-400 font-semibold mb-1">{m.senderNick || ""}</div>
                   ) : null}
-                  {m.message?.startsWith("__IMG__:") ? (
-                    <a href={m.message.slice(8)} target="_blank" rel="noreferrer" className="block">
-                      <img src={m.message.slice(8)} alt="image" className="max-h-[280px] rounded-xl border border-white/10" />
-                    </a>
+
+                  {parsed.kind === "audio" ? (
+                    <audio className="w-[260px] max-w-full" controls src={parsed.url} />
+                  ) : parsed.kind === "img" ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={parsed.url}
+                      alt="image"
+                      className="max-w-[320px] w-full h-auto rounded-2xl border border-white/10"
+                      loading="lazy"
+                    />
                   ) : (
-                    <div className="whitespace-pre-wrap break-words">{m.message}</div>
+                    <div className="whitespace-pre-wrap break-words">{parsed.text}</div>
                   )}
                 </div>
               </div>
@@ -213,40 +301,60 @@ async function onPickImage(e: React.ChangeEvent<HTMLInputElement>) {
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
-              onChange={onPickImage}
+              accept="image/png,image/jpeg,image/webp,image/gif"
               className="hidden"
+              onChange={onPickImage}
             />
+
             <button
               onClick={() => fileInputRef.current?.click()}
-              disabled={busy || uploading}
-              className="h-11 w-11 rounded-2xl bg-white/6 border border-white/10 hover:bg-white/10 flex items-center justify-center disabled:opacity-60"
+              disabled={busy || !threadId}
+              className="h-11 w-11 rounded-2xl bg-white/6 border border-white/10 hover:bg-white/10 flex items-center justify-center disabled:opacity-50"
               aria-label="Attach image"
               title="Attach image"
             >
-              <ImageIcon className="h-5 w-5 text-white/85" />
+              <ImageIcon className="h-5 w-5 text-white" />
             </button>
+
+            <button
+              onClick={toggleRec}
+              disabled={busy || !threadId}
+              className={cn(
+                "h-11 w-11 rounded-2xl border flex items-center justify-center disabled:opacity-50",
+                recState === "recording" ? "bg-red-500/20 border-red-400/30" : "bg-white/6 border-white/10 hover:bg-white/10"
+              )}
+              aria-label="Voice message"
+              title={recState === "recording" ? "Stop" : "Record"}
+            >
+              {recState === "recording" ? <Square className="h-5 w-5 text-white" /> : <Mic className="h-5 w-5 text-white" />}
+            </button>
+
             <input
               value={text}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
-                  send();
+                  sendText();
                 }
               }}
-              placeholder="Write a message…"
+              placeholder={recState === "uploading" ? "Uploading…" : "Write a message…"}
               className="flex-1 h-11 rounded-2xl bg-white/6 border border-white/10 px-3 text-white placeholder:text-white/40 outline-none"
+              disabled={busy || recState === "uploading"}
             />
+
             <button
-              onClick={send}
-              disabled={busy || uploading}
+              onClick={sendText}
+              disabled={busy || recState === "uploading"}
               className="h-11 px-4 rounded-2xl bg-accent text-black font-bold hover:opacity-95 disabled:opacity-60"
             >
               Send
             </button>
           </div>
-          <div className="text-white/40 text-xs mt-2">Tip: Enter to send • Shift+Enter new line</div>
+
+          <div className="text-white/40 text-xs mt-2">
+            Tip: Enter to send • Shift+Enter new line • {recState === "recording" ? "Recording…" : recState === "uploading" ? "Uploading voice…" : "Attach photo or voice"}
+          </div>
         </div>
       </div>
     </div>

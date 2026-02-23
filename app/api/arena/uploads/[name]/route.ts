@@ -1,44 +1,65 @@
 import { NextResponse } from "next/server";
-import fs from "node:fs";
 import path from "node:path";
+import fs from "node:fs";
 import { getSessionUser } from "@/lib/auth";
 
-function dataDir() {
+import path from "node:path";
+import fs from "node:fs";
+
+function getDataDir() {
+  // Mirror lib/db.ts rules
+  const fromDbPath = process.env.DB_PATH ? path.dirname(process.env.DB_PATH) : null;
   return (
-    process.env.DB_PATH
-      ? path.dirname(process.env.DB_PATH)
-      : (process.env.RENDER_DISK_PATH ||
-          process.env.BEAVBET_DATA_DIR ||
-          (process.env.RENDER ? "/var/data" : path.join(process.cwd(), "data")))
+    fromDbPath ||
+    process.env.RENDER_DISK_PATH ||
+    process.env.BEAVBET_DATA_DIR ||
+    (process.env.RENDER ? "/var/data" : path.join(process.cwd(), "data"))
   );
 }
 
-export async function GET(_req: Request, ctx: { params: Promise<{ name: string }> }) {
+function ensureUploadsDir() {
+  const dir = path.join(getDataDir(), "uploads");
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+function contentTypeByExt(ext: string) {
+  const e = ext.toLowerCase();
+  if (e === ".png") return "image/png";
+  if (e === ".jpg" || e === ".jpeg") return "image/jpeg";
+  if (e === ".webp") return "image/webp";
+  if (e === ".gif") return "image/gif";
+  if (e === ".mp3") return "audio/mpeg";
+  if (e === ".wav") return "audio/wav";
+  if (e === ".m4a") return "audio/mp4";
+  if (e === ".mp4") return "audio/mp4";
+  if (e === ".webm") return "audio/webm";
+  return "application/octet-stream";
+}
+
+
+export async function GET(_: Request, ctx: { params: Promise<{ name: string }> }) {
   const session = await getSessionUser();
   if (!session) return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });
 
   const { name } = await ctx.params;
-  const fileName = String(name || "");
-  if (!/^[a-f0-9\-]{36}\.[a-z0-9]{1,6}$/i.test(fileName)) {
-    return NextResponse.json({ ok: false, error: "BAD_NAME" }, { status: 400 });
+  const safe = String(name || "");
+  // basic traversal protection
+  if (!safe || safe.includes("..") || safe.includes("/") || safe.includes("\\")) {
+    return NextResponse.json({ ok: false, error: "BAD_REQUEST" }, { status: 400 });
   }
 
-  const full = path.join(dataDir(), "uploads", fileName);
-  if (!fs.existsSync(full)) return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
+  const dir = ensureUploadsDir();
+  const filePath = path.join(dir, safe);
+  if (!fs.existsSync(filePath)) return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
 
-  const buf = fs.readFileSync(full);
-  const ext = fileName.split(".").pop()?.toLowerCase();
-  const mime =
-    ext === "jpg" || ext === "jpeg" ? "image/jpeg" :
-    ext === "webp" ? "image/webp" :
-    ext === "gif" ? "image/gif" :
-    "image/png";
-
-  return new NextResponse(buf, {
-    status: 200,
+  const ext = path.extname(safe);
+  const ct = contentTypeByExt(ext);
+  const buf = fs.readFileSync(filePath);
+  return new Response(buf, {
     headers: {
-      "Content-Type": mime,
-      "Cache-Control": "public, max-age=86400",
+      "Content-Type": ct,
+      "Cache-Control": "private, max-age=3600",
     },
   });
 }

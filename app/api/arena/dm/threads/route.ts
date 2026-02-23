@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 
+export const runtime = "nodejs";
+
 export async function GET() {
   const session = await getSessionUser();
   if (!session) return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });

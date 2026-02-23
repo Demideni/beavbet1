@@ -1,6 +1,8 @@
 import { getSessionUser } from "@/lib/auth";
 import { subscribeUser } from "@/lib/arenaNotify";
 
+export const runtime = "nodejs";
+
 export async function GET() {
   const session = await getSessionUser();
   if (!session) return new Response("Unauthorized", { status: 401 });

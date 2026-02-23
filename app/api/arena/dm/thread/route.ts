@@ -3,6 +3,8 @@ import { getSessionUser } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { getOrCreateDmThread } from "@/lib/arenaSocial";
 
+export const runtime = "nodejs";
+
 export async function POST(req: Request) {
   const session = await getSessionUser();
   if (!session) return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });

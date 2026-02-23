@@ -3,6 +3,8 @@ import { getSessionUser } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { subscribeDm } from "@/lib/arenaDmBus";
 
+export const runtime = "nodejs";
+
 function canAccessThread(db: any, userId: string, threadId: string) {
   const t = db
     .prepare("SELECT user1_id, user2_id FROM arena_dm_threads WHERE id = ?")

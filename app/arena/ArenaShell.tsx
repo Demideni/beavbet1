@@ -17,10 +17,11 @@ import {
   Crown,
   ChevronLeft,
   X,
+  MessageCircle,
 } from "lucide-react";
 
 export default function ArenaShell({ children }: { children: ReactNode }) {
-  const [showBar, setShowBar] = useState(true);
+  const [showBar, setShowBar] = useState(false);
   const [q, setQ] = useState("");
 
   // Avoid focus jumps in Safari on first render.
@@ -70,11 +71,11 @@ export default function ArenaShell({ children }: { children: ReactNode }) {
         </div>
       )}
 
-      <div className="relative z-10 pt-10">
+      <div className="relative z-10 pt-0">
         <div className="flex">
           {/* Left sidebar */}
           <aside className="hidden md:flex w-[260px] shrink-0">
-            <div className="fixed top-10 bottom-0 w-[260px]">
+            <div className="fixed top-16 bottom-0 left-0 w-[260px]">
               <div className="h-full border-r border-white/10 bg-black/35 backdrop-blur-xl">
                 <div className="px-4 py-4 flex items-center gap-3">
                   <Link href="/arena" className="flex items-center gap-2">
@@ -104,6 +105,8 @@ export default function ArenaShell({ children }: { children: ReactNode }) {
 
                 <nav className="mt-4 px-2 grid gap-1">
                   <SideLink href="/arena" icon={<Play className="h-4 w-4" />} label="Играть" active />
+                  <SideLink href="/arena/profile?tab=friends" icon={<Users className="h-4 w-4" />} label="Друзья" />
+                  <SideLink href="/arena/profile?tab=messages" icon={<MessageCircle className="h-4 w-4" />} label="Сообщения" />
                   <SideLink href="/arena/leaderboard" icon={<BarChart3 className="h-4 w-4" />} label="Ранг" />
                   <SideLink href="/arena/matches" icon={<Radar className="h-4 w-4" />} label="Track" />
                   <SideLink href="#" icon={<Eye className="h-4 w-4" />} label="Watch" disabled />

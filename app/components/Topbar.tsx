@@ -4,7 +4,7 @@ import { Search, Settings, MessageCircle, Gift, Bell } from "lucide-react";
 import Link from "next/link";
 import { Logo } from "./Logo";
 import { cn } from "@/components/utils/cn";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
 import { usePathname } from "next/navigation";
@@ -19,6 +19,9 @@ export function Topbar() {
   const [unreadDm, setUnreadDm] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
   const [toasts, setToasts] = useState<{ id: string; title: string; body: string; threadId?: string }[]>([]);
+
+  const lastUnreadRef = useRef(0);
+  const lastFriendRef = useRef(0);
 
   function playPing() {
     try {
@@ -53,8 +56,31 @@ export function Topbar() {
     const r = await fetch("/api/arena/notifications", { cache: "no-store" });
     const j = await r.json().catch(() => ({}));
     if (j?.ok) {
-      setIncomingFriends(Number(j.incomingFriends || 0));
-      setUnreadDm(Number(j.unreadDm || 0));
+      const nextFriends = Number(j.incomingFriends || 0);
+      const nextUnread = Number(j.unreadDm || 0);
+
+      // Fallback notifications (when SSE isn't available/reliable on some hosts):
+      // If unread DM increases, show a toast + sound.
+      if (nextUnread > lastUnreadRef.current) {
+        try {
+          const tr = await fetch("/api/arena/dm/threads", { cache: "no-store" });
+          const tj = await tr.json().catch(() => ({}));
+          const top = Array.isArray(tj?.threads) && tj.threads.length ? tj.threads[0] : null;
+          pushToast({
+            title: top?.otherNick ? String(top.otherNick) : "New message",
+            body: top?.lastMessage ? String(top.lastMessage) : "У тебя новое сообщение",
+            threadId: top?.threadId ? String(top.threadId) : undefined,
+          });
+        } catch {
+          pushToast({ title: "New message", body: "У тебя новое сообщение" });
+        }
+        playPing();
+      }
+
+      setIncomingFriends(nextFriends);
+      setUnreadDm(nextUnread);
+      lastUnreadRef.current = nextUnread;
+      lastFriendRef.current = nextFriends;
     }
   }
 
@@ -133,7 +159,7 @@ export function Topbar() {
 
   if (isArena) {
     return (
-      <header className="sticky top-0 z-40 backdrop-blur-md bg-bg/70 border-b border-white/5">
+      <header className="sticky top-0 z-40 backdrop-blur-md bg-transparent">
         {/* Toasts */}
         {toasts.length ? (
           <div

@@ -1,10 +1,9 @@
 import ArenaPlayerClient from "./ArenaPlayerClient";
 
-export default async function Page({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
-  return <ArenaPlayerClient userId={id} />;
+export const metadata = {
+  title: "Player • BeavBet Arena",
+};
+
+export default function Page({ params }: { params: { id: string } }) {
+  return <ArenaPlayerClient userId={params.id} />;
 }

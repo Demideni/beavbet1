@@ -2,7 +2,6 @@
 
 import { ReactNode } from "react";
 import ArenaChatWidget from "@/components/arena/ArenaChatWidget";
-import ArenaNotifyToasts from "@/components/arena/ArenaNotifyToasts";
 
 export default function ArenaShell({ children }: { children: ReactNode }) {
   return (
@@ -17,7 +16,6 @@ export default function ArenaShell({ children }: { children: ReactNode }) {
 
       <div className="cs2-wrap">{children}</div>
       <ArenaChatWidget />
-      <ArenaNotifyToasts />
     </div>
   );
 }

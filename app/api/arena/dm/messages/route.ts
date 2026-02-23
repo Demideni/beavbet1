@@ -27,34 +27,27 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403 });
   }
 
-  // Fetch messages (oldest -> newest for UI)
   const rows = db
     .prepare(
       `
-      SELECT m.id,
-             m.thread_id as threadId,
-             m.sender_id as senderId,
-             m.message,
-             m.created_at as createdAt,
+      SELECT m.id, m.thread_id as threadId, m.sender_id as senderId, m.message, m.created_at as createdAt,
              p.nickname as senderNick
       FROM arena_dm_messages m
       LEFT JOIN profiles p ON p.user_id = m.sender_id
       WHERE m.thread_id = ?
-      ORDER BY m.created_at ASC
+      ORDER BY m.created_at DESC
       LIMIT ?
       `
     )
-    .all(threadId, limit);
 
-  // Mark as read for this user
+    // Mark as read
   const now = Date.now();
-  db.prepare("INSERT OR REPLACE INTO arena_dm_reads (thread_id, user_id, last_read_at) VALUES (?, ?, ?)").run(
-    threadId,
-    session.id,
-    now
-  );
+  db.prepare(
+    "INSERT OR REPLACE INTO arena_dm_reads (thread_id, user_id, last_read_at) VALUES (?, ?, ?)"
+  ).run(threadId, session.id, now);
 
   return NextResponse.json({ ok: true, messages: rows });
+
 }
 
 export async function POST(req: Request) {
@@ -74,32 +67,21 @@ export async function POST(req: Request) {
 
   const id = randomUUID();
   const now = Date.now();
-  db.prepare("INSERT INTO arena_dm_messages (id, thread_id, sender_id, message, created_at) VALUES (?, ?, ?, ?, ?)").run(
-    id,
-    threadId,
-    session.id,
-    message,
-    now
-  );
+  db.prepare(
+    "INSERT INTO arena_dm_messages (id, thread_id, sender_id, message, created_at) VALUES (?, ?, ?, ?, ?)"
+  ).run(id, threadId, session.id, message, now);
   db.prepare("UPDATE arena_dm_threads SET updated_at = ? WHERE id = ?").run(now, threadId);
   // Sender has read their own message
-  db.prepare("INSERT OR REPLACE INTO arena_dm_reads (thread_id, user_id, last_read_at) VALUES (?, ?, ?)").run(
-    threadId,
-    session.id,
-    now
-  );
+  db.prepare("INSERT OR REPLACE INTO arena_dm_reads (thread_id, user_id, last_read_at) VALUES (?, ?, ?)").run(threadId, session.id, now);
 
-  const senderNick =
-    (
-      db.prepare("SELECT nickname FROM profiles WHERE user_id = ?").get(session.id) as { nickname?: string } | undefined
-    )?.nickname ?? null;
+  const senderNick = (
+    db.prepare("SELECT nickname FROM profiles WHERE user_id = ?").get(session.id) as { nickname?: string } | undefined
+  )?.nickname ?? null;
 
   const payload = { id, thread_id: threadId, sender_id: session.id, sender_nick: senderNick, message, created_at: now };
   broadcastDm(payload);
 
-  const t = db
-    .prepare("SELECT user1_id, user2_id FROM arena_dm_threads WHERE id = ?")
-    .get(threadId) as { user1_id: string; user2_id: string } | undefined;
+  const t = db.prepare("SELECT user1_id, user2_id FROM arena_dm_threads WHERE id = ?").get(threadId) as { user1_id: string; user2_id: string } | undefined;
   const otherId = t ? (t.user1_id === session.id ? t.user2_id : t.user1_id) : null;
   if (otherId) {
     publishToUser(otherId, {

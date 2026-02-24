@@ -165,18 +165,24 @@ export default function ArenaClient() {
                 title="Матчмейкинг"
                 subtitle={loading ? "…" : `Открытых дуэлей: ${openDuels.length}`}
                 href="/arena/duels/cs2"
+                iconSrc="/images/arena/matchmaking-icon.png"
+                iconAlt="Matchmaking"
                 icon={<Crosshair className="h-5 w-5" />}
               />
               <FaceTile
                 title="Турниры"
                 subtitle={loading ? "…" : `Сегодня: €${todayPool.toFixed(0)}`}
                 href="/arena/tournaments"
+                iconSrc="/images/arena/tournaments-icon.png"
+                iconAlt="Tournaments"
                 icon={<Trophy className="h-5 w-5" />}
               />
               <FaceTile
                 title="Лига"
                 subtitle={`${t("arena.beavrank")}: ${myRating} • ${ratingName}`}
                 href="/arena/leaderboard"
+                iconSrc="/images/arena/league-icon.png"
+                iconAlt="League"
                 icon={<Users className="h-5 w-5" />}
               />
             </div>
@@ -364,22 +370,36 @@ function FaceTile({
   subtitle,
   href,
   icon,
+  iconSrc,
+  iconAlt,
 }: {
   title: string;
   subtitle: string;
   href: string;
   icon: React.ReactNode;
+  iconSrc?: string;
+  iconAlt?: string;
 }) {
   const isHash = href.startsWith("#");
   const cls =
-    "group rounded-3xl bg-black/25 border border-white/10 hover:border-white/15 overflow-hidden block";
+    "group rounded-3xl bg-black/25 border border-white/10 hover:border-white/15 overflow-hidden block hover:shadow-[0_0_0_1px_rgba(255,80,80,0.25),0_0_40px_rgba(255,80,80,0.08)] transition-shadow";
   const inner = (
     <>
       <div className="h-[130px] relative">
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
         <div className="absolute inset-0 flex items-center justify-center">
-          <div className="h-14 w-14 rounded-2xl bg-white/7 border border-white/10 grid place-items-center text-white group-hover:scale-[1.02] transition">
-            {icon}
+          <div className="h-14 w-14 rounded-2xl bg-white/7 border border-white/10 grid place-items-center text-white group-hover:scale-[1.03] transition">
+            {iconSrc ? (
+              <Image
+                src={iconSrc}
+                alt={iconAlt || title}
+                width={30}
+                height={30}
+                className="opacity-95 group-hover:opacity-100"
+              />
+            ) : (
+              icon
+            )}
           </div>
         </div>
         <div className="absolute bottom-0 left-0 right-0 bg-accent/90 h-1" />

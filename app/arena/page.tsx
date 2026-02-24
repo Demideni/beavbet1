@@ -1,9 +1,10 @@
-import ArenaClient from "./ArenaClient";
-
-export const metadata = {
-  title: "BeavBet Arena",
-};
+import ArenaShell from "./ArenaShell";
+import ArenaHome from "./ArenaHome";
 
 export default function ArenaPage() {
-  return <ArenaClient />;
+  return (
+    <ArenaShell>
+      <ArenaHome />
+    </ArenaShell>
+  );
 }

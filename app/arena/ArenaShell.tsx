@@ -76,7 +76,10 @@ export default function ArenaShell({ children }: { children: ReactNode }) {
           <aside className="hidden md:flex w-[260px] shrink-0">
             {/* Fixed + flush to the left edge (global sidebar is hidden in /arena) */}
             <div className="fixed top-0 bottom-0 left-0 w-[260px]">
-              <div className="h-full border-r border-white/10 bg-black/35 backdrop-blur-xl pt-16 flex flex-col">
+              <div className="h-full border-r border-white/10 bg-black/35 backdrop-blur-xl pt-16 flex flex-col overflow-hidden">
+
+                {/* Scrollable area (prevents the bottom chat from pushing outside the viewport) */}
+                <div className="flex-1 min-h-0 overflow-y-auto">
 
                 <div className="px-4">
                   <div className="relative">
@@ -116,8 +119,10 @@ export default function ArenaShell({ children }: { children: ReactNode }) {
                   </div>
                 </div>
 
+                </div>
+
                 {/* Embedded global chat (desktop) */}
-                <div className="mt-auto px-3 pb-4">
+                <div className="shrink-0 w-full pb-4">
                   <ArenaChatWidget mode="sidebar" />
                 </div>
               </div>

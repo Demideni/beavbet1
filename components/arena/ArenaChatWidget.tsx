@@ -98,7 +98,13 @@ export default function ArenaChatWidget({
 
   const panel = (
     <div className={mode === "sidebar" ? "w-full" : "w-[340px] max-w-[92vw]"}>
-      <div className="rounded-3xl border border-white/10 bg-black/25 backdrop-blur-xl shadow-2xl overflow-hidden">
+      <div
+        className={
+          mode === "sidebar"
+            ? "rounded-3xl border border-white/10 bg-black/25 backdrop-blur-xl shadow-2xl overflow-hidden flex flex-col h-[320px]"
+            : "rounded-3xl border border-white/10 bg-black/25 backdrop-blur-xl shadow-2xl overflow-hidden"
+        }
+      >
         <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-black/15">
           <div className="flex items-center gap-2 text-white/85 font-semibold">
             <MessageSquare className="h-4 w-4" /> Arena chat
@@ -118,7 +124,7 @@ export default function ArenaChatWidget({
           ref={boxRef}
           className={
             mode === "sidebar"
-              ? "h-[220px] overflow-y-auto px-4 py-3 text-sm"
+              ? "flex-1 min-h-0 overflow-y-auto px-4 py-3 text-sm"
               : "h-[240px] overflow-y-auto px-4 py-3 text-sm"
           }
         >

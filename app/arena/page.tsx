@@ -1,14 +1,9 @@
-import type { Metadata } from "next";
+import ArenaClient from "./ArenaClient";
 
-export const metadata: Metadata = {
+export const metadata = {
   title: "BeavBet Arena",
-  description: "BeavBet Arena",
 };
 
-export default function ArenaLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  return <>{children}</>;
+export default function ArenaPage() {
+  return <ArenaClient />;
 }

@@ -1,10 +1,14 @@
-import ArenaShell from "./ArenaShell";
-import ArenaHome from "./ArenaHome";
+import type { Metadata } from "next";
 
-export default function ArenaPage() {
-  return (
-    <ArenaShell>
-      <ArenaHome />
-    </ArenaShell>
-  );
+export const metadata: Metadata = {
+  title: "BeavBet Arena",
+  description: "BeavBet Arena",
+};
+
+export default function ArenaLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return <>{children}</>;
 }

@@ -24,6 +24,10 @@ export function Sidebar() {
   const { t } = useI18n();
   const pathname = usePathname();
 
+  // Arena has its own FACEIT-like shell + sidebar.
+  // Hide the global sidebar there so the Arena sidebar is flush to the viewport edge.
+  if (pathname?.startsWith("/arena")) return null;
+
   return (
     <aside className="hidden md:flex w-[76px] lg:w-[88px] flex-col items-center gap-2 py-3 border-r border-white/5 bg-bg/40">
       <div className="h-1" />

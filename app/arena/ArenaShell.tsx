@@ -75,8 +75,9 @@ export default function ArenaShell({ children }: { children: ReactNode }) {
         <div className="flex">
           {/* Left sidebar */}
           <aside className="hidden md:flex w-[260px] shrink-0">
-            <div className="fixed top-16 bottom-0 left-0 w-[260px]">
-              <div className="h-full border-r border-white/10 bg-black/35 backdrop-blur-xl">
+            {/* Fixed + flush to the left edge (global sidebar is hidden in /arena) */}
+            <div className="fixed top-0 bottom-0 left-0 w-[260px]">
+              <div className="h-full border-r border-white/10 bg-black/35 backdrop-blur-xl pt-16">
                 <div className="px-4 py-4 flex items-center gap-3">
                   <Link href="/arena" className="flex items-center gap-2">
                     <div className="h-9 w-9 rounded-xl bg-white/6 border border-white/10 grid place-items-center">

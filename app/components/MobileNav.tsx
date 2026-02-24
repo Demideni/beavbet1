@@ -25,6 +25,8 @@ export function MobileNav() {
   const pathname = usePathname();
   const [bouncingHref, setBouncingHref] = useState<string | null>(null);
 
+  const isArena = pathname?.startsWith("/arena");
+
   const triggerBounce = (href: string) => {
     setBouncingHref(href);
     window.setTimeout(() => {
@@ -35,7 +37,12 @@ export function MobileNav() {
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50">
       <div className="mx-auto max-w-[720px]">
-        <div className="mx-3 mb-3 rounded-3xl bg-bg/80 backdrop-blur-md border border-white/10 shadow-soft">
+        <div
+          className={cn(
+            "mx-3 mb-3 rounded-3xl border shadow-soft",
+            isArena ? "bg-black/55 backdrop-blur-xl border-white/12" : "bg-bg/80 backdrop-blur-md border-white/10"
+          )}
+        >
           <div className="grid grid-cols-5">
             {items.map((it) => {
               const active = pathname === it.href;
@@ -45,13 +52,16 @@ export function MobileNav() {
                   key={it.href}
                   href={it.href}
                   className={cn(
-                    "py-3 flex flex-col items-center justify-center gap-1 select-none",
+                    "relative py-3 flex flex-col items-center justify-center gap-1 select-none",
                     "transition-transform duration-150 active:scale-95",
                     bouncingHref === it.href && "tab-bounce",
-                    active ? "text-white" : "text-white/60"
+                    isArena ? (active ? "text-accent" : "text-white/65") : active ? "text-white" : "text-white/60"
                   )}
                   onPointerDown={() => triggerBounce(it.href)}
                 >
+                  {isArena && active ? (
+                    <span className="absolute top-0 left-1/2 -translate-x-1/2 h-[3px] w-9 rounded-b-full bg-accent" />
+                  ) : null}
                   <Image
                     src={it.pngIcon ?? "/icons/nav/nav-home.png"}
                     alt={label}
@@ -59,7 +69,8 @@ export function MobileNav() {
                     height={22}
                     className={cn(
                       "opacity-90",
-                      active ? "opacity-100" : "opacity-75"
+                      active ? "opacity-100" : "opacity-75",
+                      isArena && active ? "drop-shadow-[0_0_14px_rgba(255,42,79,0.35)]" : ""
                     )}
                     priority={it.href === "/"}
                   />

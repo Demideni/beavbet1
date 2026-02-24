@@ -170,7 +170,7 @@ export default function ArenaClient() {
               <FaceTile
                 title="Турниры"
                 subtitle={loading ? "…" : `Сегодня: €${todayPool.toFixed(0)}`}
-                href="#tournaments"
+                href="/arena/tournaments"
                 icon={<Trophy className="h-5 w-5" />}
               />
               <FaceTile

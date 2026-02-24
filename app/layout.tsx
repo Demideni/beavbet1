@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { Inter } from "next/font/google";
 import { Sidebar } from "@/app/components/Sidebar";
 import { Topbar } from "@/app/components/Topbar";
 import { MobileNav } from "@/app/components/MobileNav";
@@ -16,6 +17,11 @@ export const metadata: Metadata = {
   description: "BeavBet lobby (MVP UI).",
 };
 
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+});
+
 export default async function RootLayout({
   children,
 }: {
@@ -26,7 +32,7 @@ export default async function RootLayout({
 
   return (
     <html lang={initialLang ?? "en"}>
-      <body>
+      <body className={inter.variable}>
         <I18nProvider initialLang={initialLang}>
           {/* Language select on first visit */}
           <LanguageGate />

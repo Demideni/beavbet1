@@ -12,7 +12,6 @@ import {
   Radar,
   Eye,
   Newspaper,
-  Shield,
   Store,
   Crown,
   ChevronLeft,
@@ -77,7 +76,8 @@ export default function ArenaShell({ children }: { children: ReactNode }) {
           <aside className="hidden md:flex w-[260px] shrink-0">
             {/* Fixed + flush to the left edge (global sidebar is hidden in /arena) */}
             <div className="fixed top-0 bottom-0 left-0 w-[260px]">
-              <div className="h-full border-r border-white/10 bg-black/35 backdrop-blur-xl pt-16">
+              <div className="h-full border-r border-white/10 bg-black/35 backdrop-blur-xl pt-16 flex flex-col">
+
                 <div className="px-4">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/45" />
@@ -115,6 +115,11 @@ export default function ArenaShell({ children }: { children: ReactNode }) {
                     <SideLink href="#" icon={<Crown className="h-4 w-4" />} label="Премиум" disabled />
                   </div>
                 </div>
+
+                {/* Embedded global chat (desktop) */}
+                <div className="mt-auto px-3 pb-4">
+                  <ArenaChatWidget mode="sidebar" />
+                </div>
               </div>
             </div>
           </aside>
@@ -128,7 +133,10 @@ export default function ArenaShell({ children }: { children: ReactNode }) {
         </div>
       </div>
 
-      <ArenaChatWidget />
+      {/* Mobile keeps a floating chat button/panel */}
+      <div className="md:hidden">
+        <ArenaChatWidget />
+      </div>
     </div>
   );
 }
@@ -146,17 +154,17 @@ function SideLink({
   disabled?: boolean;
   active?: boolean;
 }) {
-  const base = "group flex items-center gap-3 rounded-2xl px-3 py-2 text-sm border transition";
+  const base = "group flex items-center gap-3 rounded-2xl px-3 py-2 text-sm border transition-colors";
   const cls = disabled
     ? "bg-white/3 border-white/8 text-white/35 cursor-not-allowed"
     : active
       ? "bg-white/8 border-white/14 text-white"
-      : "bg-transparent border-transparent hover:bg-white/6 hover:border-white/10 text-white/80 hover:text-[#ff5500]";
+      : "bg-transparent border-transparent hover:bg-white/6 hover:border-white/10 text-white/80 hover:text-accent";
 
   if (disabled || href === "#") {
     return (
       <div className={cn(base, cls)}>
-        <div className={cn("text-white/70", !disabled && !active && "group-hover:text-[#ff5500]")}>{icon}</div>
+        <div className="text-white/70 group-hover:text-accent">{icon}</div>
         <div className="truncate">{label}</div>
       </div>
     );
@@ -164,7 +172,7 @@ function SideLink({
 
   return (
     <Link href={href} className={cn(base, cls)}>
-      <div className={cn("text-white/70", !active && "group-hover:text-[#ff5500]")}>{icon}</div>
+      <div className="text-white/70 group-hover:text-accent">{icon}</div>
       <div className="truncate">{label}</div>
     </Link>
   );

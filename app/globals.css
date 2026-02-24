@@ -18,7 +18,7 @@ body {
 }
 
 ::selection{
-  background: rgba(255,42,79,0.35);
+  background: rgba(255,85,0,0.35);
 }
 
 .gradient-hero {
@@ -35,8 +35,9 @@ body {
 }
 
 .btn-accent {
-  background: linear-gradient(180deg, rgba(255,42,79,1), rgba(176,18,46,1));
-  box-shadow: 0 12px 30px rgba(255,42,79,0.18);
+  /* Orange primary buttons (FACEIT-like) */
+  background: linear-gradient(180deg, rgba(255,85,0,1), rgba(204,63,0,1));
+  box-shadow: 0 12px 30px rgba(255,85,0,0.18);
 }
 
 .btn-accent:hover {

@@ -18,7 +18,8 @@ export const metadata: Metadata = {
 };
 
 const inter = Inter({
-  subsets: ["latin"],
+  // FACEIT-like typography. We use Inter with Cyrillic for RU UI.
+  subsets: ["latin", "cyrillic"],
   variable: "--font-inter",
 });
 

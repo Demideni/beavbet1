@@ -14,8 +14,9 @@ export default {
           card: "rgba(255,255,255,0.06)"
         },
         accent: {
-          DEFAULT: "#ff2a4f",
-          2: "#b0122e"
+          // FACEIT-like orange, used as the primary highlight color across Arena UI.
+          DEFAULT: "#ff5500",
+          2: "#cc3f00"
         }
       },
       boxShadow: {

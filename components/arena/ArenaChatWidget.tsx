@@ -17,7 +17,15 @@ function fmtTime(ts: number) {
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-export default function ArenaChatWidget() {
+export default function ArenaChatWidget({
+  mode = "floating",
+}: {
+  /**
+   * floating: default widget (desktop bottom-right + mobile popup)
+   * sidebar: embedded panel for the Arena left sidebar (desktop)
+   */
+  mode?: "floating" | "sidebar";
+}) {
   const [openMobile, setOpenMobile] = useState(false);
   const [msgs, setMsgs] = useState<ChatMsg[]>([]);
   const [text, setText] = useState("");
@@ -89,7 +97,7 @@ export default function ArenaChatWidget() {
   }
 
   const panel = (
-    <div className="w-[340px] max-w-[92vw]">
+    <div className={mode === "sidebar" ? "w-full" : "w-[340px] max-w-[92vw]"}>
       <div className="rounded-3xl border border-white/10 bg-black/25 backdrop-blur-xl shadow-2xl overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-black/15">
           <div className="flex items-center gap-2 text-white/85 font-semibold">
@@ -106,13 +114,20 @@ export default function ArenaChatWidget() {
           ) : null}
         </div>
 
-        <div ref={boxRef} className="h-[240px] overflow-y-auto px-4 py-3 text-sm">
+        <div
+          ref={boxRef}
+          className={
+            mode === "sidebar"
+              ? "h-[220px] overflow-y-auto px-4 py-3 text-sm"
+              : "h-[240px] overflow-y-auto px-4 py-3 text-sm"
+          }
+        >
           {msgs.map((m) => (
             <div key={m.id} className="flex gap-2 py-1">
               <div className="text-white/35 shrink-0 w-[42px]">{fmtTime(m.created_at)}</div>
               <div className="min-w-0">
                 <button
-                  className="text-orange-400 font-semibold hover:underline"
+                  className="text-emerald-400 font-semibold hover:underline"
                   onClick={() => setOpenDm({ id: m.user_id, nick: m.nickname })}
                   title="Message"
                 >
@@ -171,6 +186,16 @@ export default function ArenaChatWidget() {
           </div>
         ) : null}
 
+        <DmModal open={Boolean(openDm)} onClose={() => setOpenDm(null)} withUserId={openDm?.id || ""} withNick={openDm?.nick} />
+      </>
+    );
+  }
+
+  // Desktop
+  if (mode === "sidebar") {
+    return (
+      <>
+        {panel}
         <DmModal open={Boolean(openDm)} onClose={() => setOpenDm(null)} withUserId={openDm?.id || ""} withNick={openDm?.nick} />
       </>
     );

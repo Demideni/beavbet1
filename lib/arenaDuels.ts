@@ -286,6 +286,35 @@ export function createCs2Duel(
   const map = !requestedMap || requestedMap === "random" ? pickCs2Map() : isValidCs2Map(requestedMap) ? requestedMap : null;
   if (!map) return { ok: false as const, error: "BAD_MAP" };
 
+  // FACEIT-like UX: if there's an existing matching open duel from another user,
+  // join it instead of creating a new one.
+  {
+    const now = Date.now();
+    const recentCutoff = now - 30 * 60 * 1000;
+    const candidate = db
+      .prepare(
+        `SELECT id
+         FROM arena_duels
+         WHERE game='cs2'
+           AND status='open'
+           AND p1_user_id <> ?
+           AND team_size = ?
+           AND stake = ?
+           AND currency = ?
+           AND map = ?
+           AND created_at >= ?
+         ORDER BY created_at ASC
+         LIMIT 1`
+      )
+      .get(userId, teamSize, s, cur, map, recentCutoff) as { id: string } | undefined;
+
+    if (candidate?.id) {
+      const jr = joinCs2Duel(userId, candidate.id, 2);
+      if (jr.ok) return { ok: true as const, duelId: candidate.id, matched: true as const };
+      // If join fails (e.g. insufficient funds/team full), fall back to creating.
+    }
+  }
+
   // Only one active/open duel per creator.
   const existing = db
     .prepare(

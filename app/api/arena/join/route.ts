@@ -11,6 +11,8 @@ export async function POST(req: Request) {
 
   const body = await req.json().catch(() => ({}));
   const tournamentId = String(body?.tournamentId || "");
+  const promoCodeRaw = String(body?.promoCode || "");
+  const promoCode = promoCodeRaw.trim();
   if (!tournamentId) return NextResponse.json({ ok: false, error: "BAD_REQUEST" }, { status: 400 });
 
   const t = getTournament(tournamentId);
@@ -26,8 +28,12 @@ export async function POST(req: Request) {
   const count = getTournamentPlayersCount(tournamentId);
   if (count >= t.max_players) return NextResponse.json({ ok: false, error: "FULL" }, { status: 400 });
 
-  // lock funds
-  const lock = lockFunds(user.id, t.currency, t.entry_fee, tournamentId);
+  // lock funds (promo codes can waive entry for some tournaments)
+  const expectedPromo = String((t as any)?.promo_code || "").trim();
+  const promoOk = expectedPromo && promoCode && expectedPromo.toLowerCase() === promoCode.toLowerCase();
+  const fee = promoOk ? 0 : t.entry_fee;
+
+  const lock = lockFunds(user.id, t.currency, fee, tournamentId);
   if (!lock.ok) return NextResponse.json({ ok: false, error: lock.error }, { status: 400 });
 
   db.prepare(

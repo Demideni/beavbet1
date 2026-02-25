@@ -25,6 +25,7 @@ export default function TournamentClient() {
   const [data, setData] = useState<any>(null);
   const [busy, setBusy] = useState(false);
   const [left, setLeft] = useState<number | null>(null);
+  const [promo, setPromo] = useState("");
 
   async function load() {
     const r = await fetch(`/api/arena/tournaments/${id}`, { cache: "no-store" });
@@ -41,7 +42,7 @@ export default function TournamentClient() {
     const r = await fetch("/api/arena/join", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tournamentId: id }),
+      body: JSON.stringify({ tournamentId: id, promoCode: promo.trim() || undefined }),
       credentials: "include",
     });
     const j = await r.json().catch(() => ({}));
@@ -89,7 +90,17 @@ export default function TournamentClient() {
     );
   }
 
-  const prizePool = Number((t.entryFee * t.maxPlayers * (1 - t.rake)).toFixed(2));
+  const prizePoolFromDb = t?.prizePool != null ? Number(t.prizePool) : null;
+  const prizeCurrencyFromDb = t?.prizeCurrency ? String(t.prizeCurrency) : null;
+  const prizePoolCalc = Number((t.entryFee * t.maxPlayers * (1 - t.rake)).toFixed(2));
+  const prizePool = prizePoolFromDb ?? prizePoolCalc;
+  const prizeCurrency = prizeCurrencyFromDb ?? t.currency;
+
+  const promoLabel = useMemo(() => {
+    const code = String(t?.promoCode || "").trim();
+    if (!code) return null;
+    return `Промокод: ${code} (бесплатная регистрация)`;
+  }, [t?.promoCode]);
 
   return (
     <ArenaShell>
@@ -98,7 +109,10 @@ export default function TournamentClient() {
         <div>
           <div className="text-white text-2xl font-extrabold">{t.game} • {t.title}</div>
           <div className="mt-1 text-white/60 text-sm">
-            Entry: <span className="text-white/85 font-semibold">{t.entryFee} {t.currency}</span> • Players: <span className="text-white/85 font-semibold">{participants.length}/{t.maxPlayers}</span> • Prize pool: <span className="text-white/85 font-semibold">{prizePool} {t.currency}</span>
+            Entry: <span className="text-white/85 font-semibold">{t.entryFee} {t.currency}</span>
+            {promoLabel ? <> • <span className="text-white/70">{promoLabel}</span></> : null}
+            {" "}• Players: <span className="text-white/85 font-semibold">{participants.length}/{t.maxPlayers}</span>
+            {" "}• Prize pool: <span className="text-white/85 font-semibold">{prizePool} {prizeCurrency}</span>
           </div>
         </div>
         {t.startsAt ? (
@@ -113,13 +127,23 @@ export default function TournamentClient() {
             </div>
           </div>
         ) : null}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <Link
             href="/arena"
             className="px-4 py-2 rounded-2xl cs2-btn-ghost text-sm text-white/85"
           >
             Назад
           </Link>
+
+          {t?.promoCode ? (
+            <input
+              value={promo}
+              onChange={(e) => setPromo(e.target.value)}
+              placeholder="Промокод"
+              className="h-[40px] w-[140px] rounded-2xl bg-white/5 border border-white/10 px-3 text-sm text-white/90 placeholder:text-white/35 outline-none focus:border-white/25"
+            />
+          ) : null}
+
           <button
             disabled={t.status !== "open" || busy}
             onClick={join}

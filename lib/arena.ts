@@ -9,6 +9,9 @@ export type ArenaTournament = {
   team_size: number;
   entry_fee: number;
   currency: string;
+  prize_pool?: number | null;
+  prize_currency?: string | null;
+  promo_code?: string | null;
   max_players: number;
   rake: number;
   status: "open" | "live" | "finished";
@@ -63,6 +66,9 @@ export function ensureSeedTournaments() {
   const seeds: Array<
     Pick<ArenaTournament, "title" | "game" | "team_size" | "entry_fee" | "currency" | "max_players" | "rake"> & {
       starts_at?: number | null;
+      prize_pool?: number | null;
+      prize_currency?: string | null;
+      promo_code?: string | null;
     }
   > = [
     { title: "Express Cup", game: "CS2", team_size: 1, entry_fee: 5, currency: "EUR", max_players: 8, rake: 0.1 },
@@ -70,25 +76,62 @@ export function ensureSeedTournaments() {
       title: "Турнир от ЗАВА",
       game: "CS2",
       team_size: 1,
-      entry_fee: 0,
+      entry_fee: 5,
       currency: "EUR",
       max_players: 20,
       rake: 0,
       starts_at: zavaStartsAt,
+      prize_pool: 15000,
+      prize_currency: "RUB",
+      promo_code: "ZAVA",
     },
   ];
 
   const ins = db.prepare(
-    "INSERT INTO arena_tournaments (id, title, game, team_size, entry_fee, currency, max_players, rake, status, starts_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?)"
+    "INSERT INTO arena_tournaments (id, title, game, team_size, entry_fee, currency, prize_pool, prize_currency, promo_code, max_players, rake, status, starts_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?)"
   );
 
   // Insert missing seeds by title (idempotent)
   for (const s of seeds) {
-    const exists = db.prepare("SELECT 1 as x FROM arena_tournaments WHERE title = ? LIMIT 1").get(s.title) as
-      | { x: number }
+    const exists = db.prepare("SELECT id as id FROM arena_tournaments WHERE title = ? LIMIT 1").get(s.title) as
+      | { id: string }
       | undefined;
-    if (exists?.x) continue;
-    ins.run(randomUUID(), s.title, s.game, s.team_size, s.entry_fee, s.currency, s.max_players, s.rake, s.starts_at ?? null, now, now);
+    if (exists?.id) {
+      // Keep seeds in-sync (useful for changing entry fee / promo / prize pool)
+      db.prepare(
+        "UPDATE arena_tournaments SET game = ?, team_size = ?, entry_fee = ?, currency = ?, prize_pool = ?, prize_currency = ?, promo_code = ?, max_players = ?, rake = ?, starts_at = COALESCE(?, starts_at), updated_at = ? WHERE id = ?"
+      ).run(
+        s.game,
+        s.team_size,
+        s.entry_fee,
+        s.currency,
+        s.prize_pool ?? null,
+        s.prize_currency ?? null,
+        s.promo_code ?? null,
+        s.max_players,
+        s.rake,
+        s.starts_at ?? null,
+        now,
+        exists.id
+      );
+      continue;
+    }
+    ins.run(
+      randomUUID(),
+      s.title,
+      s.game,
+      s.team_size,
+      s.entry_fee,
+      s.currency,
+      s.prize_pool ?? null,
+      s.prize_currency ?? null,
+      s.promo_code ?? null,
+      s.max_players,
+      s.rake,
+      s.starts_at ?? null,
+      now,
+      now
+    );
   }
 }
 

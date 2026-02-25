@@ -136,7 +136,10 @@ export default function ArenaShell({ children }: { children: ReactNode }) {
           <div className="flex-1 min-w-0">
             <div className="cs2-wrap">
               <div className="mx-auto max-w-[1400px] px-3 md:px-6 pt-4 pb-2 flex items-center justify-end">
-                <PwaActions {children}</div>
+                <PwaActions />
+              </div>
+
+              {children}
             </div>
           </div>
         </div>

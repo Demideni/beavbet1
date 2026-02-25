@@ -47,18 +47,48 @@ function shuffle<T>(arr: T[]) {
 
 export function ensureSeedTournaments() {
   const db = getDb();
-  const c = db.prepare("SELECT COUNT(*) as n FROM arena_tournaments").get() as { n: number };
-  if ((c?.n ?? 0) > 0) return;
-
   const now = Date.now();
-  const seeds: Array<Pick<ArenaTournament, "title" | "game" | "team_size" | "entry_fee" | "currency" | "max_players" | "rake">> = [
+
+  // Moscow time (UTC+3, no DST). 20:00 MSK = 17:00 UTC.
+  // Choose the ближайший 1 марта (если текущая дата уже позже — берём следующий год).
+  const nowUtc = new Date();
+  let year = nowUtc.getUTCFullYear();
+  const march1_20msk_utc = (y: number) => Date.UTC(y, 2, 1, 17, 0, 0);
+  let zavaStartsAt = march1_20msk_utc(year);
+  if (now > zavaStartsAt) {
+    year += 1;
+    zavaStartsAt = march1_20msk_utc(year);
+  }
+
+  const seeds: Array<
+    Pick<ArenaTournament, "title" | "game" | "team_size" | "entry_fee" | "currency" | "max_players" | "rake"> & {
+      starts_at?: number | null;
+    }
+  > = [
     { title: "Express Cup", game: "CS2", team_size: 1, entry_fee: 5, currency: "EUR", max_players: 8, rake: 0.1 },
-      ];
+    {
+      title: "Турнир от ЗАВА",
+      game: "CS2",
+      team_size: 1,
+      entry_fee: 0,
+      currency: "EUR",
+      max_players: 20,
+      rake: 0,
+      starts_at: zavaStartsAt,
+    },
+  ];
+
   const ins = db.prepare(
-    "INSERT INTO arena_tournaments (id, title, game, team_size, entry_fee, currency, max_players, rake, status, starts_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', NULL, ?, ?)"
+    "INSERT INTO arena_tournaments (id, title, game, team_size, entry_fee, currency, max_players, rake, status, starts_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?)"
   );
+
+  // Insert missing seeds by title (idempotent)
   for (const s of seeds) {
-    ins.run(randomUUID(), s.title, s.game, s.team_size, s.entry_fee, s.currency, s.max_players, s.rake, now, now);
+    const exists = db.prepare("SELECT 1 as x FROM arena_tournaments WHERE title = ? LIMIT 1").get(s.title) as
+      | { x: number }
+      | undefined;
+    if (exists?.x) continue;
+    ins.run(randomUUID(), s.title, s.game, s.team_size, s.entry_fee, s.currency, s.max_players, s.rake, s.starts_at ?? null, now, now);
   }
 }
 

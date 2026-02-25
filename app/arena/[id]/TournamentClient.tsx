@@ -1,7 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+
+function pad2(n: number) { return String(n).padStart(2, "0"); }
+function formatCountdown(ms: number) {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  const d = Math.floor(s / 86400);
+  const h = Math.floor((s % 86400) / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (d > 0) return `${d}д ${pad2(h)}:${pad2(m)}:${pad2(sec)}`;
+  return `${pad2(h)}:${pad2(m)}:${pad2(sec)}`;
+}
+
 import ArenaShell from "../ArenaShell";
 import { useParams } from "next/navigation";
 import { cn } from "@/components/utils/cn";
@@ -12,6 +24,7 @@ export default function TournamentClient() {
 
   const [data, setData] = useState<any>(null);
   const [busy, setBusy] = useState(false);
+  const [left, setLeft] = useState<number | null>(null);
 
   async function load() {
     const r = await fetch(`/api/arena/tournaments/${id}`, { cache: "no-store" });
@@ -42,6 +55,27 @@ export default function TournamentClient() {
   }
 
   const t = data?.tournament;
+  const startsLabel = useMemo(() => {
+    if (!t?.startsAt) return null;
+    const d = new Date(Number(t.startsAt));
+    return d.toLocaleString("ru-RU", {
+      timeZone: "Europe/Moscow",
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }, [t?.startsAt]);
+
+  useEffect(() => {
+    if (!t?.startsAt) return;
+    const tick = () => setLeft(Math.max(0, Number(t.startsAt) - Date.now()));
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [t?.startsAt]);
+
   const participants = data?.participants ?? [];
   const matches = data?.matches ?? [];
 
@@ -64,9 +98,21 @@ export default function TournamentClient() {
         <div>
           <div className="text-white text-2xl font-extrabold">{t.game} • {t.title}</div>
           <div className="mt-1 text-white/60 text-sm">
-            Entry: <span className="text-white/85 font-semibold">{t.entryFee} {t.currency}</span> • Prize pool: <span className="text-white/85 font-semibold">{prizePool} {t.currency}</span>
+            Entry: <span className="text-white/85 font-semibold">{t.entryFee} {t.currency}</span> • Players: <span className="text-white/85 font-semibold">{participants.length}/{t.maxPlayers}</span> • Prize pool: <span className="text-white/85 font-semibold">{prizePool} {t.currency}</span>
           </div>
         </div>
+        {t.startsAt ? (
+          <div className="mt-3 grid grid-cols-2 gap-2 max-w-[520px]">
+            <div className="rounded-2xl border border-white/10 bg-black/25 px-4 py-3">
+              <div className="text-white/55 text-xs">Старт</div>
+              <div className="text-white font-extrabold mt-1">{startsLabel ? `${startsLabel} (МСК)` : "—"}</div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-black/25 px-4 py-3">
+              <div className="text-white/55 text-xs">До старта</div>
+              <div className="text-white font-extrabold mt-1">{left == null ? "—" : formatCountdown(left)}</div>
+            </div>
+          </div>
+        ) : null}
         <div className="flex items-center gap-2">
           <Link
             href="/arena"

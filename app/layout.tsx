@@ -11,10 +11,20 @@ import { cookies } from "next/headers";
 import { I18nProvider } from "@/components/i18n/I18nProvider";
 import LanguageGate from "@/components/i18n/LanguageGate";
 import { LANG_COOKIE } from "@/lib/i18n";
+import PwaRegister from "@/app/components/PwaRegister";
 
 export const metadata: Metadata = {
   title: "BeavBet — Crypto Only",
   description: "BeavBet lobby (MVP UI).",
+  manifest: "/manifest.json",
+  themeColor: "#ff5500",
+  icons: {
+    icon: [
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
 };
 
 const inter = Inter({
@@ -33,6 +43,11 @@ export default async function RootLayout({
 
   return (
     <html lang={initialLang ?? "en"}>
+      <head>
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="mobile-web-app-capable" content="yes" />
+      </head>
       <body className={inter.variable}>
         <I18nProvider initialLang={initialLang}>
           {/* Language select on first visit */}
@@ -60,6 +75,9 @@ export default async function RootLayout({
           {/* Mobile bottom tab bar (matches the reference mobile UI) */}
           <MobileNav />
         </I18nProvider>
+
+        {/* PWA service worker registration (needed for installable desktop app) */}
+        <PwaRegister />
       </body>
     </html>
   );

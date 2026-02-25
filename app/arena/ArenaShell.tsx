@@ -17,6 +17,7 @@ import {
   ChevronLeft,
   X,
   MessageCircle,
+  Handshake,
 } from "lucide-react";
 
 export default function ArenaShell({ children }: { children: ReactNode }) {
@@ -97,6 +98,7 @@ export default function ArenaShell({ children }: { children: ReactNode }) {
                   <SideLink href="/arena" icon={<Play className="h-4 w-4" />} label="Играть" active />
                   <SideLink href="/arena/profile?tab=friends" icon={<Users className="h-4 w-4" />} label="Друзья" />
                   <SideLink href="/arena/profile?tab=messages" icon={<MessageCircle className="h-4 w-4" />} label="Сообщения" />
+                  <SideLink href="/arena/partners" icon={<Handshake className="h-4 w-4" />} label="Стримеры" />
                   <SideLink href="/arena/leaderboard" icon={<BarChart3 className="h-4 w-4" />} label="Ранг" />
                   <SideLink href="/arena/matches" icon={<Radar className="h-4 w-4" />} label="Track" />
                   <SideLink href="#" icon={<Eye className="h-4 w-4" />} label="Watch" disabled />

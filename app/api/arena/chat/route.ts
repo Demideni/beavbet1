@@ -4,9 +4,26 @@ import { randomUUID } from "node:crypto";
 import { getSessionUser } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { broadcastChat } from "@/lib/arenaChatBus";
+import { STREAMERS, PARTNERS, badgeLabel } from "@/lib/streamers";
 
 const BOT_USER_ID = "arena_bot";
 const BOT_NICK = "ArenaBot";
+function getUserStreamerBadge(db: any, userId: string): string | null {
+  if (!userId || userId === BOT_USER_ID) return null;
+  try {
+    const row = db
+      .prepare(`SELECT streamer_slug FROM streamer_team_members WHERE user_id=? ORDER BY created_at ASC LIMIT 1`)
+      .get(userId) as { streamer_slug?: string } | undefined;
+    const slug = String(row?.streamer_slug || "");
+    if (!slug) return null;
+    const all = [...STREAMERS, ...PARTNERS];
+    const s = all.find((x) => x.slug === slug);
+    return s ? badgeLabel(s) : null;
+  } catch {
+    return null;
+  }
+}
+
 
 function rand<T>(arr: readonly T[]) {
   return arr[Math.floor(Math.random() * arr.length)];
@@ -35,6 +52,7 @@ function makeBotMessage() {
     nickname: BOT_NICK,
     message,
     created_at: Date.now(),
+    streamerBadge: null,
   };
 }
 
@@ -95,7 +113,8 @@ export async function GET() {
        LIMIT 50`
     )
     .all()
-    .reverse();
+    .reverse()
+    .map((r: any) => ({ ...r, streamerBadge: getUserStreamerBadge(db, r.user_id) }));
   return NextResponse.json({ ok: true, messages: rows });
 }
 
@@ -120,6 +139,7 @@ export async function POST(req: Request) {
     nickname,
     message,
     created_at: Date.now(),
+    streamerBadge: null,
   };
 
   db.prepare(

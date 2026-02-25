@@ -55,25 +55,8 @@ function prettyTime(ts: string) {
   }
 }
 
-function pad2(n: number) {
-  return String(n).padStart(2, "0");
-}
-
-function formatCountdown(ms: number) {
-  const s = Math.max(0, Math.floor(ms / 1000));
-  const d = Math.floor(s / 86400);
-  const h = Math.floor((s % 86400) / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const sec = s % 60;
-  if (d > 0) return `${d}д ${pad2(h)}:${pad2(m)}:${pad2(sec)}`;
-  return `${pad2(h)}:${pad2(m)}:${pad2(sec)}`;
-}
-
 export default function ArenaClient() {
   const { t } = useI18n();
-
-  const [isDesktop, setIsDesktop] = useState(false);
-  const [showTournaments, setShowTournaments] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
@@ -83,15 +66,6 @@ export default function ArenaClient() {
   const [activity, setActivity] = useState<Activity[]>([]);
   const [myRating, setMyRating] = useState(1000);
   const [ratingName, setRatingName] = useState("Silver");
-
-  useEffect(() => {
-    // Desktop detection (for opening the tournaments "subwindow" instead of navigating)
-    const mq = window.matchMedia("(min-width: 1024px)");
-    const apply = () => setIsDesktop(!!mq.matches);
-    apply();
-    mq.addEventListener?.("change", apply);
-    return () => mq.removeEventListener?.("change", apply);
-  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -107,13 +81,7 @@ export default function ArenaClient() {
         if (typeof json?.myRating === "number") setMyRating(json.myRating);
         if (typeof json?.ratingName === "string") setRatingName(json.ratingName);
       } catch {
-        // Fallback: at least load tournaments so UI doesn't look empty.
-        try {
-          const r = await fetch("/api/arena/tournaments", { cache: "no-store" });
-          const j = await r.json().catch(() => ({}));
-          if (!alive) return;
-          setTournaments(Array.isArray(j?.tournaments) ? j.tournaments : []);
-        } catch {}
+        // ignore
       } finally {
         if (alive) setLoading(false);
       }
@@ -139,25 +107,15 @@ export default function ArenaClient() {
   async function join(tId: string) {
     setBusy(tId);
     try {
-      const res = await fetch(`/api/arena/join`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tournamentId: tId }),
-      });
+      const res = await fetch(`/api/arena/tournaments/${tId}/join`, { method: "POST" });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json?.error || "Failed");
       // refresh dashboard lightly
-      try {
-        const r2 = await fetch("/api/arena/dashboard", { cache: "no-store" });
-        const j2 = await r2.json();
-        setOpenDuels(Array.isArray(j2?.openDuels) ? j2.openDuels : []);
-        setMyDuels(Array.isArray(j2?.myDuels) ? j2.myDuels : []);
-        setTournaments(Array.isArray(j2?.tournaments) ? j2.tournaments : []);
-      } catch {
-        const r2 = await fetch("/api/arena/tournaments", { cache: "no-store" });
-        const j2 = await r2.json().catch(() => ({}));
-        setTournaments(Array.isArray(j2?.tournaments) ? j2.tournaments : []);
-      }
+      const r2 = await fetch("/api/arena/dashboard", { cache: "no-store" });
+      const j2 = await r2.json();
+      setOpenDuels(Array.isArray(j2?.openDuels) ? j2.openDuels : []);
+      setMyDuels(Array.isArray(j2?.myDuels) ? j2.myDuels : []);
+      setTournaments(Array.isArray(j2?.tournaments) ? j2.tournaments : []);
     } catch (e: any) {
       alert(e?.message || "Join failed");
     } finally {
@@ -212,8 +170,7 @@ export default function ArenaClient() {
               <FaceTile
                 title="Турниры"
                 subtitle={loading ? "…" : `Сегодня: €${todayPool.toFixed(0)}`}
-                href={isDesktop ? "#" : "/arena/tournaments"}
-                onClick={isDesktop ? () => setShowTournaments(true) : undefined}
+                href="/arena/tournaments"
                 bgSrc="/arena/cards/tournadments.png"
               />
               <FaceTile
@@ -224,13 +181,6 @@ export default function ArenaClient() {
               />
             </div>
           </div>
-
-          {showTournaments ? (
-            <ArenaTournamentsModal
-              initialRows={tournaments as any}
-              onClose={() => setShowTournaments(false)}
-            />
-          ) : null}
 
           {/* Matches */}
           <div className="mt-4 rounded-3xl border border-white/10 bg-black/30 p-4">
@@ -409,184 +359,15 @@ export default function ArenaClient() {
   );
 }
 
-function ArenaTournamentsModal({
-  initialRows,
-  onClose,
-}: {
-  initialRows: any[];
-  onClose: () => void;
-}) {
-  const [rows, setRows] = useState<any[]>(Array.isArray(initialRows) ? initialRows : []);
-  const [left, setLeft] = useState<number | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        const r = await fetch("/api/arena/tournaments", { cache: "no-store" });
-        const j = await r.json().catch(() => ({}));
-        if (!alive) return;
-        setRows(Array.isArray(j?.tournaments) ? j.tournaments : []);
-      } catch {}
-    })();
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  const zava = useMemo(() => rows.find((x) => String(x?.title || "").toLowerCase().includes("зава")), [rows]);
-
-  useEffect(() => {
-    if (!zava?.startsAt) return;
-    const tick = () => setLeft(Math.max(0, Number(zava.startsAt) - Date.now()));
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [zava?.startsAt]);
-
-  const startsLabel = useMemo(() => {
-    if (!zava?.startsAt) return null;
-    const d = new Date(Number(zava.startsAt));
-    return d.toLocaleString("ru-RU", {
-      timeZone: "Europe/Moscow",
-      day: "2-digit",
-      month: "long",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  }, [zava?.startsAt]);
-
-  // Close on ESC
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
-  return (
-    <div className="fixed inset-0 z-[80]">
-      <div className="absolute inset-0 bg-black/70" onClick={onClose} />
-
-      <div className="absolute left-1/2 top-1/2 w-[min(980px,92vw)] -translate-x-1/2 -translate-y-1/2">
-        <div className="rounded-3xl border border-white/10 bg-black/60 backdrop-blur-xl overflow-hidden shadow-2xl">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
-            <div>
-              <div className="text-white font-extrabold text-lg">Турниры</div>
-              <div className="text-white/55 text-sm mt-0.5">Ближайшие турниры Arena</div>
-            </div>
-            <button
-              onClick={onClose}
-              className="rounded-2xl px-3 py-2 bg-white/6 border border-white/10 hover:bg-white/10 text-white/85 text-sm font-semibold"
-            >
-              Закрыть
-            </button>
-          </div>
-
-          <div className="p-5 max-h-[70vh] overflow-auto">
-            {/* ZAVA banner (FACEIT-like) */}
-            {zava ? (
-              <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-white/5">
-                <img
-                  src="/banners/zava-tournament.png"
-                  alt="Турнир от ЗАВА"
-                  className="absolute inset-0 h-full w-full object-cover"
-                />
-                <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/55 to-black/25" />
-                <div className="relative p-6 min-h-[220px] flex flex-col justify-between">
-                  <div>
-                    <div className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-black/35 px-3 py-1 text-xs font-semibold text-white/80">
-                      STREAMER TOURNAMENT
-                    </div>
-                    <div className="mt-3 text-3xl font-extrabold text-white leading-tight">
-                      Турнир от стримера <span className="text-accent">ЗАВА</span>
-                    </div>
-                    <div className="mt-2 text-white/70 text-sm">
-                      CS2 • 1v1 • 20 участников
-                      {startsLabel ? (
-                        <>
-                          {" "}• Старт: <span className="text-white/90 font-semibold">{startsLabel} (МСК)</span>
-                        </>
-                      ) : null}
-                      {" "}• Призовой фонд: <span className="text-white/90 font-semibold">15 000 RUB</span>
-                    </div>
-
-                    <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      <div className="rounded-2xl border border-white/10 bg-black/25 px-4 py-3">
-                        <div className="text-white/55 text-xs">Слоты</div>
-                        <div className="text-white font-extrabold mt-1">{zava.players ?? 0}/{zava.maxPlayers ?? 20}</div>
-                      </div>
-                      <div className="rounded-2xl border border-white/10 bg-black/25 px-4 py-3">
-                        <div className="text-white/55 text-xs">Взнос</div>
-                        <div className="text-white font-extrabold mt-1">5 EUR</div>
-                      </div>
-                      <div className="rounded-2xl border border-white/10 bg-black/25 px-4 py-3">
-                        <div className="text-white/55 text-xs">Промокод</div>
-                        <div className="text-white font-extrabold mt-1">ZAVA</div>
-                      </div>
-                      <div className="rounded-2xl border border-white/10 bg-black/25 px-4 py-3">
-                        <div className="text-white/55 text-xs">До старта</div>
-                        <div className="text-white font-extrabold mt-1">{left == null ? "—" : formatCountdown(left)}</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-5 flex flex-wrap items-center gap-2">
-                    <Link
-                      href={`/arena/${zava.id}`}
-                      className="inline-flex rounded-2xl px-6 py-3 btn-accent text-white font-semibold shadow-lg hover:brightness-110 active:brightness-95"
-                    >
-                      Открыть турнир
-                    </Link>
-                    <div className="text-white/55 text-sm">Регистрация: 5 EUR или бесплатно по промокоду ZAVA</div>
-                  </div>
-                </div>
-              </div>
-            ) : null}
-
-            {/* Other tournaments */}
-            <div className="mt-4 grid gap-2">
-              {rows
-                .filter((x) => x && x.id !== zava?.id)
-                .filter((x) => x.status !== "finished" && x.status !== "done")
-                .slice(0, 8)
-                .map((tt) => (
-                  <div key={tt.id} className="rounded-2xl bg-white/5 border border-white/10 hover:bg-white/7 px-4 py-3 flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="text-white font-semibold truncate">{tt.game} • {tt.title}</div>
-                      <div className="text-white/60 text-sm mt-1 truncate">
-                        {tt.entryFee} {tt.currency} • {tt.players ?? 0}/{tt.maxPlayers}
-                      </div>
-                    </div>
-                    <Link
-                      href={`/arena/${tt.id}`}
-                      className="shrink-0 px-4 py-2 rounded-2xl bg-white/6 border border-white/10 hover:bg-white/10 text-sm text-white/85"
-                    >
-                      Open
-                    </Link>
-                  </div>
-                ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function FaceTile({
   title,
   subtitle,
   href,
-  onClick,
   bgSrc,
 }: {
   title: string;
   subtitle: string;
   href: string;
-  onClick?: (() => void) | undefined;
   bgSrc: string;
 }) {
   const isHash = href.startsWith("#");
@@ -612,13 +393,9 @@ function FaceTile({
 
   if (isHash) {
     return (
-      <button
-        type="button"
-        onClick={onClick}
-        className={cls + " text-left"}
-      >
+      <a href={href} className={cls}>
         {inner}
-      </button>
+      </a>
     );
   }
 

@@ -10,6 +10,7 @@ type ChatMsg = {
   nickname: string | null;
   message: string;
   created_at: number;
+  streamerBadge?: string | null;
 };
 
 function fmtTime(ts: number) {
@@ -138,6 +139,9 @@ export default function ArenaChatWidget({
                   title="Message"
                 >
                   {m.nickname || "Player"}
+                  {m.streamerBadge ? (
+                    <span className="ml-2 text-accent font-extrabold">[{m.streamerBadge}]</span>
+                  ) : null}
                 </button>
                 <span className="text-white/55">: </span>
                 <span className="text-white/80 break-words">{m.message}</span>

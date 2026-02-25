@@ -200,9 +200,6 @@ function ensureSchema(db: any) {
       team_size INTEGER NOT NULL DEFAULT 1,
       entry_fee REAL NOT NULL,
       currency TEXT NOT NULL DEFAULT 'EUR',
-      prize_pool REAL,
-      prize_currency TEXT DEFAULT 'EUR',
-      promo_code TEXT,
       max_players INTEGER NOT NULL,
       rake REAL NOT NULL DEFAULT 0.10, -- 10%
       status TEXT NOT NULL DEFAULT 'open', -- open | live | finished
@@ -380,12 +377,6 @@ CREATE TABLE IF NOT EXISTS arena_duel_reports (
 
   `);
 
-  // Lightweight "migrations" for existing databases.
-  // SQLite doesn't support IF NOT EXISTS for ADD COLUMN, so we try and ignore failures.
-  try { db.exec("ALTER TABLE arena_tournaments ADD COLUMN prize_pool REAL"); } catch {}
-  try { db.exec("ALTER TABLE arena_tournaments ADD COLUMN prize_currency TEXT DEFAULT 'EUR'"); } catch {}
-  try { db.exec("ALTER TABLE arena_tournaments ADD COLUMN promo_code TEXT"); } catch {}
-
   
   // Profiles: extend with avatar (URL) for Arena/website
   ensureColumn(db, "profiles", "avatar_url", "avatar_url TEXT");
@@ -442,7 +433,16 @@ export function getDb() {
       user_id TEXT NOT NULL,
       created_at INTEGER NOT NULL
     );
-  `);
+  
+    -- Streamer teams (community)
+    CREATE TABLE IF NOT EXISTS streamer_team_members (
+      id TEXT PRIMARY KEY,
+      streamer_slug TEXT NOT NULL,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at INTEGER NOT NULL,
+      UNIQUE(streamer_slug, user_id)
+    );
+`);
 
   global.__beavbet_db__ = db;
   return db;

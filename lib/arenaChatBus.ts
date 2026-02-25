@@ -4,6 +4,7 @@ type ChatMessage = {
   nickname: string | null;
   message: string;
   created_at: number;
+  streamerBadge?: string | null;
 };
 
 // In-memory pub/sub for SSE. Works on a single Node process (Render).

@@ -1,19 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-
-function pad2(n: number) { return String(n).padStart(2, "0"); }
-function formatCountdown(ms: number) {
-  const s = Math.max(0, Math.floor(ms / 1000));
-  const d = Math.floor(s / 86400);
-  const h = Math.floor((s % 86400) / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const sec = s % 60;
-  if (d > 0) return `${d}д ${pad2(h)}:${pad2(m)}:${pad2(sec)}`;
-  return `${pad2(h)}:${pad2(m)}:${pad2(sec)}`;
-}
-
+import { useEffect, useState } from "react";
 import ArenaShell from "../ArenaShell";
 import { useParams } from "next/navigation";
 import { cn } from "@/components/utils/cn";
@@ -24,8 +12,6 @@ export default function TournamentClient() {
 
   const [data, setData] = useState<any>(null);
   const [busy, setBusy] = useState(false);
-  const [left, setLeft] = useState<number | null>(null);
-  const [promo, setPromo] = useState("");
 
   async function load() {
     const r = await fetch(`/api/arena/tournaments/${id}`, { cache: "no-store" });
@@ -42,7 +28,7 @@ export default function TournamentClient() {
     const r = await fetch("/api/arena/join", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tournamentId: id, promoCode: promo.trim() || undefined }),
+      body: JSON.stringify({ tournamentId: id }),
       credentials: "include",
     });
     const j = await r.json().catch(() => ({}));
@@ -56,27 +42,6 @@ export default function TournamentClient() {
   }
 
   const t = data?.tournament;
-  const startsLabel = useMemo(() => {
-    if (!t?.startsAt) return null;
-    const d = new Date(Number(t.startsAt));
-    return d.toLocaleString("ru-RU", {
-      timeZone: "Europe/Moscow",
-      day: "2-digit",
-      month: "long",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  }, [t?.startsAt]);
-
-  useEffect(() => {
-    if (!t?.startsAt) return;
-    const tick = () => setLeft(Math.max(0, Number(t.startsAt) - Date.now()));
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [t?.startsAt]);
-
   const participants = data?.participants ?? [];
   const matches = data?.matches ?? [];
 
@@ -90,17 +55,7 @@ export default function TournamentClient() {
     );
   }
 
-  const prizePoolFromDb = t?.prizePool != null ? Number(t.prizePool) : null;
-  const prizeCurrencyFromDb = t?.prizeCurrency ? String(t.prizeCurrency) : null;
-  const prizePoolCalc = Number((t.entryFee * t.maxPlayers * (1 - t.rake)).toFixed(2));
-  const prizePool = prizePoolFromDb ?? prizePoolCalc;
-  const prizeCurrency = prizeCurrencyFromDb ?? t.currency;
-
-  const promoLabel = useMemo(() => {
-    const code = String(t?.promoCode || "").trim();
-    if (!code) return null;
-    return `Промокод: ${code} (бесплатная регистрация)`;
-  }, [t?.promoCode]);
+  const prizePool = Number((t.entryFee * t.maxPlayers * (1 - t.rake)).toFixed(2));
 
   return (
     <ArenaShell>
@@ -109,41 +64,16 @@ export default function TournamentClient() {
         <div>
           <div className="text-white text-2xl font-extrabold">{t.game} • {t.title}</div>
           <div className="mt-1 text-white/60 text-sm">
-            Entry: <span className="text-white/85 font-semibold">{t.entryFee} {t.currency}</span>
-            {promoLabel ? <> • <span className="text-white/70">{promoLabel}</span></> : null}
-            {" "}• Players: <span className="text-white/85 font-semibold">{participants.length}/{t.maxPlayers}</span>
-            {" "}• Prize pool: <span className="text-white/85 font-semibold">{prizePool} {prizeCurrency}</span>
+            Entry: <span className="text-white/85 font-semibold">{t.entryFee} {t.currency}</span> • Prize pool: <span className="text-white/85 font-semibold">{prizePool} {t.currency}</span>
           </div>
         </div>
-        {t.startsAt ? (
-          <div className="mt-3 grid grid-cols-2 gap-2 max-w-[520px]">
-            <div className="rounded-2xl border border-white/10 bg-black/25 px-4 py-3">
-              <div className="text-white/55 text-xs">Старт</div>
-              <div className="text-white font-extrabold mt-1">{startsLabel ? `${startsLabel} (МСК)` : "—"}</div>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-black/25 px-4 py-3">
-              <div className="text-white/55 text-xs">До старта</div>
-              <div className="text-white font-extrabold mt-1">{left == null ? "—" : formatCountdown(left)}</div>
-            </div>
-          </div>
-        ) : null}
-        <div className="flex flex-wrap items-center justify-end gap-2">
+        <div className="flex items-center gap-2">
           <Link
             href="/arena"
             className="px-4 py-2 rounded-2xl cs2-btn-ghost text-sm text-white/85"
           >
             Назад
           </Link>
-
-          {t?.promoCode ? (
-            <input
-              value={promo}
-              onChange={(e) => setPromo(e.target.value)}
-              placeholder="Промокод"
-              className="h-[40px] w-[140px] rounded-2xl bg-white/5 border border-white/10 px-3 text-sm text-white/90 placeholder:text-white/35 outline-none focus:border-white/25"
-            />
-          ) : null}
-
           <button
             disabled={t.status !== "open" || busy}
             onClick={join}

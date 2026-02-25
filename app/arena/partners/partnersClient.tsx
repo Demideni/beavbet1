@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
-import { ExternalLink, Users, PlayCircle, Handshake, Telegram, Globe, Youtube } from "lucide-react";
+import { ExternalLink, Users, PlayCircle, Handshake, Send, Globe, Youtube } from "lucide-react";
 import { cn } from "@/components/utils/cn";
 import { kickIframeSrc } from "@/lib/streamers";
 
@@ -22,7 +22,7 @@ type Item = {
 function SocialLink({ href, label }: { href?: string; label: string }) {
   if (!href) return null;
   const Icon =
-    label === "telegram" ? Telegram :
+    label === "telegram" ? Send :
     label === "website" ? Globe :
     label === "youtube" ? Youtube :
     ExternalLink;
@@ -126,7 +126,7 @@ export default function PartnersClient() {
           <div>Стать партнёром</div>
         </div>
         <div className="mt-2 text-white/70 text-sm">
-          Хотите карточку в арене, промо в туриках, брендированные комнаты и интеграции? Напишите в Telegram:
+          Хотите карточку в арене, промо в туриках, брендированные комнаты и интеграции? Напишите в Send:
           <a className="ml-2 text-accent font-extrabold hover:underline" href="https://t.me/dendemi" target="_blank" rel="noreferrer">
             @dendemi
           </a>

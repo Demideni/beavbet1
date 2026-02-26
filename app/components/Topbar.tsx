@@ -14,12 +14,6 @@ type MeUser = { id: string; email: string; nickname: string | null; currency?: s
 export function Topbar() {
   const { t } = useI18n();
   const pathname = usePathname();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
   const [user, setUser] = useState<MeUser>(null);
   const [incomingFriends, setIncomingFriends] = useState(0);
   const [unreadDm, setUnreadDm] = useState(0);
@@ -28,7 +22,6 @@ export function Topbar() {
 
   const lastUnreadRef = useRef(0);
   const lastFriendRef = useRef(0);
-  if (!mounted) return null;
 
   // ✅ FIX: hide topbar on landing page
   if (pathname === "/") return null;
@@ -125,13 +118,9 @@ export function Topbar() {
 
     let es: EventSource | null = null;
     let poll: any = null;
-
-    // Arena notifications stream (single-instance realtime).
-    // Important: some environments (or strict blockers) can throw on EventSource construction.
-    if (typeof EventSource !== "undefined") {
-      try {
-        es = new EventSource("/api/arena/notifications/stream");
-        es.onmessage = (ev) => {
+    // Arena notifications stream (single-instance realtime). Also keep polling as fallback.
+    es = new EventSource("/api/arena/notifications/stream");
+    es.onmessage = (ev) => {
       try {
         const data = JSON.parse(ev.data);
         if (data?.type === "friend_request") {
@@ -157,9 +146,6 @@ export function Topbar() {
       } catch {}
       es = null;
     };
-      } catch {}
-    }
-
 
     poll = setInterval(fetchNotif, 12000);
 

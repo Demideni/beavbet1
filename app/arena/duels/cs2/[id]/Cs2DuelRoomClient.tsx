@@ -41,18 +41,6 @@ export default function Cs2DuelRoomClient({ duelId }: { duelId: string }) {
   const [dmOpen, setDmOpen] = useState(false);
   const [friendBusy, setFriendBusy] = useState(false);
 
-  // IMPORTANT: avoid hydration mismatch (React #310/#418)
-  // Date.now() during render can diverge server vs client.
-  const [mounted, setMounted] = useState(false);
-  const [nowTs, setNowTs] = useState(0);
-
-  useEffect(() => {
-    setMounted(true);
-    setNowTs(Date.now());
-    const t = setInterval(() => setNowTs(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, []);
-
   async function load() {
     const r = await fetch(`/api/arena/duels/cs2/one?id=${encodeURIComponent(duelId)}`, { cache: "no-store" });
     const j = await r.json().catch(() => ({}));
@@ -167,7 +155,7 @@ export default function Cs2DuelRoomClient({ duelId }: { duelId: string }) {
     }
   }
 
-  const deadlineLeft = mounted && duel?.ready_deadline ? Math.max(0, duel.ready_deadline - nowTs) : null;
+  const deadlineLeft = duel?.ready_deadline ? Math.max(0, duel.ready_deadline - Date.now()) : null;
   const deadlineText = deadlineLeft == null ? null : `${Math.ceil(deadlineLeft / 1000)}s`;
 
   return (

@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { cn } from "@/components/utils/cn";
 import { useI18n } from "@/components/i18n/I18nProvider";
 
@@ -23,15 +23,7 @@ const items: Array<{
 export function MobileNav() {
   const { t } = useI18n();
   const pathname = usePathname();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
   const [bouncingHref, setBouncingHref] = useState<string | null>(null);
-
-  if (!mounted) return null;
 
   const isArena = pathname?.startsWith("/arena");
 

@@ -35,8 +35,6 @@ export default function ArenaTournamentsPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [rows, setRows] = useState<Tournament[]>([]);
-  const [mounted, setMounted] = useState(false);
-  const [nextStart, setNextStart] = useState<number | null>(null);
 
   async function load() {
     setLoading(true);
@@ -47,20 +45,13 @@ export default function ArenaTournamentsPage() {
   }
 
   useEffect(() => {
-    setMounted(true);
     load();
     const t = setInterval(load, 15000);
     return () => clearInterval(t);
   }, []);
 
-  // IMPORTANT: avoid hydration mismatch.
-  // Date.now() during render produces different HTML on server vs client, which crashes hydration (React #310/#418).
-  useEffect(() => {
-    setNextStart(nextHalfHour(Date.now()));
-  }, []);
-
+  const nextStart = useMemo(() => nextHalfHour(Date.now()), []);
   const every30 = useMemo(() => {
-    if (!nextStart) return "";
     const d = new Date(nextStart);
     return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
   }, [nextStart]);
@@ -173,7 +164,7 @@ export default function ArenaTournamentsPage() {
                 <Clock className="h-5 w-5 text-white/70" />
               </div>
               <div className="mt-3 text-white/70 text-sm">
-                Следующий старт: <span className="text-white font-semibold">{mounted ? every30 : "—"}</span>
+                Следующий старт: <span className="text-white font-semibold">{every30}</span>
               </div>
               <div className="mt-4 rounded-2xl bg-white/5 border border-white/10 p-4 text-white/60 text-sm">
                 Это витрина расписания (как у FACEIT). Фактические старты можно привязать к cron позже.

@@ -40,10 +40,7 @@ export default function Cs2DuelsClient() {
   const [mine, setMine] = useState<Duel[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
-  // IMPORTANT: avoid hydration mismatch (React #310/#418)
-  // Date.now() in initial state makes server/client HTML differ.
-  const [mounted, setMounted] = useState(false);
-  const [nowTs, setNowTs] = useState<number>(0);
+  const [nowTs, setNowTs] = useState<number>(Date.now());
   const [teamSize, setTeamSize] = useState<number>(1);
   const [map, setMap] = useState<string>("random");
   const [stakePreset, setStakePreset] = useState<number>(5);
@@ -63,8 +60,6 @@ export default function Cs2DuelsClient() {
   }
 
   useEffect(() => {
-    setMounted(true);
-    setNowTs(Date.now());
     const t = setInterval(() => setNowTs(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);

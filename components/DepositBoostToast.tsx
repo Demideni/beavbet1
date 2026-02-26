@@ -29,7 +29,7 @@ export default function DepositBoostToast({
 
   const [hidden, setHidden] = useState(true);
   const [endAt, setEndAt] = useState<number | null>(null);
-  const [now, setNow] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     try {
@@ -38,18 +38,15 @@ export default function DepositBoostToast({
         const parsed = JSON.parse(raw);
         if (parsed.dismissed) return;
         setEndAt(parsed.endAt);
-        setNow(Date.now());
         setHidden(false);
         return;
       }
       const e = Date.now() + ttlMs;
       localStorage.setItem(storageKey, JSON.stringify({ endAt: e }));
       setEndAt(e);
-      setNow(Date.now());
       setHidden(false);
     } catch {
       setEndAt(Date.now() + ttlMs);
-      setNow(Date.now());
       setHidden(false);
     }
   }, [storageKey, ttlMs]);

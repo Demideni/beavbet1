@@ -1,0 +1,162 @@
+import crypto from "crypto";
+import { NextResponse } from "next/server";
+import { getDb } from "@/lib/db";
+
+function normSig(s: string | null) {
+  return (s || "").trim().replace(/^sha256=/i, "");
+}
+
+function safeEq(a: string, b: string) {
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(a, "utf8"), Buffer.from(b, "utf8"));
+}
+
+export async function POST(req: Request) {
+  try {
+    const platformId = process.env.PASSIMPAY_PLATFORM_ID || "";
+    const apiKey = process.env.PASSIMPAY_API_KEY || "";
+
+    const received = normSig(
+      req.headers.get("x-signature") ||
+        req.headers.get("signature") ||
+        req.headers.get("x-sign") ||
+        ""
+    ).toLowerCase();
+
+    if (!platformId || !apiKey) {
+      console.log("[passimpay] missing env vars", {
+        hasPlatformId: !!platformId,
+        hasApiKey: !!apiKey,
+      });
+      return new NextResponse("config error", { status: 500 });
+    }
+
+    if (!received) {
+      console.log("[passimpay] missing signature header");
+      return new NextResponse("bad signature", { status: 401 });
+    }
+
+    // ✅ Берём raw body как строку, БЕЗ JSON.stringify и БЕЗ сортировки
+    const bodyStr = await req.text();
+
+    // ✅ Официальный контракт от PassimPay:
+    // `${platformId};${bodyStr};${apiKey}`
+    const signatureContract = `${platformId};${bodyStr};${apiKey}`;
+
+    // ✅ expected = HMAC_SHA256(apiKey, signatureContract).hexLower()
+    const expected = crypto
+      .createHmac("sha256", apiKey)
+      .update(signatureContract, "utf8")
+      .digest("hex")
+      .toLowerCase();
+
+    if (!safeEq(received, expected)) {
+      console.log("[passimpay] bad signature", {
+        received,
+        expected,
+        platformId,
+        // на время дебага можно раскомментить:
+        // signatureContract,
+        // bodyStr,
+      });
+      return new NextResponse("bad signature", { status: 401 });
+    }
+
+    // ===== подпись валидна =====
+    const body = JSON.parse(bodyStr);
+
+    // ✅ ЛОГ тела (можно убрать позже)
+    console.log("[passimpay] body:", body);
+
+    const db = getDb();
+
+    // ✅ PassimPay присылает orderId / paymentId / txhash
+    const orderId = body.orderId || body.order_id || null;
+    const paymentId = body.paymentId != null ? String(body.paymentId) : null;
+    const txhash = body.txhash || body.txHash || null;
+
+    // externalId — то, что будем использовать как главный ключ сопоставления
+    const externalId =
+      orderId ||
+      paymentId ||
+      txhash ||
+      body.transaction_id ||
+      body.transactionId ||
+      body.id ||
+      body.tx_id ||
+      body.txId;
+
+    if (externalId == null || externalId === "") {
+      console.log("[passimpay] no transaction id in body");
+      return NextResponse.json({ ok: true });
+    }
+
+    // 1) пробуем найти транзакцию по external_id
+    let tx: any = db
+      .prepare("SELECT * FROM transactions WHERE external_id = ?")
+      .get(String(externalId));
+
+    // 2) пробуем найти по order_id (самое важное — это orderId)
+    if (!tx && orderId) {
+      tx = db
+        .prepare("SELECT * FROM transactions WHERE order_id = ?")
+        .get(String(orderId));
+    }
+
+    // 3) пробуем найти по provider_ref (часто туда кладут txhash)
+    if (!tx && txhash) {
+      tx = db
+        .prepare("SELECT * FROM transactions WHERE provider_ref = ?")
+        .get(String(txhash));
+    }
+
+    // 4) пробуем найти по provider_ref = paymentId (на всякий случай)
+    if (!tx && paymentId) {
+      tx = db
+        .prepare("SELECT * FROM transactions WHERE provider_ref = ?")
+        .get(String(paymentId));
+    }
+
+    if (!tx) {
+      console.log("[passimpay] tx not found:", {
+        externalId: String(externalId),
+        orderId: orderId ? String(orderId) : null,
+        paymentId,
+        txhash: txhash ? String(txhash) : null,
+      });
+      return NextResponse.json({ ok: true });
+    }
+
+    if (tx.status === "done") {
+      return NextResponse.json({ ok: true });
+    }
+
+// PassimPay не присылает status.
+// Считаем оплатой если есть txhash и amountReceive > 0
+
+const hasTx = !!body.txhash;
+const receivedAmount = Number(body.amountReceive || 0);
+
+if (!hasTx || receivedAmount <= 0) {
+  console.log("[passimpay] not confirmed yet");
+  return NextResponse.json({ ok: true });
+}
+
+
+    const amount = Number(tx.amount);
+
+    db.prepare("UPDATE wallets SET balance = balance + ? WHERE user_id = ?").run(
+      amount,
+      tx.user_id
+    );
+
+    db.prepare("UPDATE transactions SET status = 'done' WHERE id = ?").run(tx.id);
+
+    console.log("[passimpay] credited:", { userId: tx.user_id, amount });
+
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    console.error("[passimpay] error", err);
+    return new NextResponse("server error", { status: 500 });
+  }
+}

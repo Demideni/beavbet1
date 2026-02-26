@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>BeavBet Blackjack</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div class="brand">
+    <div class="logo">
+      <span class="beav">Beav</span><span class="bet">Bet</span>
+    </div>
+    <div class="sub blackjack">Blackjack</div>
+  </div>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="label">Баланс</div>
+      <div class="value" id="balance">$1000</div>
+    </div>
+    <div class="stat">
+      <div class="label">Ставка</div>
+      <div class="value" id="betTop">$10</div>
+    </div>
+  </div>
+</header>
+
+<main class="table">
+
+<section class="hand dealer">
+  <div class="row">
+    <h2>Дилер</h2>
+    <div class="score" id="dealerScore">—</div>
+  </div>
+  <div class="cards" id="dealerCards"></div>
+</section>
+
+<div class="divider"></div>
+
+<section class="hand player">
+  <div class="row">
+    <h2>Игрок</h2>
+    <div class="score" id="playerScore">—</div>
+  </div>
+  <div class="cards" id="playerCards"></div>
+</section>
+
+<div class="statusBar" id="statusBar">
+  <div class="message" id="message">Нажмите Deal, чтобы начать.</div>
+</div>
+<span id="bet" class="srOnly">$10</span>
+
+<div class="tapbar" id="tapbar">
+    <button class="btn" id="betAdjustBtn">± Bet</button>
+
+    <div class="dealDock">
+      <div class="arc">
+        <button class="arcBtn btn" id="hitBtn" disabled>Hit</button>
+        <button class="arcBtn btn" id="standBtn" disabled>Stand</button>
+        <button class="arcBtn btn" id="doubleBtn" disabled>Double</button>
+      </div>
+      <button class="dealBtn btn primary" id="dealBtn">Deal</button>
+    </div>
+
+    <div style="width:80px;"></div>
+  </div>
+</section>
+
+</main>
+</div>
+
+<!-- MODAL -->
+<div class="modalOverlay" id="betModal" hidden>
+  <div class="modalSheet">
+    <div class="modalHead">
+      <div>
+        <div class="mhTitle">Изменить ставку</div>
+        <div class="mhSub">Выберите сумму</div>
+      </div>
+      <button id="betCloseBtn" class="modalClose">✕</button>
+    </div>
+
+    <div class="pickRow">Выбрано: <span id="pickDelta">+0</span></div>
+
+    <div class="chips" id="carList">
+      <button class="chip" data-delta="-200">-200</button>
+      <button class="chip" data-delta="-100">-100</button>
+      <button class="chip" data-delta="-50">-50</button>
+      <button class="chip" data-delta="-25">-25</button>
+      <button class="chip" data-delta="-10">-10</button>
+      <button class="chip" data-delta="-5">-5</button>
+      <button class="chip" data-delta="5">+5</button>
+      <button class="chip" data-delta="10">+10</button>
+      <button class="chip" data-delta="25">+25</button>
+      <button class="chip" data-delta="50">+50</button>
+      <button class="chip" data-delta="100">+100</button>
+      <button class="chip" data-delta="200">+200</button>
+    </div>
+
+    <div class="modalActions">
+      <button class="btn" id="betCancel">Отмена</button>
+      <button class="btn primary" id="betApply">Добавить</button>
+    </div>
+  </div>
+</div>
+
+<script src="./game.js"></script>
+</body>
+</html>

@@ -1,0 +1,1 @@
+Put your background video here as cs2-bg.mp4 (mp4, muted recommended).

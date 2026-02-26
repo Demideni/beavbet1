@@ -2,6 +2,7 @@
 
 import { ReactNode, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import ArenaChatWidget from "@/components/arena/ArenaChatWidget";
 import PwaActions from "@/components/pwa/PwaActions";
 import { cn } from "@/components/utils/cn";
@@ -19,9 +20,11 @@ import {
   X,
   MessageCircle,
   Handshake,
+  Home,
 } from "lucide-react";
 
 export default function ArenaShell({ children }: { children: ReactNode }) {
+  const router = useRouter();
   const [showBar, setShowBar] = useState(false);
   const [q, setQ] = useState("");
 
@@ -30,6 +33,12 @@ export default function ArenaShell({ children }: { children: ReactNode }) {
     const t = setTimeout(() => setQ((v) => v), 0);
     return () => clearTimeout(t);
   }, []);
+
+  function goSearch() {
+    const val = String(q || "").trim();
+    if (!val) return;
+    router.push(`/arena/search?q=${encodeURIComponent(val)}`);
+  }
 
   return (
     <div className="relative min-h-screen">
@@ -79,49 +88,59 @@ export default function ArenaShell({ children }: { children: ReactNode }) {
             {/* Fixed + flush to the left edge (global sidebar is hidden in /arena) */}
             <div className="fixed top-0 bottom-0 left-0 w-[260px]">
               <div className="h-full border-r border-white/10 bg-black/35 backdrop-blur-xl pt-16 flex flex-col overflow-hidden">
-
-                {/* Scrollable area (prevents the bottom chat from pushing outside the viewport) */}
+                {/* Scrollable area */}
                 <div className="flex-1 min-h-0 overflow-y-auto">
-
-                <div className="px-4">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/45" />
-                    <input
-                      value={q}
-                      onChange={(e) => setQ(e.target.value)}
-                      placeholder="Поиск"
-                      className="w-full rounded-2xl bg-white/5 border border-white/10 pl-9 pr-3 py-2 text-sm text-white/85 placeholder:text-white/35 outline-none focus:border-white/20"
-                    />
+                  <div className="px-4">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/45" />
+                      <input
+                        value={q}
+                        onChange={(e) => setQ(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") goSearch();
+                        }}
+                        placeholder="Поиск по нику"
+                        className="w-full rounded-2xl bg-white/5 border border-white/10 pl-9 pr-3 py-2 text-sm text-white/85 placeholder:text-white/35 outline-none focus:border-white/20"
+                      />
+                    </div>
+                    <div className="mt-2 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={goSearch}
+                        className="w-full rounded-2xl bg-white/6 border border-white/10 hover:bg-white/8 text-white/85 py-2 text-xs font-semibold"
+                      >
+                        Найти
+                      </button>
+                    </div>
                   </div>
-                </div>
 
-                <nav className="mt-4 px-2 grid gap-1">
-                  <SideLink href="/arena" icon={<Play className="h-4 w-4" />} label="Играть" active />
-                  <SideLink href="/arena/profile?tab=friends" icon={<Users className="h-4 w-4" />} label="Друзья" />
-                  <SideLink href="/arena/profile?tab=messages" icon={<MessageCircle className="h-4 w-4" />} label="Сообщения" />
-                  <SideLink href="/arena/partners" icon={<Handshake className="h-4 w-4" />} label="Стримеры" />
-                  <SideLink href="/arena/leaderboard" icon={<BarChart3 className="h-4 w-4" />} label="Ранг" />
-                  <SideLink href="/arena/matches" icon={<Radar className="h-4 w-4" />} label="Track" />
-                  <SideLink href="#" icon={<Eye className="h-4 w-4" />} label="Watch" disabled />
-                  <SideLink href="#" icon={<Newspaper className="h-4 w-4" />} label="Лента" disabled />
-                </nav>
+                  <nav className="mt-4 px-2 grid gap-1">
+                    <SideLink href="/arena" icon={<Play className="h-4 w-4" />} label="Играть" active />
+                    <SideLink href="/arena/room" icon={<Home className="h-4 w-4" />} label="Моя комната" />
+                    <SideLink href="/arena/profile?tab=friends" icon={<Users className="h-4 w-4" />} label="Друзья" />
+                    <SideLink href="/arena/profile?tab=messages" icon={<MessageCircle className="h-4 w-4" />} label="Сообщения" />
+                    <SideLink href="/arena/partners" icon={<Handshake className="h-4 w-4" />} label="Стримеры" />
+                    <SideLink href="/arena/leaderboard" icon={<BarChart3 className="h-4 w-4" />} label="Ранг" />
+                    <SideLink href="/arena/matches" icon={<Radar className="h-4 w-4" />} label="Track" />
+                    <SideLink href="#" icon={<Eye className="h-4 w-4" />} label="Watch" disabled />
+                    <SideLink href="#" icon={<Newspaper className="h-4 w-4" />} label="Лента" disabled />
+                  </nav>
 
-                <div className="mt-6 px-4">
-                  <div className="text-white/55 text-xs font-semibold uppercase tracking-[0.18em]">Клубы</div>
-                  <div className="mt-2 grid gap-1">
-                    <SideLink href="/arena/clans" icon={<Users className="h-4 w-4" />} label="Клубы" />
-                    <SideLink href="/arena/clans" icon={<Users className="h-4 w-4" />} label="Создать клуб" />
+                  <div className="mt-6 px-4">
+                    <div className="text-white/55 text-xs font-semibold uppercase tracking-[0.18em]">Клубы</div>
+                    <div className="mt-2 grid gap-1">
+                      <SideLink href="/arena/clans" icon={<Users className="h-4 w-4" />} label="Клубы" />
+                      <SideLink href="/arena/clans" icon={<Users className="h-4 w-4" />} label="Создать клуб" />
+                    </div>
                   </div>
-                </div>
 
-                <div className="mt-6 px-4">
-                  <div className="text-white/55 text-xs font-semibold uppercase tracking-[0.18em]">Другое</div>
-                  <div className="mt-2 grid gap-1">
-                    <SideLink href="#" icon={<Store className="h-4 w-4" />} label="Магазин" disabled />
-                    <SideLink href="#" icon={<Crown className="h-4 w-4" />} label="Премиум" disabled />
+                  <div className="mt-6 px-4">
+                    <div className="text-white/55 text-xs font-semibold uppercase tracking-[0.18em]">Другое</div>
+                    <div className="mt-2 grid gap-1">
+                      <SideLink href="#" icon={<Store className="h-4 w-4" />} label="Магазин" disabled />
+                      <SideLink href="#" icon={<Crown className="h-4 w-4" />} label="Премиум" disabled />
+                    </div>
                   </div>
-                </div>
-
                 </div>
 
                 {/* Embedded global chat (desktop) */}
@@ -170,8 +189,8 @@ function SideLink({
   const cls = disabled
     ? "bg-white/3 border-white/8 text-white/35 cursor-not-allowed"
     : active
-      ? "bg-white/8 border-white/14 text-white"
-      : "bg-transparent border-transparent hover:bg-white/6 hover:border-white/10 text-white/80 hover:text-accent";
+    ? "bg-white/8 border-white/14 text-white"
+    : "bg-transparent border-transparent hover:bg-white/6 hover:border-white/10 text-white/80 hover:text-accent";
 
   if (disabled || href === "#") {
     return (

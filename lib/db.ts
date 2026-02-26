@@ -16,15 +16,13 @@ import { randomUUID } from "node:crypto";
  *    - локально ./data
  * 3) DB_PATH = DATA_DIR/beavbet.db
  */
-const DATA_DIR =
-  process.env.DB_PATH
-    ? path.dirname(process.env.DB_PATH)
-    : (process.env.RENDER_DISK_PATH ||
-        process.env.BEAVBET_DATA_DIR ||
-        (process.env.RENDER ? "/var/data" : path.join(process.cwd(), "data")));
+const DATA_DIR = process.env.DB_PATH
+  ? path.dirname(process.env.DB_PATH)
+  : process.env.RENDER_DISK_PATH ||
+    process.env.BEAVBET_DATA_DIR ||
+    (process.env.RENDER ? "/var/data" : path.join(process.cwd(), "data"));
 
-const DB_PATH =
-  process.env.DB_PATH || path.join(DATA_DIR, "beavbet.db");
+const DB_PATH = process.env.DB_PATH || path.join(DATA_DIR, "beavbet.db");
 
 function hasColumn(db: any, table: string, column: string) {
   const cols = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
@@ -255,8 +253,8 @@ function ensureSchema(db: any) {
       id TEXT PRIMARY KEY,
       game TEXT NOT NULL,          -- cs2 | wot (later)
       mode TEXT NOT NULL,          -- 1v1
-            team_size INTEGER NOT NULL DEFAULT 1,
-stake REAL NOT NULL,
+      team_size INTEGER NOT NULL DEFAULT 1,
+      stake REAL NOT NULL,
       currency TEXT NOT NULL DEFAULT 'EUR',
       rake REAL NOT NULL DEFAULT 0.15, -- 15% fee (kept in air)
       status TEXT NOT NULL DEFAULT 'open', -- open | active | reported | pending_review | done | cancelled
@@ -283,29 +281,28 @@ stake REAL NOT NULL,
     CREATE INDEX IF NOT EXISTS idx_arena_duels_status ON arena_duels(status);
     CREATE INDEX IF NOT EXISTS idx_arena_duels_game ON arena_duels(game);
 
-    
+    CREATE TABLE IF NOT EXISTS arena_duel_players (
+      duel_id TEXT NOT NULL REFERENCES arena_duels(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      team INTEGER NOT NULL DEFAULT 1, -- 1 or 2
+      is_captain INTEGER NOT NULL DEFAULT 0,
+      ready INTEGER NOT NULL DEFAULT 0,
+      joined_at INTEGER NOT NULL,
+      PRIMARY KEY (duel_id, user_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_arena_duel_players_duel ON arena_duel_players(duel_id);
 
-CREATE TABLE IF NOT EXISTS arena_duel_players (
-  duel_id TEXT NOT NULL REFERENCES arena_duels(id) ON DELETE CASCADE,
-  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  team INTEGER NOT NULL DEFAULT 1, -- 1 or 2
-  is_captain INTEGER NOT NULL DEFAULT 0,
-  ready INTEGER NOT NULL DEFAULT 0,
-  joined_at INTEGER NOT NULL,
-  PRIMARY KEY (duel_id, user_id)
-);
-CREATE INDEX IF NOT EXISTS idx_arena_duel_players_duel ON arena_duel_players(duel_id);
+    CREATE TABLE IF NOT EXISTS arena_ratings (
+      user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      dam_rank INTEGER NOT NULL DEFAULT 1000,
+      matches INTEGER NOT NULL DEFAULT 0,
+      wins INTEGER NOT NULL DEFAULT 0,
+      losses INTEGER NOT NULL DEFAULT 0,
+      updated_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_arena_ratings_rank ON arena_ratings(dam_rank);
 
-CREATE TABLE IF NOT EXISTS arena_ratings (
-  user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-  dam_rank INTEGER NOT NULL DEFAULT 1000,
-  matches INTEGER NOT NULL DEFAULT 0,
-  wins INTEGER NOT NULL DEFAULT 0,
-  losses INTEGER NOT NULL DEFAULT 0,
-  updated_at INTEGER NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_arena_ratings_rank ON arena_ratings(dam_rank);
-CREATE TABLE IF NOT EXISTS arena_duel_reports (
+    CREATE TABLE IF NOT EXISTS arena_duel_reports (
       id TEXT PRIMARY KEY,
       duel_id TEXT NOT NULL REFERENCES arena_duels(id) ON DELETE CASCADE,
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -375,13 +372,32 @@ CREATE TABLE IF NOT EXISTS arena_duel_reports (
     );
     CREATE INDEX IF NOT EXISTS idx_arena_gifts_to ON arena_gifts(to_user_id, created_at DESC);
 
+    -- ✅ НОВОЕ: Комнаты игроков
+    CREATE TABLE IF NOT EXISTS arena_rooms (
+      user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      background_url TEXT,
+      avatar_url TEXT,
+      bio TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_arena_rooms_updated ON arena_rooms(updated_at DESC);
+
+    -- ✅ НОВОЕ: Лента комнаты
+    CREATE TABLE IF NOT EXISTS arena_room_posts (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      text TEXT,
+      image_url TEXT,
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_arena_room_posts_user_created ON arena_room_posts(user_id, created_at DESC);
   `);
 
-  
   // Profiles: extend with avatar (URL) for Arena/website
   ensureColumn(db, "profiles", "avatar_url", "avatar_url TEXT");
 
-// Arena matches: add newer columns for CS2 (and other games) matchmaking/launch info.
+  // Arena matches: add newer columns for CS2 (and other games) matchmaking/launch info.
   ensureColumn(db, "arena_matches", "game", "game TEXT");
   ensureColumn(db, "arena_matches", "map", "map TEXT");
   ensureColumn(db, "arena_matches", "server", "server TEXT");
@@ -401,7 +417,6 @@ CREATE TABLE IF NOT EXISTS arena_duel_reports (
   ensureColumn(db, "arena_duels", "cancel_reason", "cancel_reason TEXT");
   ensureColumn(db, "arena_duels", "team_size", "team_size INTEGER NOT NULL DEFAULT 1");
   ensureColumn(db, "arena_duels", "winner_team", "winner_team INTEGER");
-
 
   // Transactions: Passimpay / providers support
   ensureColumn(db, "transactions", "provider", "provider TEXT");
@@ -433,7 +448,7 @@ export function getDb() {
       user_id TEXT NOT NULL,
       created_at INTEGER NOT NULL
     );
-  
+
     -- Streamer teams (community)
     CREATE TABLE IF NOT EXISTS streamer_team_members (
       id TEXT PRIMARY KEY,
@@ -442,7 +457,7 @@ export function getDb() {
       created_at INTEGER NOT NULL,
       UNIQUE(streamer_slug, user_id)
     );
-`);
+  `);
 
   global.__beavbet_db__ = db;
   return db;

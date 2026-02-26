@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { Crosshair, Trophy, Wallet, Users, ArrowRight } from "lucide-react";
+import { Crosshair, Wallet, Users, ArrowRight } from "lucide-react";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import { cn } from "@/components/utils/cn";
 import ArenaShell from "./ArenaShell";
@@ -112,7 +112,6 @@ export default function ArenaClient() {
       const res = await fetch(`/api/arena/tournaments/${tId}/join`, { method: "POST" });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json?.error || "Failed");
-      // refresh dashboard lightly
       const r2 = await fetch("/api/arena/dashboard", { cache: "no-store" });
       const j2 = await r2.json();
       setOpenDuels(Array.isArray(j2?.openDuels) ? j2.openDuels : []);
@@ -127,9 +126,7 @@ export default function ArenaClient() {
 
   return (
     <ArenaShell>
-      {/* FACEIT-like structure inside our shell */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-4">
-        {/* Center */}
         <main className="min-w-0">
           {/* Big banner */}
           <div className="rounded-3xl overflow-hidden border border-white/10 bg-black/30 relative">
@@ -160,12 +157,7 @@ export default function ArenaClient() {
             </div>
           </div>
 
-          {/* Featured tournament */}
-          <div className="mt-4">
-            <TournamentHero t={featuredTournamentZava} />
-          </div>
-
-          {/* Main tiles */}
+          {/* Main tiles (оставляем как было по размеру) */}
           <div className="mt-4 rounded-3xl border border-white/10 bg-black/30 p-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <FaceTile
@@ -177,7 +169,7 @@ export default function ArenaClient() {
               <FaceTile
                 title="Турниры"
                 subtitle={loading ? "…" : `Сегодня: €${todayPool.toFixed(0)}`}
-                href="/arena/tournaments"
+                href="#tournaments"
                 bgSrc="/arena/cards/tournadments.png"
               />
               <FaceTile
@@ -217,7 +209,9 @@ export default function ArenaClient() {
                       <div className="text-white font-semibold truncate">
                         {d.p1_nick || "Player"} <span className="text-white/35">vs</span> {d.p2_nick || "Waiting…"}
                       </div>
-                      <div className="text-white/55 text-sm mt-1 truncate">CS2 • {d.map || "Map"} • {prettyTime(d.updated_at)}</div>
+                      <div className="text-white/55 text-sm mt-1 truncate">
+                        CS2 • {d.map || "Map"} • {prettyTime(d.updated_at)}
+                      </div>
                     </div>
                     <div className="text-right shrink-0">
                       <div className="text-white font-extrabold">
@@ -231,10 +225,15 @@ export default function ArenaClient() {
             </div>
           </div>
 
-          {/* Tournaments (kept, but visually closer to FACEIT blocks) */}
+          {/* Tournaments (featured переносим сюда вниз) */}
           <div id="tournaments" className="mt-4 rounded-3xl border border-white/10 bg-black/30 p-4">
             <div className="text-white font-extrabold text-lg">Турниры</div>
             <div className="text-white/60 text-sm mt-1">Входной взнос формирует призовой фонд.</div>
+
+            {/* Featured tournament */}
+            <div className="mt-4">
+              <TournamentHero t={featuredTournamentZava} />
+            </div>
 
             <div className="mt-4 grid gap-2">
               {loading ? (
@@ -291,7 +290,6 @@ export default function ArenaClient() {
 
         {/* Right sidebar */}
         <aside className="min-w-0">
-          {/* Wallet / profile card */}
           <div className="rounded-3xl border border-white/10 bg-black/30 p-4">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-2xl bg-white/7 border border-white/10 grid place-items-center">
@@ -315,7 +313,6 @@ export default function ArenaClient() {
             </div>
           </div>
 
-          {/* Activity */}
           <div className="mt-4 rounded-3xl border border-white/10 bg-black/30 p-4">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-2xl bg-white/7 border border-white/10 grid place-items-center">
@@ -355,7 +352,6 @@ export default function ArenaClient() {
             </div>
           </div>
 
-          {/* Quick links */}
           <div className="mt-4 rounded-3xl border border-white/10 bg-black/30 p-4">
             <div className="text-white font-extrabold">Quick</div>
             <div className="mt-3 grid gap-2">
@@ -376,7 +372,7 @@ export default function ArenaClient() {
   );
 }
 
-/** Tile (FACEIT-ish) */
+/** Tile (FACEIT-ish) + glow like featured tournament */
 function FaceTile({
   title,
   subtitle,
@@ -388,19 +384,57 @@ function FaceTile({
   href: string;
   bgSrc: string;
 }) {
+  const isHash = href.startsWith("#");
+
+  const outerCls = "group relative block rounded-3xl overflow-hidden";
+  const innerCls =
+    "relative rounded-3xl bg-black/25 border border-white/10 hover:border-white/15 overflow-hidden transition";
+
+  const content = (
+    <>
+      {/* 🔥 Glow layer */}
+      <div
+        className="pointer-events-none absolute -inset-1 rounded-[28px] opacity-0 group-hover:opacity-100 transition duration-500 blur-2xl
+        bg-[radial-gradient(circle_at_20%_30%,rgba(255,70,60,0.55),transparent_55%),
+             radial-gradient(circle_at_80%_20%,rgba(255,180,60,0.35),transparent_55%),
+             radial-gradient(circle_at_50%_85%,rgba(255,70,60,0.25),transparent_55%)]"
+      />
+
+      <div className={innerCls}>
+        <div className="h-[130px] relative">
+          <Image
+            src={bgSrc}
+            alt=""
+            fill
+            className="object-cover opacity-90 group-hover:opacity-100 transition"
+            sizes="(max-width: 1024px) 100vw, 420px"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent" />
+          <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition">
+            <div className="absolute -left-1/3 top-0 h-full w-1/2 rotate-12 bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+          </div>
+          <div className="absolute bottom-0 left-0 right-0 bg-accent/90 h-1" />
+        </div>
+
+        <div className="p-4">
+          <div className="text-white font-extrabold">{title}</div>
+          <div className="text-white/60 text-sm mt-1">{subtitle}</div>
+        </div>
+      </div>
+    </>
+  );
+
+  if (isHash) {
+    return (
+      <a href={href} className={outerCls}>
+        {content}
+      </a>
+    );
+  }
+
   return (
-    <Link
-      href={href}
-      className="relative rounded-3xl overflow-hidden border border-white/10 bg-black/35 hover:bg-black/45 transition"
-    >
-      <div className="absolute inset-0 opacity-55">
-        <Image src={bgSrc} alt="" fill className="object-cover" sizes="(max-width: 768px) 100vw, 420px" />
-      </div>
-      <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/45 to-transparent" />
-      <div className="relative p-4">
-        <div className="text-white font-extrabold text-lg">{title}</div>
-        <div className="text-white/60 text-sm mt-1">{subtitle}</div>
-      </div>
+    <Link href={href} className={outerCls}>
+      {content}
     </Link>
   );
 }

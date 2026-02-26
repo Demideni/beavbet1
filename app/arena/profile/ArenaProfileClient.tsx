@@ -9,6 +9,7 @@ import ArenaShell from "../ArenaShell";
 import { BadgeCheck, ChevronLeft, Flame, Swords, Trophy } from "lucide-react";
 import ArenaFriendsPanel from "@/components/arena/ArenaFriendsPanel";
 import ArenaMessagesPanel from "@/components/arena/ArenaMessagesPanel";
+import ImageUploadInline from "@/components/arena/ImageUploadInline";
 import { cn } from "@/components/utils/cn";
 
 type Profile = {
@@ -112,11 +113,11 @@ export default function ArenaProfileClient() {
                 <div className="flex items-center gap-3">
                   <div className="rounded-2xl bg-white/6 border border-white/10 px-4 py-3">
                     <div className="text-white/60 text-xs">
-                  <span className="inline-flex items-center gap-2">
-                    <Image src="/brand/beavrank.png" alt="BeavRank" width={14} height={14} className="opacity-90" />
-                    BeavRank
-                  </span>
-                </div>
+                      <span className="inline-flex items-center gap-2">
+                        <Image src="/brand/beavrank.png" alt="BeavRank" width={14} height={14} className="opacity-90" />
+                        BeavRank
+                      </span>
+                    </div>
                     <div className="text-white font-extrabold text-xl mt-1">{profile.elo}</div>
                   </div>
                   <div className="h-12 w-12 rounded-2xl bg-white/6 border border-white/10 flex items-center justify-center">
@@ -124,39 +125,42 @@ export default function ArenaProfileClient() {
                   </div>
                 </div>
               ) : null}
-            
-            <div className="mt-5 grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div className="rounded-3xl bg-black/20 border border-white/10 p-4">
-                <div className="text-white/60 text-xs">Nickname</div>
-                <input
-                  value={nickInput}
-                  onChange={(e) => setNickInput(e.target.value)}
-                  className="mt-2 w-full h-11 rounded-2xl bg-black/30 border border-white/10 px-3 text-white outline-none"
-                  placeholder="Your nick"
-                />
-              </div>
-              <div className="rounded-3xl bg-black/20 border border-white/10 p-4 md:col-span-2">
-                <div className="text-white/60 text-xs">Avatar URL</div>
-                <input
-                  value={avatarUrlInput}
-                  onChange={(e) => setAvatarUrlInput(e.target.value)}
-                  className="mt-2 w-full h-11 rounded-2xl bg-black/30 border border-white/10 px-3 text-white outline-none"
-                  placeholder="https://..."
-                />
-              </div>
-            </div>
 
-            <div className="mt-3 flex items-center gap-2">
-              <button
-                onClick={saveProfile}
-                disabled={saving}
-                className={cn("h-11 px-4 rounded-2xl bg-accent text-black font-extrabold", saving ? "opacity-70" : "hover:brightness-110")}
-              >
-                {saving ? "Saving…" : "Save profile"}
-              </button>
-              <div className="text-white/45 text-xs">Tip: you can use any image URL for now. Later we can add uploads.</div>
+              <div className="mt-5 grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="rounded-3xl bg-black/20 border border-white/10 p-4">
+                  <div className="text-white/60 text-xs">Nickname</div>
+                  <input
+                    value={nickInput}
+                    onChange={(e) => setNickInput(e.target.value)}
+                    className="mt-2 w-full h-11 rounded-2xl bg-black/30 border border-white/10 px-3 text-white outline-none"
+                    placeholder="Your nick"
+                  />
+                </div>
+                <div className="rounded-3xl bg-black/20 border border-white/10 p-4 md:col-span-2">
+                  <ImageUploadInline
+                    label="Avatar"
+                    value={avatarUrlInput}
+                    onChange={setAvatarUrlInput}
+                    help="Загрузится и сохранится на сервере (Render persistent disk)."
+                    showUrl
+                  />
+                </div>
+              </div>
+
+              <div className="mt-3 flex items-center gap-2">
+                <button
+                  onClick={saveProfile}
+                  disabled={saving}
+                  className={cn(
+                    "h-11 px-4 rounded-2xl bg-accent text-black font-extrabold",
+                    saving ? "opacity-70" : "hover:brightness-110"
+                  )}
+                >
+                  {saving ? "Saving…" : "Save profile"}
+                </button>
+                <div className="text-white/45 text-xs">Аватар теперь загружается через Upload.</div>
+              </div>
             </div>
-</div>
 
             <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
               <StatCard icon={<Trophy className="h-4 w-4" />} label="Winrate" value={profile ? `${profile.winrate}%` : "—"} />
@@ -279,15 +283,7 @@ export default function ArenaProfileClient() {
   );
 }
 
-function StatCard({
-  icon,
-  label,
-  value,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-}) {
+function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
     <div className="rounded-3xl bg-white/6 border border-white/10 p-4">
       <div className="flex items-center justify-between">

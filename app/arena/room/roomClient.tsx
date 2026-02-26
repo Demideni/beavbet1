@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Image from "next/image";
 import ArenaShell from "../ArenaShell";
 import { cn } from "@/components/utils/cn";
 import DmModal from "@/components/arena/DmModal";
+import ImageUploadInline from "@/components/arena/ImageUploadInline";
 
 type Room = {
   userId: string;
@@ -85,7 +85,6 @@ export default function RoomClient({ userId }: { userId?: string }) {
       const j2 = await r2.json().catch(() => ({}));
       setPosts(Array.isArray(j2?.posts) ? j2.posts : []);
 
-      // If not me — load friend status via existing endpoint
       const targetId = userId || j?.room?.userId;
       if (targetId && j?.meId && targetId !== j.meId) {
         const rp = await fetch(`/api/arena/player?id=${encodeURIComponent(targetId)}`, { cache: "no-store" });
@@ -155,7 +154,6 @@ export default function RoomClient({ userId }: { userId?: string }) {
       alert(j?.error || "Failed");
       return;
     }
-    // status returned: pending / accepted
     setFriendStatus(j?.status === "accepted" ? "accepted" : "pending_outgoing");
   }
 
@@ -163,7 +161,6 @@ export default function RoomClient({ userId }: { userId?: string }) {
     <ArenaShell>
       <div className="mx-auto max-w-[1400px] px-3 md:px-6 pb-10">
         <div className="rounded-3xl border border-white/10 bg-black/35 backdrop-blur-xl overflow-hidden">
-          {/* Header / background */}
           <div
             className="relative h-[220px] md:h-[260px] border-b border-white/10"
             style={{
@@ -172,31 +169,26 @@ export default function RoomClient({ userId }: { userId?: string }) {
               backgroundPosition: "center",
             }}
           >
-            {!room?.backgroundUrl && (
-              <div className="absolute inset-0 bg-gradient-to-r from-black/50 via-black/35 to-black/60" />
-            )}
+            {!room?.backgroundUrl && <div className="absolute inset-0 bg-gradient-to-r from-black/50 via-black/35 to-black/60" />}
             <div className="absolute inset-0 bg-black/35" />
             <div className="relative z-10 h-full flex items-end">
               <div className="w-full p-4 md:p-6 flex items-end justify-between gap-4">
                 <div className="flex items-end gap-4">
                   <div className="relative h-20 w-20 md:h-24 md:w-24 rounded-3xl overflow-hidden border border-white/15 bg-black/40">
                     {room?.avatarUrl ? (
-                      <Image src={room.avatarUrl} alt="avatar" fill className="object-cover" />
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={room.avatarUrl} alt="avatar" className="h-full w-full object-cover" />
                     ) : (
                       <div className="h-full w-full grid place-items-center text-white/40 text-xs">NO AVATAR</div>
                     )}
                   </div>
                   <div className="pb-1">
-                    <div className="text-white text-xl md:text-2xl font-extrabold tracking-tight">
-                      {profile?.nickname || "Player"}
-                    </div>
+                    <div className="text-white text-xl md:text-2xl font-extrabold tracking-tight">{profile?.nickname || "Player"}</div>
                     <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
                       <Badge>{profile ? `BeavRank: ${profile.elo}` : "BeavRank: —"}</Badge>
                       <Badge>{profile?.division || "—"}</Badge>
                       <Badge>{profile?.place ? `#${profile.place} в арене` : "#—"}</Badge>
-                      <Badge>
-                        {profile ? `${profile.wins}W / ${profile.losses}L (${profile.winrate}%)` : "—"}
-                      </Badge>
+                      <Badge>{profile ? `${profile.wins}W / ${profile.losses}L (${profile.winrate}%)` : "—"}</Badge>
                     </div>
                     {room?.bio && <div className="mt-2 text-white/80 text-sm max-w-[680px]">{room.bio}</div>}
                   </div>
@@ -224,11 +216,7 @@ export default function RoomClient({ userId }: { userId?: string }) {
                       onClick={addFriend}
                       disabled={friendStatus === "accepted" || friendStatus === "pending_outgoing"}
                     >
-                      {friendStatus === "accepted"
-                        ? "Friends"
-                        : friendStatus === "pending_outgoing"
-                        ? "Request sent"
-                        : "Add friend"}
+                      {friendStatus === "accepted" ? "Friends" : friendStatus === "pending_outgoing" ? "Request sent" : "Add friend"}
                     </button>
                   </div>
                 )}
@@ -236,71 +224,50 @@ export default function RoomClient({ userId }: { userId?: string }) {
             </div>
           </div>
 
-          {/* Body */}
           <div className="p-4 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* Left column: settings (only for me) */}
             <div className="lg:col-span-4">
               <div className="rounded-3xl border border-white/10 bg-black/30 p-4 md:p-5">
                 <div className="text-white font-extrabold tracking-tight">Комната</div>
                 <div className="mt-1 text-white/55 text-xs">Фон / аватар / описание</div>
 
                 {!isMe ? (
-                  <div className="mt-4 text-white/55 text-sm">
-                    Настройки доступны только владельцу комнаты.
-                  </div>
+                  <div className="mt-4 text-white/55 text-sm">Настройки доступны только владельцу комнаты.</div>
                 ) : (
-                  <>
-                    <div className="mt-4 grid gap-3">
-                      <Field
-                        label="Background URL"
-                        value={editBg}
-                        onChange={setEditBg}
-                        placeholder="https://..."
-                      />
-                      <Field
-                        label="Avatar URL"
-                        value={editAvatar}
-                        onChange={setEditAvatar}
-                        placeholder="https://..."
-                      />
-                      <Field
-                        label="Bio"
-                        value={editBio}
-                        onChange={setEditBio}
-                        placeholder="Коротко о себе..."
-                        textarea
-                      />
-                      <button
-                        type="button"
-                        onClick={saveRoom}
-                        className="rounded-2xl px-4 py-2 bg-accent text-black font-extrabold hover:brightness-110"
-                      >
-                        Сохранить
-                      </button>
-                    </div>
-                  </>
+                  <div className="mt-4 grid gap-3">
+                    <ImageUploadInline
+                      label="Фон комнаты"
+                      value={editBg}
+                      onChange={setEditBg}
+                      help="Файл сохранится как /api/arena/uploads/..."
+                      showUrl
+                    />
+                    <ImageUploadInline
+                      label="Аватар комнаты"
+                      value={editAvatar}
+                      onChange={setEditAvatar}
+                      help="Отдельный от аватара профиля"
+                      showUrl
+                    />
+                    <Field label="Bio" value={editBio} onChange={setEditBio} placeholder="Коротко о себе..." textarea />
+                    <button
+                      type="button"
+                      onClick={saveRoom}
+                      className="rounded-2xl px-4 py-2 bg-accent text-black font-extrabold hover:brightness-110"
+                    >
+                      Сохранить
+                    </button>
+                  </div>
                 )}
               </div>
 
               {isMe && (
                 <div className="mt-6 rounded-3xl border border-white/10 bg-black/30 p-4 md:p-5">
                   <div className="text-white font-extrabold tracking-tight">Новый пост</div>
-                  <div className="mt-1 text-white/55 text-xs">Текст + опционально ссылка на фото</div>
+                  <div className="mt-1 text-white/55 text-xs">Текст + опционально фото (upload)</div>
 
                   <div className="mt-4 grid gap-3">
-                    <Field
-                      label="Text"
-                      value={postText}
-                      onChange={setPostText}
-                      placeholder="Что нового?"
-                      textarea
-                    />
-                    <Field
-                      label="Image URL (optional)"
-                      value={postImage}
-                      onChange={setPostImage}
-                      placeholder="https://..."
-                    />
+                    <Field label="Text" value={postText} onChange={setPostText} placeholder="Что нового?" textarea />
+                    <ImageUploadInline label="Фото (optional)" value={postImage} onChange={setPostImage} help="Можно оставить пустым" showUrl />
                     <button
                       type="button"
                       onClick={createPost}
@@ -313,7 +280,6 @@ export default function RoomClient({ userId }: { userId?: string }) {
               )}
             </div>
 
-            {/* Right column: feed */}
             <div className="lg:col-span-8">
               <div className="rounded-3xl border border-white/10 bg-black/30 p-4 md:p-5">
                 <div className="flex items-baseline justify-between gap-3">
@@ -326,9 +292,7 @@ export default function RoomClient({ userId }: { userId?: string }) {
 
                 <div className="mt-4 grid gap-4">
                   {posts.length === 0 ? (
-                    <div className="rounded-2xl border border-white/10 bg-white/3 p-4 text-white/55 text-sm">
-                      Тут пока пусто.
-                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-white/3 p-4 text-white/55 text-sm">Тут пока пусто.</div>
                   ) : (
                     posts.map((p) => (
                       <div key={p.id} className="rounded-3xl border border-white/10 bg-white/3 overflow-hidden">
@@ -338,7 +302,8 @@ export default function RoomClient({ userId }: { userId?: string }) {
                         </div>
                         {p.imageUrl && (
                           <div className="relative w-full h-[260px] md:h-[340px] border-t border-white/10 bg-black/20">
-                            <Image src={p.imageUrl} alt="post" fill className="object-cover" />
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={p.imageUrl} alt="post" className="h-full w-full object-cover" />
                           </div>
                         )}
                       </div>
@@ -350,14 +315,8 @@ export default function RoomClient({ userId }: { userId?: string }) {
           </div>
         </div>
 
-        {/* DM modal */}
         {!isMe && room?.userId && (
-          <DmModal
-            open={dmOpen}
-            onClose={() => setDmOpen(false)}
-            withUserId={room.userId}
-            withNick={profile?.nickname || null}
-          />
+          <DmModal open={dmOpen} onClose={() => setDmOpen(false)} withUserId={room.userId} withNick={profile?.nickname || null} />
         )}
       </div>
     </ArenaShell>
@@ -365,11 +324,7 @@ export default function RoomClient({ userId }: { userId?: string }) {
 }
 
 function Badge({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="px-2.5 py-1 rounded-2xl bg-black/40 border border-white/10 text-white/85">
-      {children}
-    </div>
-  );
+  return <div className="px-2.5 py-1 rounded-2xl bg-black/40 border border-white/10 text-white/85">{children}</div>;
 }
 
 function Field({

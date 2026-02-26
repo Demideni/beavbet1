@@ -118,9 +118,13 @@ export function Topbar() {
 
     let es: EventSource | null = null;
     let poll: any = null;
-    // Arena notifications stream (single-instance realtime). Also keep polling as fallback.
-    es = new EventSource("/api/arena/notifications/stream");
-    es.onmessage = (ev) => {
+
+    // Arena notifications stream (single-instance realtime).
+    // Important: some environments (or strict blockers) can throw on EventSource construction.
+    if (typeof EventSource !== "undefined") {
+      try {
+        es = new EventSource("/api/arena/notifications/stream");
+        es.onmessage = (ev) => {
       try {
         const data = JSON.parse(ev.data);
         if (data?.type === "friend_request") {
@@ -146,6 +150,9 @@ export function Topbar() {
       } catch {}
       es = null;
     };
+      } catch {}
+    }
+
 
     poll = setInterval(fetchNotif, 12000);
 

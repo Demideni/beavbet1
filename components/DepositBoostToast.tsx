@@ -29,10 +29,13 @@ export default function DepositBoostToast({
 
   const [hidden, setHidden] = useState(true);
   const [endAt, setEndAt] = useState<number | null>(null);
+  // IMPORTANT: avoid hydration mismatch (React #310/#418).
+  // Date.now() in initial state renders different HTML on server vs client.
+  const [mounted, setMounted] = useState(false);
   const [now, setNow] = useState(0);
 
-  // Avoid hydration mismatch: Date.now() during render differs on server vs client.
   useEffect(() => {
+    setMounted(true);
     setNow(Date.now());
   }, []);
 
@@ -57,10 +60,10 @@ export default function DepositBoostToast({
   }, [storageKey, ttlMs]);
 
   useEffect(() => {
-    if (hidden || !endAt) return;
+    if (!mounted || hidden || !endAt) return;
     const id = setInterval(() => setNow(Date.now()), 300);
     return () => clearInterval(id);
-  }, [hidden, endAt]);
+  }, [mounted, hidden, endAt]);
 
   const remainingMs = useMemo(
     () => (endAt ? Math.max(0, endAt - now) : 0),
@@ -71,7 +74,7 @@ export default function DepositBoostToast({
   const mm = Math.floor(sec / 60);
   const ss = sec % 60;
 
-  if (hidden || remainingMs <= 0) return null;
+  if (!mounted || hidden || remainingMs <= 0) return null;
 
   const dismiss = () => {
     setHidden(true);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { MessageSquare, Send, X } from "lucide-react";
 import DmModal from "@/components/arena/DmModal";
 
@@ -13,8 +13,7 @@ type ChatMsg = {
   streamerBadge?: string | null;
 };
 
-function fmtTime(ts: number, mounted: boolean) {
-  if (!mounted) return "";
+function fmtTime(ts: number) {
   const d = new Date(ts);
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
@@ -28,21 +27,34 @@ export default function ArenaChatWidget({
    */
   mode?: "floating" | "sidebar";
 }) {
-  const [openMobile, setOpenMobile] = useState(false);
+  // IMPORTANT: avoid hydration mismatch (React #310/#418).
+  // - window.matchMedia during render can differ server vs client
+  // - toLocaleTimeString depends on locale/timezone
   const [mounted, setMounted] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [openMobile, setOpenMobile] = useState(false);
   const [msgs, setMsgs] = useState<ChatMsg[]>([]);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [openDm, setOpenDm] = useState<{ id: string; nick?: string | null } | null>(null);
   const boxRef = useRef<HTMLDivElement | null>(null);
 
-  const isMobile = useMemo(() => {
-    if (typeof window === "undefined") return false;
-    return window.matchMedia("(max-width: 768px)").matches;
-  }, []);
-
   useEffect(() => {
     setMounted(true);
+    try {
+      const mq = window.matchMedia("(max-width: 768px)");
+      const on = () => setIsMobile(Boolean(mq.matches));
+      on();
+      mq.addEventListener?.("change", on);
+      // safari fallback
+      mq.addListener?.(on as any);
+      return () => {
+        mq.removeEventListener?.("change", on);
+        mq.removeListener?.(on as any);
+      };
+    } catch {
+      // ignore
+    }
   }, []);
 
   useEffect(() => {
@@ -137,7 +149,7 @@ export default function ArenaChatWidget({
         >
           {msgs.map((m) => (
             <div key={m.id} className="flex gap-2 py-1">
-              <div className="text-white/35 shrink-0 w-[42px]">{fmtTime(m.created_at, mounted)}</div>
+              <div className="text-white/35 shrink-0 w-[42px]">{mounted ? fmtTime(m.created_at) : ""}</div>
               <div className="min-w-0">
                 <button
                   className="text-emerald-400 font-semibold hover:underline"

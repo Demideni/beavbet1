@@ -15,10 +15,12 @@ type ThreadRow = {
 };
 
 export default function ArenaMessagesPanel() {
+  // IMPORTANT: avoid hydration mismatch (React #310/#418)
+  // due to toLocaleTimeString() being locale/timezone dependent.
+  const [mounted, setMounted] = useState(false);
   const [threads, setThreads] = useState<ThreadRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<{ id: string; nick?: string | null } | null>(null);
-  const [mounted, setMounted] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -30,9 +32,6 @@ export default function ArenaMessagesPanel() {
 
   useEffect(() => {
     setMounted(true);
-  }, []);
-
-  useEffect(() => {
     load();
     const t = setInterval(load, 8000);
     return () => clearInterval(t);
@@ -84,7 +83,9 @@ export default function ArenaMessagesPanel() {
                             </span>
                           ) : null}
                         </div>
-                        <div className="text-white/35 text-[11px]">{mounted ? new Date(Number(t.updatedAt)).toLocaleTimeString() : ""}</div>
+                        <div className="text-white/35 text-[11px]">
+                          {mounted ? new Date(Number(t.updatedAt)).toLocaleTimeString() : ""}
+                        </div>
                       </div>
                       <div className="text-white/60 text-sm mt-1 truncate">{t.lastMessage || ""}</div>
                     </button>

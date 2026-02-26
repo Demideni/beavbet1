@@ -7,6 +7,8 @@ import { Crosshair, Trophy, Wallet, Users, ArrowRight } from "lucide-react";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import { cn } from "@/components/utils/cn";
 import ArenaShell from "./ArenaShell";
+import { TournamentHero } from "@/components/arena/TournamentHero";
+import { featuredTournamentZava } from "@/components/arena/FeaturedTournamentData";
 
 type Duel = {
   id: string;
@@ -158,6 +160,11 @@ export default function ArenaClient() {
             </div>
           </div>
 
+          {/* Featured tournament */}
+          <div className="mt-4">
+            <TournamentHero t={featuredTournamentZava} />
+          </div>
+
           {/* Main tiles */}
           <div className="mt-4 rounded-3xl border border-white/10 bg-black/30 p-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -242,35 +249,37 @@ export default function ArenaClient() {
                     <div key={tt.id} className="rounded-2xl bg-white/5 border border-white/10 px-4 py-3">
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
-                          <div className="text-white font-semibold">{tt.game} • {tt.title}</div>
+                          <div className="text-white font-semibold">
+                            {tt.game} • {tt.title}
+                          </div>
                           <div className="mt-1 text-white/60 text-sm">
-                            Entry <span className="text-white/85 font-semibold">{tt.entryFee} {tt.currency}</span> • {tt.players}/{tt.maxPlayers}
+                            Entry <span className="text-white/85 font-semibold">{tt.entryFee} {tt.currency}</span> •{" "}
+                            {tt.players}/{tt.maxPlayers}
                           </div>
                         </div>
 
                         <div className="flex items-center gap-2">
-                          <Link
-                            href={`/arena/${tt.id}`}
-                            className="px-4 py-2 rounded-2xl bg-white/6 border border-white/10 hover:bg-white/10 text-sm text-white/85"
-                          >
-                            Open
-                          </Link>
-                          <button
-                            disabled={!isOpen || busy === tt.id}
-                            onClick={() => join(tt.id)}
-                            className={cn(
-                              "px-4 py-2 rounded-2xl text-sm font-semibold",
-                              isOpen ? "btn-accent" : "bg-white/10 text-white/40",
-                              busy === tt.id && "opacity-70"
-                            )}
-                          >
-                            {isOpen ? (busy === tt.id ? "…" : "JOIN") : tt.status.toUpperCase()}
-                          </button>
-                        </div>
-                      </div>
+                          <div className="hidden sm:block w-36 h-2 rounded-full bg-white/10 overflow-hidden border border-white/10">
+                            <div className="h-full rounded-full bg-white/35" style={{ width: `${pct}%` }} />
+                          </div>
 
-                      <div className="mt-3 h-2 rounded-full bg-white/8 overflow-hidden">
-                        <div className="h-full bg-accent" style={{ width: `${pct}%` }} />
+                          {isOpen ? (
+                            <button
+                              onClick={() => join(tt.id)}
+                              disabled={busy === tt.id}
+                              className={cn(
+                                "px-4 py-2 rounded-2xl font-extrabold text-black",
+                                busy === tt.id ? "bg-white/40" : "btn-accent"
+                              )}
+                            >
+                              {busy === tt.id ? "…" : "Join"}
+                            </button>
+                          ) : (
+                            <div className="px-3 py-1 rounded-full bg-white/10 border border-white/10 text-white/80 text-xs font-bold">
+                              {tt.status.toUpperCase()}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
@@ -280,77 +289,85 @@ export default function ArenaClient() {
           </div>
         </main>
 
-        {/* Right rail */}
-        <aside className="h-fit grid gap-4">
+        {/* Right sidebar */}
+        <aside className="min-w-0">
+          {/* Wallet / profile card */}
           <div className="rounded-3xl border border-white/10 bg-black/30 p-4">
-            <div className="flex items-center justify-between">
-              <div className="text-white font-extrabold">Кошелёк</div>
-              <div className="h-9 w-9 rounded-2xl bg-white/6 border border-white/10 flex items-center justify-center">
-                <Wallet className="h-4 w-4 text-white" />
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-2xl bg-white/7 border border-white/10 grid place-items-center">
+                <Wallet className="h-5 w-5 text-white" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-white font-extrabold truncate">{t("arena.profile")}</div>
+                <div className="text-white/60 text-sm">{t("arena.profile.subtitle")}</div>
               </div>
             </div>
-            <div className="mt-3 text-white/65 text-sm">Депозит и вывод — в верхнем правом кошельке сайта.</div>
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              <Link href="/cashier" className="rounded-2xl px-3 py-2 bg-white/6 border border-white/10 hover:bg-white/10 text-white/90 text-sm text-center">
-                Deposit
+
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <Link href="/payments" className="rounded-2xl bg-white/5 border border-white/10 hover:bg-white/7 px-3 py-3">
+                <div className="text-white font-extrabold">Wallet</div>
+                <div className="text-white/60 text-sm mt-1">Deposit / Withdraw</div>
               </Link>
-              <Link href="/withdraw" className="rounded-2xl px-3 py-2 bg-white/6 border border-white/10 hover:bg-white/10 text-white/90 text-sm text-center">
-                Withdraw
+              <Link href="/arena/profile" className="rounded-2xl bg-white/5 border border-white/10 hover:bg-white/7 px-3 py-3">
+                <div className="text-white font-extrabold">Profile</div>
+                <div className="text-white/60 text-sm mt-1">Friends / Messages</div>
               </Link>
             </div>
           </div>
 
-          <div className="rounded-3xl border border-white/10 bg-black/30 p-4">
-            <div className="flex items-center justify-between">
-              <div className="text-white font-extrabold">Группы</div>
-              <div className="text-white/55 text-sm">{Math.max(1, Math.min(99, myDuels.length + 1))}</div>
+          {/* Activity */}
+          <div className="mt-4 rounded-3xl border border-white/10 bg-black/30 p-4">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-2xl bg-white/7 border border-white/10 grid place-items-center">
+                <Users className="h-5 w-5 text-white" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-white font-extrabold truncate">{t("arena.activity")}</div>
+                <div className="text-white/60 text-sm">{t("arena.activity.subtitle")}</div>
+              </div>
             </div>
-            <div className="mt-3 rounded-2xl bg-white/5 border border-white/10 px-4 py-3 text-white/80 text-sm font-semibold text-center">
-              PARTY FINDER
-            </div>
-          </div>
 
-          <div className="rounded-3xl border border-white/10 bg-black/30 p-4">
-            <div className="flex items-center justify-between">
-              <div className="text-white font-extrabold">Клубы</div>
-              <div className="text-white/55 text-sm">452</div>
-            </div>
-            <div className="mt-3 grid gap-2">
-              <ClubRow title="ZOTIX ACADEMY" subtitle="twitch inkmateo" />
-              <ClubRow title="BIG Club" subtitle="BIG Clan" />
-              <ClubRow title="BeavBet Arena" subtitle="Official" />
-            </div>
-            <Link
-              href="/arena/clans"
-              className="mt-3 block text-center rounded-2xl px-3 py-2 bg-white/6 border border-white/10 hover:bg-white/10 text-white/90 text-sm font-semibold"
-            >
-              DISCOVER CLUBS
-            </Link>
-          </div>
-
-          <div className="rounded-3xl border border-white/10 bg-black/30 p-4">
-            <div className="text-white font-extrabold">Live activity</div>
-            <div className="mt-3 grid gap-2">
-              {activity.length === 0 ? (
-                <div className="text-white/60 text-sm">Пока пусто</div>
+            <div className="mt-4 grid gap-2">
+              {loading ? (
+                <div className="text-white/60">{t("common.loading")}</div>
+              ) : activity.length === 0 ? (
+                <div className="text-white/60">{t("arena.noActivity")}</div>
               ) : (
-                activity.slice(0, 6).map((a) => (
-                  <div key={a.id} className="rounded-2xl px-3 py-2 bg-white/5 border border-white/10">
-                    <div className="text-white/85 text-sm">
+                activity.slice(0, 10).map((a) => (
+                  <div key={a.id} className="rounded-2xl bg-white/5 border border-white/10 px-4 py-3">
+                    <div className="text-white/85 text-sm font-semibold">
                       {a.kind === "duel_done" ? (
                         <>
-                          {a.winner_nick || "Player"} won {a.stake} {a.currency}
+                          Победа: <span className="text-white font-extrabold">{a.winner_nick || "Player"}</span>
                         </>
+                      ) : a.kind === "duel_active" ? (
+                        <>Дуэль началась</>
                       ) : (
-                        <>
-                          Duel {a.stake} {a.currency} is {a.kind === "duel_open" ? "open" : "active"}
-                        </>
+                        <>Новая дуэль</>
                       )}
                     </div>
-                    <div className="text-white/55 text-xs mt-1">{prettyTime(a.at)}</div>
+                    <div className="text-white/60 text-sm mt-1">
+                      {a.stake} {a.currency} • {prettyTime(a.at)}
+                    </div>
                   </div>
                 ))
               )}
+            </div>
+          </div>
+
+          {/* Quick links */}
+          <div className="mt-4 rounded-3xl border border-white/10 bg-black/30 p-4">
+            <div className="text-white font-extrabold">Quick</div>
+            <div className="mt-3 grid gap-2">
+              <Link href="/arena/duels/cs2" className="rounded-2xl bg-white/5 border border-white/10 hover:bg-white/7 px-4 py-3">
+                Дуэли <ArrowRight className="inline h-4 w-4 ml-1" />
+              </Link>
+              <Link href="/arena/tournaments" className="rounded-2xl bg-white/5 border border-white/10 hover:bg-white/7 px-4 py-3">
+                Турниры <ArrowRight className="inline h-4 w-4 ml-1" />
+              </Link>
+              <Link href="/arena/leaderboard" className="rounded-2xl bg-white/5 border border-white/10 hover:bg-white/7 px-4 py-3">
+                Лига <ArrowRight className="inline h-4 w-4 ml-1" />
+              </Link>
             </div>
           </div>
         </aside>
@@ -359,6 +376,7 @@ export default function ArenaClient() {
   );
 }
 
+/** Tile (FACEIT-ish) */
 function FaceTile({
   title,
   subtitle,
@@ -370,47 +388,19 @@ function FaceTile({
   href: string;
   bgSrc: string;
 }) {
-  const isHash = href.startsWith("#");
-  const cls =
-    "group rounded-3xl bg-black/25 border border-white/10 hover:border-white/15 overflow-hidden block";
-  const inner = (
-    <>
-      <div className="h-[130px] relative">
-        <Image src={bgSrc} alt="" fill className="object-cover opacity-90 group-hover:opacity-100 transition" sizes="(max-width: 1024px) 100vw, 420px" />
-        {/* Overlays (FACEIT-like) */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent" />
-        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition">
-          <div className="absolute -left-1/3 top-0 h-full w-1/2 rotate-12 bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-        </div>
-        <div className="absolute bottom-0 left-0 right-0 bg-accent/90 h-1" />
+  return (
+    <Link
+      href={href}
+      className="relative rounded-3xl overflow-hidden border border-white/10 bg-black/35 hover:bg-black/45 transition"
+    >
+      <div className="absolute inset-0 opacity-55">
+        <Image src={bgSrc} alt="" fill className="object-cover" sizes="(max-width: 768px) 100vw, 420px" />
       </div>
-      <div className="p-4">
-        <div className="text-white font-extrabold">{title}</div>
+      <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/45 to-transparent" />
+      <div className="relative p-4">
+        <div className="text-white font-extrabold text-lg">{title}</div>
         <div className="text-white/60 text-sm mt-1">{subtitle}</div>
       </div>
-    </>
-  );
-
-  if (isHash) {
-    return (
-      <a href={href} className={cls}>
-        {inner}
-      </a>
-    );
-  }
-
-  return (
-    <Link href={href} className={cls}>
-      {inner}
     </Link>
-  );
-}
-
-function ClubRow({ title, subtitle }: { title: string; subtitle: string }) {
-  return (
-    <div className="rounded-2xl bg-white/5 border border-white/10 p-3">
-      <div className="text-white/90 text-sm font-semibold truncate">{title}</div>
-      <div className="text-white/55 text-xs mt-0.5 truncate">{subtitle}</div>
-    </div>
   );
 }

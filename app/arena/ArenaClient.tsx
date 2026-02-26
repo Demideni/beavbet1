@@ -58,6 +58,10 @@ function prettyTime(ts: string) {
 export default function ArenaClient() {
   const { t } = useI18n();
 
+  // Avoid SSR/client hydration mismatch (React error #310) caused by
+  // non-deterministic values during render (e.g. Date.now() used in prettyTime()).
+  const [mounted, setMounted] = useState(false);
+
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [openDuels, setOpenDuels] = useState<Duel[]>([]);
@@ -66,6 +70,10 @@ export default function ArenaClient() {
   const [activity, setActivity] = useState<Activity[]>([]);
   const [myRating, setMyRating] = useState(1000);
   const [ratingName, setRatingName] = useState("Silver");
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -210,7 +218,9 @@ export default function ArenaClient() {
                       <div className="text-white font-semibold truncate">
                         {d.p1_nick || "Player"} <span className="text-white/35">vs</span> {d.p2_nick || "Waiting…"}
                       </div>
-                      <div className="text-white/55 text-sm mt-1 truncate">CS2 • {d.map || "Map"} • {prettyTime(d.updated_at)}</div>
+                      <div className="text-white/55 text-sm mt-1 truncate">
+                        CS2 • {d.map || "Map"} • {mounted ? prettyTime(d.updated_at) : ""}
+                      </div>
                     </div>
                     <div className="text-right shrink-0">
                       <div className="text-white font-extrabold">
@@ -347,7 +357,7 @@ export default function ArenaClient() {
                         </>
                       )}
                     </div>
-                    <div className="text-white/55 text-xs mt-1">{prettyTime(a.at)}</div>
+                    <div className="text-white/55 text-xs mt-1">{mounted ? prettyTime(a.at) : ""}</div>
                   </div>
                 ))
               )}

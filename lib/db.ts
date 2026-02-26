@@ -16,12 +16,14 @@ import { randomUUID } from "node:crypto";
  *    - локально ./data
  * 3) DB_PATH = DATA_DIR/beavbet.db
  */
-const DATA_DIR =
-  process.env.DB_PATH
-    ? path.dirname(process.env.DB_PATH)
-    : (process.env.RENDER_DISK_PATH ||
-        process.env.BEAVBET_DATA_DIR ||
-        (process.env.RENDER ? "/var/data" : path.join(process.cwd(), "data")));
+// NOTE (Render): do NOT assume a persistent disk is mounted.
+// If you want to use a Render Disk, set RENDER_DISK_PATH (or BEAVBET_DATA_DIR / DB_PATH).
+// Otherwise we fall back to a local ./data directory inside the app (works on Render too).
+const DATA_DIR = process.env.DB_PATH
+  ? path.dirname(process.env.DB_PATH)
+  : (process.env.RENDER_DISK_PATH ||
+      process.env.BEAVBET_DATA_DIR ||
+      path.join(process.cwd(), "data"));
 
 const DB_PATH =
   process.env.DB_PATH || path.join(DATA_DIR, "beavbet.db");

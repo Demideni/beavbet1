@@ -23,6 +23,9 @@ export function Topbar() {
   const lastUnreadRef = useRef(0);
   const lastFriendRef = useRef(0);
 
+  // ✅ FIX: hide topbar on landing page
+  if (pathname === "/") return null;
+
   function playPing() {
     try {
       const Ctx = (window as any).AudioContext || (window as any).webkitAudioContext;
@@ -37,8 +40,12 @@ export function Topbar() {
       g.connect(ctx.destination);
       o.start();
       setTimeout(() => {
-        try { o.stop(); } catch {}
-        try { ctx.close(); } catch {}
+        try {
+          o.stop();
+        } catch {}
+        try {
+          ctx.close();
+        } catch {}
       }, 140);
     } catch {}
   }
@@ -50,7 +57,6 @@ export function Topbar() {
       setToasts((prev) => prev.filter((x) => x.id !== id));
     }, 4500);
   }
-
 
   async function fetchNotif() {
     const r = await fetch("/api/arena/notifications", { cache: "no-store" });
@@ -135,7 +141,9 @@ export function Topbar() {
       } catch {}
     };
     es.onerror = () => {
-      try { es?.close(); } catch {}
+      try {
+        es?.close();
+      } catch {}
       es = null;
     };
 
@@ -147,7 +155,9 @@ export function Topbar() {
         mq?.removeEventListener?.("change", onMq);
         mq?.removeListener?.(onMq as any);
       } catch {}
-      try { es?.close(); } catch {}
+      try {
+        es?.close();
+      } catch {}
       if (poll) clearInterval(poll);
     };
   }, []);
@@ -211,37 +221,36 @@ export function Topbar() {
                   aria-label="Notifications"
                 >
                   <Bell className="size-5 text-white/85" />
-                  {(incomingFriends + unreadDm) > 0 ? (
+                  {incomingFriends + unreadDm > 0 ? (
                     <span className="absolute -top-1 -right-1 h-5 min-w-5 px-1 rounded-full bg-accent text-black text-xs font-extrabold flex items-center justify-center">
                       {incomingFriends + unreadDm}
                     </span>
                   ) : null}
                 </button>
 
-                {/* flag-only */}
-                <LanguageSwitcher compact />
+                <Link
+                  href="/account"
+                  className="inline-flex items-center justify-center size-11 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/8"
+                  aria-label={t("topbar.cabinet")}
+                >
+                  <Settings className="size-5 text-white/85" />
+                </Link>
 
                 <Link
                   href="/arena/profile"
-                  className="inline-flex items-center gap-2 px-3 py-2 rounded-2xl bg-white/8 border border-white/10 text-sm hover:bg-white/10"
+                  className="inline-flex items-center justify-center size-11 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/8"
                   aria-label={t("topbar.profile")}
                 >
-                  <span className="size-8 rounded-2xl bg-white/10 border border-white/10 flex items-center justify-center font-semibold">
-                    {initials}
-                  </span>
-                  <span className="hidden sm:block">{t("topbar.profile")}</span>
+                  <span className="text-white font-extrabold">{initials}</span>
                 </Link>
               </>
             ) : (
-              <>
-                <LanguageSwitcher compact />
-                <Link
-                  href="/auth?tab=login"
-                  className="px-4 py-2 rounded-2xl bg-white/8 border border-white/10 text-sm hover:bg-white/10"
-                >
-                  {t("topbar.login")}
-                </Link>
-              </>
+              <Link
+                href="/auth"
+                className="px-4 py-2 rounded-2xl bg-white/10 hover:bg-white/15 text-white font-semibold"
+              >
+                {t("topbar.login")}
+              </Link>
             )}
           </div>
         </div>
@@ -249,99 +258,105 @@ export function Topbar() {
     );
   }
 
+  // Default site topbar
   return (
-    <header className="sticky top-0 z-40 backdrop-blur-md bg-bg/70 border-b border-white/5">
-      <div className="h-16 px-4 lg:px-6 flex items-center gap-3">
-        <Logo />
+    <header className="sticky top-0 z-40 bg-[#0B1120]/75 backdrop-blur-md border-b border-white/10">
+      <div className="h-16 px-4 lg:px-6 flex items-center gap-4">
+        <Logo subtitle="Crypto Casino" href="/" />
 
-        {/* Mobile: square бонусы icon like in the reference */}
-        <Link
-          href="/bonuses"
-          className="md:hidden inline-flex items-center justify-center size-11 rounded-2xl icon-pill text-white/85"
-          aria-label={t("topbar.bonuses")}
-        >
-          <Gift className="size-5" />
-        </Link>
+        <div className="hidden md:flex items-center gap-3">
+          <Link
+            href="/bonuses"
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/8 text-white/85"
+          >
+            <Gift className="size-5" />
+            <span className="text-sm font-semibold">{t("topbar.bonuses")}</span>
+          </Link>
+        </div>
 
-        {/* Desktop: бонусы + search */}
-        <button className="hidden md:inline-flex items-center gap-2 px-3 py-2 rounded-xl icon-pill text-sm text-white/80 hover:text-white">
-          <span className="text-base">🎁</span>
-          {t("topbar.bonuses")}
-        </button>
-
-        <div className="hidden md:flex flex-1 items-center">
-          <div className="w-full max-w-md relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-white/45" />
+        <div className="flex-1 hidden md:flex items-center">
+          <div className="relative w-full max-w-[520px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-5 text-white/55" />
             <input
               placeholder={t("topbar.searchPlaceholder")}
-              className={cn(
-                "w-full pl-10 pr-3 py-2.5 rounded-xl",
-                "bg-white/5 border border-white/10",
-                "outline-none focus:border-white/20 focus:bg-white/7",
-                "text-sm text-white/85 placeholder:text-white/35"
-              )}
+              className="w-full h-11 pl-10 pr-4 rounded-2xl bg-white/5 border border-white/10 text-white/90 placeholder:text-white/45 outline-none focus:border-white/20"
             />
           </div>
         </div>
 
-        <div className="flex items-center gap-2 ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          <LanguageSwitcher />
+
           {user ? (
-            <div className="flex items-center gap-2">
+            <>
               {balanceText ? (
                 <Link
                   href="/payments"
-                  className="inline-flex items-center px-3 py-2 rounded-2xl bg-white/5 border border-white/10 text-sm text-white/85 hover:bg-white/8"
-                  aria-label={t("topbar.balance")}
+                  className="hidden sm:inline-flex items-center px-3 py-2 rounded-2xl bg-white/5 border border-white/10 text-sm text-white/85 hover:bg-white/8"
                 >
                   {balanceText}
                 </Link>
               ) : null}
+
               <Link
-                href="/arena/profile"
-                className="inline-flex items-center gap-2 px-3 py-2 rounded-2xl bg-white/8 border border-white/10 text-sm hover:bg-white/10"
+                href="/arena/profile?tab=messages"
+                className="relative inline-flex items-center justify-center size-11 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/8"
+                aria-label="Messages"
+              >
+                <MessageCircle className="size-5 text-white/85" />
+                {unreadDm > 0 ? (
+                  <span className="absolute -top-1 -right-1 h-5 min-w-5 px-1 rounded-full bg-accent text-black text-xs font-extrabold flex items-center justify-center">
+                    {unreadDm}
+                  </span>
+                ) : null}
+              </Link>
+
+              <Link
+                href="/arena/profile?tab=friends"
+                className="relative inline-flex items-center justify-center size-11 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/8"
+                aria-label="Friends"
+              >
+                <Bell className="size-5 text-white/85" />
+                {incomingFriends > 0 ? (
+                  <span className="absolute -top-1 -right-1 h-5 min-w-5 px-1 rounded-full bg-accent text-black text-xs font-extrabold flex items-center justify-center">
+                    {incomingFriends}
+                  </span>
+                ) : null}
+              </Link>
+
+              <Link
+                href="/account"
+                className="inline-flex items-center justify-center size-11 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/8"
+                aria-label={t("topbar.cabinet")}
+              >
+                <Settings className="size-5 text-white/85" />
+              </Link>
+
+              <Link
+                href="/account"
+                className="inline-flex items-center justify-center size-11 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/8"
                 aria-label={t("topbar.profile")}
               >
-              <span className="size-8 rounded-2xl bg-white/10 border border-white/10 flex items-center justify-center font-semibold">
-                {initials}
-              </span>
-              <span className="hidden sm:block">{t("topbar.cabinet")}</span>
+                <span className="text-white font-extrabold">{initials}</span>
               </Link>
-            </div>
+            </>
           ) : (
-            <>
+            <div className="flex items-center gap-2">
               <Link
-                href="/auth?tab=login"
-                className="px-4 py-2 rounded-2xl bg-white/8 border border-white/10 text-sm hover:bg-white/10"
+                href="/auth"
+                className="px-4 py-2 rounded-2xl bg-white/10 hover:bg-white/15 text-white font-semibold"
               >
                 {t("topbar.login")}
               </Link>
               <Link
-                href="/auth?tab=register"
-                className="px-4 py-2 rounded-2xl btn-accent text-sm font-semibold"
+                href="/auth?mode=register"
+                className="px-4 py-2 rounded-2xl bg-accent hover:opacity-90 text-black font-extrabold"
               >
                 {t("topbar.register")}
               </Link>
-            </>
+            </div>
           )}
-
-          <div className="hidden md:block">
-            <LanguageSwitcher />
-          </div>
-          <div className="md:hidden">
-            <LanguageSwitcher compact />
-          </div>
-          <button className="hidden md:inline-flex items-center justify-center size-10 rounded-xl bg-white/6 border border-white/10 hover:bg-white/8">
-            <Settings className="size-4" />
-          </button>
-          <button className="inline-flex items-center justify-center size-10 rounded-xl bg-white/6 border border-white/10 hover:bg-white/8">
-            <MessageCircle className="size-4" />
-          </button>
         </div>
-      </div>
-
-      {/* subtle progress line like in the reference header */}
-      <div className="h-[2px] bg-white/5">
-        <div className="h-full w-[18%] bg-white/35" />
       </div>
     </header>
   );

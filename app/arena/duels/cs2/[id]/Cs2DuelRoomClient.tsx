@@ -41,6 +41,15 @@ export default function Cs2DuelRoomClient({ duelId }: { duelId: string }) {
   const [dmOpen, setDmOpen] = useState(false);
   const [friendBusy, setFriendBusy] = useState(false);
 
+  const [nowTs, setNowTs] = useState<number>(0);
+
+  useEffect(() => {
+    // Avoid hydration mismatch: time-based UI should start after mount.
+    setNowTs(Date.now());
+    const id = setInterval(() => setNowTs(Date.now()), 500);
+    return () => clearInterval(id);
+  }, []);
+
   async function load() {
     const r = await fetch(`/api/arena/duels/cs2/one?id=${encodeURIComponent(duelId)}`, { cache: "no-store" });
     const j = await r.json().catch(() => ({}));
@@ -155,7 +164,7 @@ export default function Cs2DuelRoomClient({ duelId }: { duelId: string }) {
     }
   }
 
-  const deadlineLeft = duel?.ready_deadline ? Math.max(0, duel.ready_deadline - Date.now()) : null;
+  const deadlineLeft = duel?.ready_deadline && nowTs ? Math.max(0, duel.ready_deadline - nowTs) : null;
   const deadlineText = deadlineLeft == null ? null : `${Math.ceil(deadlineLeft / 1000)}s`;
 
   return (

@@ -40,7 +40,7 @@ export default function Cs2DuelsClient() {
   const [mine, setMine] = useState<Duel[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
-  const [nowTs, setNowTs] = useState<number>(Date.now());
+  const [nowTs, setNowTs] = useState<number>(0);
   const [teamSize, setTeamSize] = useState<number>(1);
   const [map, setMap] = useState<string>("random");
   const [stakePreset, setStakePreset] = useState<number>(5);
@@ -60,11 +60,13 @@ export default function Cs2DuelsClient() {
   }
 
   useEffect(() => {
+    // Avoid hydration mismatch: start ticking only after mount.
+    setNowTs(Date.now());
     const t = setInterval(() => setNowTs(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
 
-  useEffect(() => {
+useEffect(() => {
     load();
 
     // Live updates (SSE). If SSE fails, we still keep manual refresh buttons.

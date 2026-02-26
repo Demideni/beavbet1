@@ -29,7 +29,12 @@ export default function DepositBoostToast({
 
   const [hidden, setHidden] = useState(true);
   const [endAt, setEndAt] = useState<number | null>(null);
-  const [now, setNow] = useState(() => Date.now());
+  const [now, setNow] = useState(0);
+
+  // Avoid hydration mismatch: Date.now() during render differs on server vs client.
+  useEffect(() => {
+    setNow(Date.now());
+  }, []);
 
   useEffect(() => {
     try {

@@ -13,7 +13,8 @@ type ChatMsg = {
   streamerBadge?: string | null;
 };
 
-function fmtTime(ts: number) {
+function fmtTime(ts: number, mounted: boolean) {
+  if (!mounted) return "";
   const d = new Date(ts);
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
@@ -28,6 +29,7 @@ export default function ArenaChatWidget({
   mode?: "floating" | "sidebar";
 }) {
   const [openMobile, setOpenMobile] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const [msgs, setMsgs] = useState<ChatMsg[]>([]);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -37,6 +39,10 @@ export default function ArenaChatWidget({
   const isMobile = useMemo(() => {
     if (typeof window === "undefined") return false;
     return window.matchMedia("(max-width: 768px)").matches;
+  }, []);
+
+  useEffect(() => {
+    setMounted(true);
   }, []);
 
   useEffect(() => {
@@ -131,7 +137,7 @@ export default function ArenaChatWidget({
         >
           {msgs.map((m) => (
             <div key={m.id} className="flex gap-2 py-1">
-              <div className="text-white/35 shrink-0 w-[42px]">{fmtTime(m.created_at)}</div>
+              <div className="text-white/35 shrink-0 w-[42px]">{fmtTime(m.created_at, mounted)}</div>
               <div className="min-w-0">
                 <button
                   className="text-emerald-400 font-semibold hover:underline"

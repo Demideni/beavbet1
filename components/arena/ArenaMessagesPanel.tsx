@@ -18,6 +18,7 @@ export default function ArenaMessagesPanel() {
   const [threads, setThreads] = useState<ThreadRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<{ id: string; nick?: string | null } | null>(null);
+  const [mounted, setMounted] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -26,6 +27,10 @@ export default function ArenaMessagesPanel() {
     setThreads(j?.threads ?? []);
     setLoading(false);
   }
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     load();
@@ -79,7 +84,7 @@ export default function ArenaMessagesPanel() {
                             </span>
                           ) : null}
                         </div>
-                        <div className="text-white/35 text-[11px]">{new Date(Number(t.updatedAt)).toLocaleTimeString()}</div>
+                        <div className="text-white/35 text-[11px]">{mounted ? new Date(Number(t.updatedAt)).toLocaleTimeString() : ""}</div>
                       </div>
                       <div className="text-white/60 text-sm mt-1 truncate">{t.lastMessage || ""}</div>
                     </button>

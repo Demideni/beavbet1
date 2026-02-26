@@ -9,11 +9,15 @@ import { useI18n } from "@/components/i18n/I18nProvider";
 import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
 import { usePathname } from "next/navigation";
 
-type MeUser = { id: string; email: string; nickname: string | null; currency?: string; balance?: number } | null;
+type MeUser =
+  | { id: string; email: string; nickname: string | null; currency?: string; balance?: number }
+  | null;
 
 export function Topbar() {
   const { t } = useI18n();
   const pathname = usePathname();
+  const hideTopbar = pathname === "/"; // ✅ hide on landing, but DON'T early-return before hooks
+
   const [user, setUser] = useState<MeUser>(null);
   const [incomingFriends, setIncomingFriends] = useState(0);
   const [unreadDm, setUnreadDm] = useState(0);
@@ -22,9 +26,6 @@ export function Topbar() {
 
   const lastUnreadRef = useRef(0);
   const lastFriendRef = useRef(0);
-
-  // ✅ FIX: hide topbar on landing page
-  if (pathname === "/") return null;
 
   function playPing() {
     try {
@@ -65,8 +66,7 @@ export function Topbar() {
       const nextFriends = Number(j.incomingFriends || 0);
       const nextUnread = Number(j.unreadDm || 0);
 
-      // Fallback notifications (when SSE isn't available/reliable on some hosts):
-      // If unread DM increases, show a toast + sound.
+      // If unread DM increases, show a toast + sound (poll fallback)
       if (nextUnread > lastUnreadRef.current) {
         try {
           const tr = await fetch("/api/arena/dm/threads", { cache: "no-store" });
@@ -97,6 +97,9 @@ export function Topbar() {
   }
 
   useEffect(() => {
+    // ✅ If we hide topbar on "/", do nothing (but hooks order stays consistent)
+    if (hideTopbar) return;
+
     fetchMe();
     fetchNotif();
 
@@ -118,34 +121,36 @@ export function Topbar() {
 
     let es: EventSource | null = null;
     let poll: any = null;
-    // Arena notifications stream (single-instance realtime). Also keep polling as fallback.
-    es = new EventSource("/api/arena/notifications/stream");
-    es.onmessage = (ev) => {
-      try {
-        const data = JSON.parse(ev.data);
-        if (data?.type === "friend_request") {
-          setIncomingFriends((c) => c + 1);
-        }
-        if (data?.type === "dm_message") {
-          setUnreadDm((c) => c + 1);
-          pushToast({
-            title: data?.fromNick ? String(data.fromNick) : "New message",
-            body: String(data?.preview || ""),
-            threadId: data?.threadId ? String(data.threadId) : undefined,
-          });
-          playPing();
-        }
-        if (data?.type === "gift") {
-          // optional: could show toast later
-        }
-      } catch {}
-    };
-    es.onerror = () => {
-      try {
-        es?.close();
-      } catch {}
+
+    // Arena notifications stream + polling fallback
+    try {
+      es = new EventSource("/api/arena/notifications/stream");
+      es.onmessage = (ev) => {
+        try {
+          const data = JSON.parse(ev.data);
+          if (data?.type === "friend_request") {
+            setIncomingFriends((c) => c + 1);
+          }
+          if (data?.type === "dm_message") {
+            setUnreadDm((c) => c + 1);
+            pushToast({
+              title: data?.fromNick ? String(data.fromNick) : "New message",
+              body: String(data?.preview || ""),
+              threadId: data?.threadId ? String(data.threadId) : undefined,
+            });
+            playPing();
+          }
+        } catch {}
+      };
+      es.onerror = () => {
+        try {
+          es?.close();
+        } catch {}
+        es = null;
+      };
+    } catch {
       es = null;
-    };
+    }
 
     poll = setInterval(fetchNotif, 12000);
 
@@ -160,7 +165,10 @@ export function Topbar() {
       } catch {}
       if (poll) clearInterval(poll);
     };
-  }, []);
+  }, [hideTopbar]);
+
+  // ✅ Now it's safe to return null AFTER hooks
+  if (hideTopbar) return null;
 
   const initials = user?.nickname?.slice(0, 2).toUpperCase() || user?.email?.slice(0, 2).toUpperCase();
   const balanceText = user?.balance != null ? `${user.balance.toFixed(2)} ${user.currency || "EUR"}` : null;
@@ -179,16 +187,16 @@ export function Topbar() {
             )}
           >
             <div className="space-y-2">
-              {toasts.map((t) => (
+              {toasts.map((tt) => (
                 <button
-                  key={t.id}
+                  key={tt.id}
                   onClick={() => {
                     window.location.href = "/arena/profile?tab=messages";
                   }}
                   className="w-full text-left rounded-2xl border border-white/12 bg-black/55 backdrop-blur-xl px-4 py-3 shadow-2xl hover:bg-black/65"
                 >
-                  <div className="text-white font-extrabold text-sm truncate">{t.title}</div>
-                  <div className="text-white/75 text-sm mt-0.5 truncate">{t.body}</div>
+                  <div className="text-white font-extrabold text-sm truncate">{tt.title}</div>
+                  <div className="text-white/75 text-sm mt-0.5 truncate">{tt.body}</div>
                 </button>
               ))}
             </div>
@@ -213,7 +221,6 @@ export function Topbar() {
 
                 <button
                   onClick={() => {
-                    // quick jump: if there are friend requests -> open friends tab, else open messages
                     if (incomingFriends > 0) window.location.href = "/arena/profile?tab=friends";
                     else window.location.href = "/arena/profile?tab=messages";
                   }}
@@ -245,10 +252,7 @@ export function Topbar() {
                 </Link>
               </>
             ) : (
-              <Link
-                href="/auth"
-                className="px-4 py-2 rounded-2xl bg-white/10 hover:bg-white/15 text-white font-semibold"
-              >
+              <Link href="/auth" className="px-4 py-2 rounded-2xl bg-white/10 hover:bg-white/15 text-white font-semibold">
                 {t("topbar.login")}
               </Link>
             )}
@@ -342,16 +346,10 @@ export function Topbar() {
             </>
           ) : (
             <div className="flex items-center gap-2">
-              <Link
-                href="/auth"
-                className="px-4 py-2 rounded-2xl bg-white/10 hover:bg-white/15 text-white font-semibold"
-              >
+              <Link href="/auth" className="px-4 py-2 rounded-2xl bg-white/10 hover:bg-white/15 text-white font-semibold">
                 {t("topbar.login")}
               </Link>
-              <Link
-                href="/auth?mode=register"
-                className="px-4 py-2 rounded-2xl bg-accent hover:opacity-90 text-black font-extrabold"
-              >
+              <Link href="/auth?mode=register" className="px-4 py-2 rounded-2xl bg-accent hover:opacity-90 text-black font-extrabold">
                 {t("topbar.register")}
               </Link>
             </div>

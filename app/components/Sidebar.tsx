@@ -5,6 +5,7 @@ import { Home, Dice5, Trophy, Gift, Wallet, BarChart3, Users, Shield, Crown, Use
 import { usePathname } from "next/navigation";
 import { cn } from "@/components/utils/cn";
 import { useI18n } from "@/components/i18n/I18nProvider";
+import { useEffect, useState } from "react";
 
 const items = [
   { href: "/", icon: Home, labelKey: "nav.home" },
@@ -23,6 +24,10 @@ const items = [
 export function Sidebar() {
   const { t } = useI18n();
   const pathname = usePathname();
+
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted) return null;
 
   // Arena has its own FACEIT-like shell + sidebar.
   // Hide the global sidebar there so the Arena sidebar is flush to the viewport edge.

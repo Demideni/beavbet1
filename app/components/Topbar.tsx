@@ -14,6 +14,12 @@ type MeUser = { id: string; email: string; nickname: string | null; currency?: s
 export function Topbar() {
   const { t } = useI18n();
   const pathname = usePathname();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const [user, setUser] = useState<MeUser>(null);
   const [incomingFriends, setIncomingFriends] = useState(0);
   const [unreadDm, setUnreadDm] = useState(0);
@@ -22,6 +28,7 @@ export function Topbar() {
 
   const lastUnreadRef = useRef(0);
   const lastFriendRef = useRef(0);
+  if (!mounted) return null;
 
   // ✅ FIX: hide topbar on landing page
   if (pathname === "/") return null;

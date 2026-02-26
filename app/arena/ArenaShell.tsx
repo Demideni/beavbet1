@@ -15,7 +15,6 @@ import {
   Newspaper,
   Store,
   Crown,
-  Flame,
   ChevronLeft,
   X,
   MessageCircle,
@@ -98,7 +97,6 @@ export default function ArenaShell({ children }: { children: ReactNode }) {
 
                 <nav className="mt-4 px-2 grid gap-1">
                   <SideLink href="/arena" icon={<Play className="h-4 w-4" />} label="Играть" active />
-                  <SideLink href="/arena/crash" icon={<Flame className="h-4 w-4" />} label="Crash" />
                   <SideLink href="/arena/profile?tab=friends" icon={<Users className="h-4 w-4" />} label="Друзья" />
                   <SideLink href="/arena/profile?tab=messages" icon={<MessageCircle className="h-4 w-4" />} label="Сообщения" />
                   <SideLink href="/arena/partners" icon={<Handshake className="h-4 w-4" />} label="Стримеры" />

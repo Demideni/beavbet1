@@ -12,12 +12,12 @@ const items: Array<{
   labelKey: string;
   pngIcon?: string;
 }> = [
-  // Temporary: only Arena-centric navigation.
+  { href: "/", labelKey: "nav.home", pngIcon: "/icons/nav/nav-home.png" },
+  { href: "/casino", labelKey: "nav.casino", pngIcon: "/icons/nav/nav-casino.png" },
+  // Arena between Casino and Sport
   { href: "/arena", labelKey: "nav.arena", pngIcon: "/icons/nav/nav-arena.png" },
-  { href: "/arena/crash", labelKey: "nav.crash", pngIcon: "/icons/nav/nav-crash.png" },
-  { href: "/arena/tournaments", labelKey: "nav.tournaments", pngIcon: "/icons/nav/nav-tournaments.png" },
-  { href: "/arena/leaderboard", labelKey: "nav.rank", pngIcon: "/icons/nav/nav-rank.png" },
-  { href: "/arena/profile", labelKey: "nav.profile", pngIcon: "/icons/nav/nav-profile.png" },
+  { href: "/sport", labelKey: "nav.sport", pngIcon: "/icons/nav/nav-sport.png" },
+  { href: "/tournaments", labelKey: "nav.tournaments", pngIcon: "/icons/nav/nav-tournaments.png" },
 ];
 
 export function MobileNav() {

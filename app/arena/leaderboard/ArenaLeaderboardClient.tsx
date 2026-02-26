@@ -93,20 +93,7 @@ export default function ArenaLeaderboardClient() {
                     <tr key={r.user_id} className="border-t border-white/10">
                       <td className="py-3 text-white/70">{idx + 1}</td>
                       <td className="py-3 text-white font-semibold">
-                        <span className="inline-flex items-center gap-2">
-                          {idx === 0 ? (
-                            // PNG crown for the Arena King (place your asset here):
-                            // /public/arena/ui/crown.png
-                            <Image
-                              src="/arena/ui/crown.png"
-                              alt="Arena King"
-                              width={16}
-                              height={16}
-                              className="drop-shadow-[0_0_10px_rgba(255,195,75,0.35)]"
-                            />
-                          ) : null}
-                          <span>{r.nickname || "Player"}</span>
-                        </span>
+                        {r.nickname || "Player"}
                       </td>
                       <td className="py-3">
                         <span className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/6 px-3 py-1 text-white/85">

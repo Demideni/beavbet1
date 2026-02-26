@@ -16,14 +16,12 @@ import { randomUUID } from "node:crypto";
  *    - локально ./data
  * 3) DB_PATH = DATA_DIR/beavbet.db
  */
-// NOTE (Render): do NOT assume a persistent disk is mounted.
-// If you want to use a Render Disk, set RENDER_DISK_PATH (or BEAVBET_DATA_DIR / DB_PATH).
-// Otherwise we fall back to a local ./data directory inside the app (works on Render too).
-const DATA_DIR = process.env.DB_PATH
-  ? path.dirname(process.env.DB_PATH)
-  : (process.env.RENDER_DISK_PATH ||
-      process.env.BEAVBET_DATA_DIR ||
-      path.join(process.cwd(), "data"));
+const DATA_DIR =
+  process.env.DB_PATH
+    ? path.dirname(process.env.DB_PATH)
+    : (process.env.RENDER_DISK_PATH ||
+        process.env.BEAVBET_DATA_DIR ||
+        (process.env.RENDER ? "/var/data" : path.join(process.cwd(), "data")));
 
 const DB_PATH =
   process.env.DB_PATH || path.join(DATA_DIR, "beavbet.db");
@@ -57,14 +55,6 @@ function ensureSchema(db: any) {
       currency TEXT DEFAULT 'EUR',
       created_at INTEGER NOT NULL
     );
-
-    -- External account links (MVP): Steam OpenID
-    CREATE TABLE IF NOT EXISTS steam_links (
-      user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-      steam_id TEXT NOT NULL UNIQUE,
-      created_at INTEGER NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS idx_steam_links_steam_id ON steam_links(steam_id);
 
     CREATE TABLE IF NOT EXISTS wallets (
       id TEXT PRIMARY KEY,

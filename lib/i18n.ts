@@ -20,9 +20,6 @@ export const MESSAGES: Record<Lang, Record<string, string>> = {
     "nav.stats": "Статистика",
     "nav.community": "Комьюнити",
     "nav.security": "Безопасность",
-    "nav.crash": "Crash",
-    "nav.rank": "Ранг",
-    "nav.profile": "Профиль",
 
     "topbar.bonuses": "Бонусы",
     "topbar.searchPlaceholder": "Поиск игр",
@@ -159,9 +156,6 @@ export const MESSAGES: Record<Lang, Record<string, string>> = {
     "nav.stats": "Stats",
     "nav.community": "Community",
     "nav.security": "Security",
-    "nav.crash": "Crash",
-    "nav.rank": "Rank",
-    "nav.profile": "Profile",
 
     "topbar.bonuses": "Bonuses",
     "topbar.searchPlaceholder": "Search games",
@@ -298,9 +292,6 @@ export const MESSAGES: Record<Lang, Record<string, string>> = {
     "nav.stats": "Estadísticas",
     "nav.community": "Comunidad",
     "nav.security": "Seguridad",
-    "nav.crash": "Crash",
-    "nav.rank": "Rango",
-    "nav.profile": "Perfil",
 
     "topbar.bonuses": "Bonos",
     "topbar.searchPlaceholder": "Buscar juegos",

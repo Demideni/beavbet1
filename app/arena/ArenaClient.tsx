@@ -66,7 +66,6 @@ export default function ArenaClient() {
   const [activity, setActivity] = useState<Activity[]>([]);
   const [myRating, setMyRating] = useState(1000);
   const [ratingName, setRatingName] = useState("Silver");
-  const [steamId, setSteamId] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -81,12 +80,6 @@ export default function ArenaClient() {
         setActivity(Array.isArray(json?.activity) ? json.activity : []);
         if (typeof json?.myRating === "number") setMyRating(json.myRating);
         if (typeof json?.ratingName === "string") setRatingName(json.ratingName);
-
-        // Steam link status is optional; ignore errors.
-        fetch("/api/auth/steam/status", { cache: "no-store" })
-          .then((r) => r.json())
-          .then((j) => alive && setSteamId(j?.steamId ?? null))
-          .catch(() => null);
       } catch {
         // ignore
       } finally {
@@ -159,21 +152,9 @@ export default function ArenaClient() {
                   <div className="text-white text-lg font-extrabold">Подключить игру</div>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Link
-                  href="/api/auth/steam/start"
-                  className={cn(
-                    "px-4 py-2.5 rounded-2xl border text-sm font-extrabold",
-                    steamId ? "bg-white/10 border-white/15 text-white" : "bg-white/6 border-white/10 text-white/90 hover:bg-white/10"
-                  )}
-                  title={steamId ? `Steam connected: ${steamId}` : "Подключить Steam"}
-                >
-                  {steamId ? "Steam ✓" : "Подключить Steam"}
-                </Link>
-                <Link href="/arena/duels/cs2" className="px-5 py-2.5 rounded-2xl btn-accent text-black font-extrabold">
-                  Играть
-                </Link>
-              </div>
+              <Link href="/arena/duels/cs2" className="px-5 py-2.5 rounded-2xl btn-accent text-black font-extrabold">
+                Играть
+              </Link>
             </div>
           </div>
 
@@ -269,7 +250,7 @@ export default function ArenaClient() {
 
                         <div className="flex items-center gap-2">
                           <Link
-                            href={`/arena/tournaments/${tt.id}`}
+                            href={`/arena/${tt.id}`}
                             className="px-4 py-2 rounded-2xl bg-white/6 border border-white/10 hover:bg-white/10 text-sm text-white/85"
                           >
                             Open

@@ -56,6 +56,14 @@ function ensureSchema(db: any) {
       created_at INTEGER NOT NULL
     );
 
+    -- External account links (MVP): Steam OpenID
+    CREATE TABLE IF NOT EXISTS steam_links (
+      user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      steam_id TEXT NOT NULL UNIQUE,
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_steam_links_steam_id ON steam_links(steam_id);
+
     CREATE TABLE IF NOT EXISTS wallets (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

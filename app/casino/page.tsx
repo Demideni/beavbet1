@@ -1,7 +1,6 @@
-import CasinoClient from "./CasinoClient";
+import { redirect } from "next/navigation";
 
-export const dynamic = "force-dynamic";
-
+// Temporary: Casino is hidden while we focus on Arena.
 export default function CasinoPage() {
-  return <CasinoClient />;
+  redirect("/arena");
 }

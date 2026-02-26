@@ -1,23 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { Home, Dice5, Trophy, Gift, Wallet, BarChart3, Users, Shield, Crown, User, Crosshair } from "lucide-react";
+import { User, Crosshair } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { cn } from "@/components/utils/cn";
 import { useI18n } from "@/components/i18n/I18nProvider";
 
 const items = [
-  { href: "/", icon: Home, labelKey: "nav.home" },
-  { href: "/account", icon: User, labelKey: "nav.account" },
-  { href: "/casino", icon: Dice5, labelKey: "nav.casino" },
+  // Temporary: focus product entry on Arena.
   { href: "/arena", icon: Crosshair, labelKey: "nav.arena" },
-  { href: "/tournaments", icon: Trophy, labelKey: "nav.tournaments" },
-  { href: "/bonuses", icon: Gift, labelKey: "nav.bonuses" },
-  { href: "/payments", icon: Wallet, labelKey: "nav.payments" },
-  { href: "/vip", icon: Crown, labelKey: "nav.vip" },
-  { href: "/stats", icon: BarChart3, labelKey: "nav.stats" },
-  { href: "/community", icon: Users, labelKey: "nav.community" },
-  { href: "/security", icon: Shield, labelKey: "nav.security" },
+  { href: "/account", icon: User, labelKey: "nav.account" },
 ];
 
 export function Sidebar() {

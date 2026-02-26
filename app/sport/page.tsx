@@ -1,7 +1,6 @@
-import SportOddsClient from "./SportOddsClient";
+import { redirect } from "next/navigation";
 
-export const dynamic = "force-dynamic";
-
+// Temporary: Sportsbook is hidden while we focus on Arena.
 export default function SportPage() {
-  return <SportOddsClient />;
+  redirect("/arena");
 }

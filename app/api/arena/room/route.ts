@@ -4,7 +4,6 @@ import { getDb, uuid } from "@/lib/db";
 import { getArenaProfile } from "@/lib/arenaDuels";
 
 function computePlace(db: any, elo: number) {
-  // 1 + count of users with strictly higher elo
   const row = db
     .prepare("SELECT COUNT(1) AS c FROM arena_ratings WHERE dam_rank > ?")
     .get(Number(elo || 0)) as { c: number } | undefined;
@@ -28,18 +27,8 @@ export async function GET(req: Request) {
 
   const room = db
     .prepare("SELECT user_id, background_url, avatar_url, bio, created_at, updated_at FROM arena_rooms WHERE user_id=?")
-    .get(targetUserId) as
-    | {
-        user_id: string;
-        background_url: string | null;
-        avatar_url: string | null;
-        bio: string | null;
-        created_at: number;
-        updated_at: number;
-      }
-    | undefined;
+    .get(targetUserId) as any;
 
-  // Auto-create room row if missing (so it's always editable)
   if (!room) {
     const now = Date.now();
     db.prepare(
@@ -53,19 +42,13 @@ export async function GET(req: Request) {
 
   const place = profile ? computePlace(db, Number(profile.elo || 0)) : null;
 
-  // If room avatar empty — fall back to profile avatar_url
   const fallbackAvatar =
     (db.prepare("SELECT avatar_url FROM profiles WHERE user_id=?").get(targetUserId) as any)?.avatar_url ?? null;
 
   return NextResponse.json({
     ok: true,
     meId: session.id,
-    profile: profile
-      ? {
-          ...profile,
-          place,
-        }
-      : null,
+    profile: profile ? { ...profile, place } : null,
     room: {
       userId: room2.user_id,
       backgroundUrl: room2.background_url ?? null,
@@ -89,9 +72,7 @@ export async function POST(req: Request) {
   const db = getDb();
   const now = Date.now();
 
-  const exists = db.prepare("SELECT user_id FROM arena_rooms WHERE user_id=?").get(session.id) as
-    | { user_id: string }
-    | undefined;
+  const exists = db.prepare("SELECT user_id FROM arena_rooms WHERE user_id=?").get(session.id) as any;
 
   if (!exists) {
     db.prepare(
@@ -102,6 +83,13 @@ export async function POST(req: Request) {
       "UPDATE arena_rooms SET background_url=?, avatar_url=?, bio=?, updated_at=? WHERE user_id=?"
     ).run(backgroundUrl, avatarUrl, bio, now, session.id);
   }
+
+  // Feed event
+  try {
+    db.prepare(
+      "INSERT INTO arena_feed_events (id, kind, actor_user_id, target_user_id, ref_id, meta, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+    ).run(uuid(), "room_update", session.id, null, null, JSON.stringify({ backgroundUrl, avatarUrl, bio }), now);
+  } catch {}
 
   return NextResponse.json({ ok: true });
 }

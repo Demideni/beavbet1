@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { getArenaProfile } from "@/lib/arenaDuels";
-import { getDb } from "@/lib/db";
+import { getDb, uuid } from "@/lib/db";
 
 export async function GET() {
   const user = await getSessionUser();
@@ -10,7 +10,6 @@ export async function GET() {
   const data = getArenaProfile(user.id, 30);
   return NextResponse.json(data);
 }
-
 
 export async function POST(req: Request) {
   const user = await getSessionUser();
@@ -24,13 +23,14 @@ export async function POST(req: Request) {
   if (avatarUrl && avatarUrl.length > 500) return NextResponse.json({ ok: false, error: "AVATAR_TOO_LONG" }, { status: 400 });
 
   const db = getDb();
-  // ensure profile row exists
+  const now = Date.now();
+
   const exists = db.prepare("SELECT user_id FROM profiles WHERE user_id = ?").get(user.id);
   if (!exists) {
     db.prepare("INSERT INTO profiles (user_id, nickname, currency, created_at) VALUES (?, ?, 'EUR', ?)").run(
       user.id,
       nickname || null,
-      Date.now()
+      now
     );
   }
 
@@ -39,6 +39,21 @@ export async function POST(req: Request) {
     avatarUrl || null,
     user.id
   );
+
+  // Feed event
+  try {
+    db.prepare(
+      "INSERT INTO arena_feed_events (id, kind, actor_user_id, target_user_id, ref_id, meta, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+    ).run(
+      uuid(),
+      "profile_update",
+      user.id,
+      null,
+      null,
+      JSON.stringify({ nickname: nickname || null, avatarUrl: avatarUrl || null }),
+      now
+    );
+  } catch {}
 
   return NextResponse.json({ ok: true });
 }

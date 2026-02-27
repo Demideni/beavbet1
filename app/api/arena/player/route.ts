@@ -18,15 +18,11 @@ export async function GET(req: Request) {
   const data = getArenaProfile(userId, 10);
 
   const rel = db
-    .prepare(
-      `SELECT status FROM arena_friends WHERE user_id = ? AND friend_id = ?`
-    )
+    .prepare(`SELECT status FROM arena_friends WHERE user_id = ? AND friend_id = ?`)
     .get(session.id, userId) as { status?: string } | undefined;
 
   const incoming = db
-    .prepare(
-      `SELECT status FROM arena_friends WHERE user_id = ? AND friend_id = ?`
-    )
+    .prepare(`SELECT status FROM arena_friends WHERE user_id = ? AND friend_id = ?`)
     .get(userId, session.id) as { status?: string } | undefined;
 
   let friendStatus: "none" | "pending_outgoing" | "pending_incoming" | "accepted" = "none";
@@ -34,5 +30,11 @@ export async function GET(req: Request) {
   else if (rel?.status === "pending") friendStatus = "pending_outgoing";
   else if (incoming?.status === "pending") friendStatus = "pending_incoming";
 
-  return NextResponse.json({ ok: true, profile: data.profile, friendStatus });
+  const follow = db
+    .prepare("SELECT 1 AS ok FROM arena_follows WHERE follower_id=? AND followee_id=?")
+    .get(session.id, userId) as { ok?: number } | undefined;
+
+  const followStatus: "following" | "not_following" = follow?.ok ? "following" : "not_following";
+
+  return NextResponse.json({ ok: true, profile: data.profile, friendStatus, followStatus });
 }

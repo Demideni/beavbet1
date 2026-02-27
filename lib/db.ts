@@ -392,7 +392,32 @@ function ensureSchema(db: any) {
       created_at INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_arena_room_posts_user_created ON arena_room_posts(user_id, created_at DESC);
+
+        -- ✅ НОВОЕ: Подписки (follow)
+    CREATE TABLE IF NOT EXISTS arena_follows (
+      follower_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      followee_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at INTEGER NOT NULL,
+      PRIMARY KEY (follower_id, followee_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_arena_follows_follower ON arena_follows(follower_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_arena_follows_followee ON arena_follows(followee_id, created_at DESC);
+
+    -- ✅ НОВОЕ: События для общей ленты (activity feed)
+    CREATE TABLE IF NOT EXISTS arena_feed_events (
+      id TEXT PRIMARY KEY,
+      kind TEXT NOT NULL, -- profile_update | room_update | post_create | follow
+      actor_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      target_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+      ref_id TEXT,
+      meta TEXT,
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_arena_feed_events_created ON arena_feed_events(created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_arena_feed_events_actor ON arena_feed_events(actor_user_id, created_at DESC);
   `);
+
+  
 
   // Profiles: extend with avatar (URL) for Arena/website
   ensureColumn(db, "profiles", "avatar_url", "avatar_url TEXT");

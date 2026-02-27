@@ -123,7 +123,7 @@ export default function ArenaShell({ children }: { children: ReactNode }) {
                     <SideLink href="/arena/leaderboard" icon={<BarChart3 className="h-4 w-4" />} label="Ранг" />
                     <SideLink href="/arena/matches" icon={<Radar className="h-4 w-4" />} label="Track" />
                     <SideLink href="#" icon={<Eye className="h-4 w-4" />} label="Watch" disabled />
-                    <SideLink href="#" icon={<Newspaper className="h-4 w-4" />} label="Лента" disabled />
+                    <SideLink href="/arena/feed" icon={<Newspaper className="h-4 w-4" />} label="Лента" />
                   </nav>
 
                   <div className="mt-6 px-4">

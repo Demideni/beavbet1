@@ -55,5 +55,12 @@ export async function POST(req: Request) {
     "INSERT INTO arena_room_posts (id, user_id, text, image_url, created_at) VALUES (?, ?, ?, ?, ?)"
   ).run(id, session.id, text || null, imageUrl, now);
 
+  // Feed event
+  try {
+    db.prepare(
+      "INSERT INTO arena_feed_events (id, kind, actor_user_id, target_user_id, ref_id, meta, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+    ).run(uuid(), "post_create", session.id, null, id, JSON.stringify({ text: text || null, imageUrl }), now);
+  } catch {}
+
   return NextResponse.json({ ok: true, id });
 }

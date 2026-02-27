@@ -296,8 +296,10 @@ export default function ArenaClient() {
                 <Wallet className="h-5 w-5 text-white" />
               </div>
               <div className="min-w-0">
-                <div className="text-white font-extrabold truncate">{t("arena.profile")}</div>
-                <div className="text-white/60 text-sm">{t("arena.profile.subtitle")}</div>
+                <Link href="/arena/room" className="...">
+  <div className="text-white font-bold">Моя комната</div>
+  <div className="text-white/50 text-xs">Профиль • Посты • Фон</div>
+</Link>
               </div>
             </div>
 

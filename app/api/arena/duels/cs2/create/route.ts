@@ -7,13 +7,11 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });
 
   const body = await req.json().catch(() => ({}));
-  const stake = Number(body?.stake);
-  const currency = String(body?.currency || "EUR").toUpperCase();
   const teamSize = Number(body?.teamSize || 1);
   const map = typeof body?.map === "string" ? body.map : undefined;
 
-  const r = createCs2Duel(user.id, stake, currency, { teamSize, map });
+  const r = createCs2Duel(user.id, 0, "EUR", { teamSize, map }); // ✅ stake всегда 0
   if (!r.ok) return NextResponse.json(r, { status: 400 });
-  // refresh wallet chip
+
   return NextResponse.json(r);
 }

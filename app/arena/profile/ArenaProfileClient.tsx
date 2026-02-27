@@ -227,7 +227,7 @@ export default function ArenaProfileClient() {
                       <th className="text-left font-semibold py-2">Date</th>
                       <th className="text-left font-semibold py-2">Game</th>
                       <th className="text-left font-semibold py-2">Match</th>
-                      <th className="text-left font-semibold py-2">Stake</th>
+                      
                       <th className="text-left font-semibold py-2">Result</th>
                       <th className="text-left font-semibold py-2">Open</th>
                     </tr>
@@ -235,13 +235,13 @@ export default function ArenaProfileClient() {
                   <tbody>
                     {loading ? (
                       <tr>
-                        <td className="py-4 text-white/60" colSpan={6}>
+                        <td className="py-4 text-white/60" colSpan={5}>
                           Loading…
                         </td>
                       </tr>
                     ) : history.length === 0 ? (
                       <tr>
-                        <td className="py-4 text-white/60" colSpan={6}>
+                        <td className="py-4 text-white/60" colSpan={5}>
                           No matches yet.
                         </td>
                       </tr>
@@ -253,9 +253,7 @@ export default function ArenaProfileClient() {
                           <td className="py-3 text-white/85">
                             {h.p1_nick || "P1"} <span className="text-white/35">vs</span> {h.p2_nick || "P2"}
                           </td>
-                          <td className="py-3 text-white font-semibold">
-                            {h.stake} {h.currency}
-                          </td>
+                          
                           <td className="py-3">
                             <span className="inline-flex items-center rounded-full border border-white/12 bg-white/6 px-3 py-1 text-white/85">
                               {String(h.status).toUpperCase()}

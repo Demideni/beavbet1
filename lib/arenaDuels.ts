@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { getDb } from "./db";
 import { addWalletTx, getOrCreateWallet } from "./wallet";
 import { rconExec } from "./cs2Rcon";
+import { assertCanStartMatch } from "./arenaAccess";
 
 export type DuelStatus =
   | "open"
@@ -273,11 +274,13 @@ export function createCs2Duel(
   opts?: { teamSize?: number; map?: string | null }
 ) {
   const db = getDb();
+
+    const access = assertCanStartMatch(userId);
+  if (!access.ok) return { ok: false as const, error: access.error, access };
+
   // keep timeouts consistent even if user never opened the list page
   tickCs2Duels(db);
-  const s = Number(stake);
-  if (!Number.isFinite(s) || s <= 0) return { ok: false as const, error: "BAD_STAKE" };
-  if (s < 1 || s > 1000) return { ok: false as const, error: "STAKE_OUT_OF_RANGE" };
+  const s = 0; // ✅ ставок нет вообще
 
   const cur = String(currency || "EUR").toUpperCase();
   const teamSize = Math.max(1, Math.min(5, Number(opts?.teamSize || 1) || 1));
@@ -356,6 +359,8 @@ export function createCs2Duel(
 
 export function joinCs2Duel(userId: string, duelId: string, preferredTeam?: number) {
   const db = getDb();
+    const access = assertCanStartMatch(userId);
+  if (!access.ok) return { ok: false as const, error: access.error, access };
   const now = Date.now();
   tickCs2Duels(db);
 

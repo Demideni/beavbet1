@@ -1,9 +1,10 @@
+import ArenaShell from "../ArenaShell";
 import FriendsClient from "./FriendsClient";
 
-export const metadata = {
-  title: "Friends • BeavBet Arena",
-};
-
-export default function FriendsPage() {
-  return <FriendsClient />;
+export default function Page() {
+  return (
+    <ArenaShell>
+      <FriendsClient />
+    </ArenaShell>
+  );
 }

@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { ImagePlus, Trash2 } from "lucide-react";
 import { cn } from "@/components/utils/cn";
@@ -213,12 +212,13 @@ export default function ArenaNewsPanel({ className }: { className?: string }) {
             </div>
 
             {imageUrl ? (
-              <div
-                className="mt-2 relative overflow-hidden rounded-2xl border border-white/10 bg-black/40"
-                style={{ paddingTop: "56.25%" }}
-              >
-                <Image src={imageUrl} alt="" fill className="object-cover" />
-              </div>
+              <div className="mt-2 overflow-hidden rounded-2xl border border-white/10 bg-black/40">
+  <img
+    src={imageUrl}
+    alt=""
+    className="w-full h-auto block object-cover"
+  />
+</div>
             ) : null}
           </div>
         </div>
@@ -233,10 +233,14 @@ export default function ArenaNewsPanel({ className }: { className?: string }) {
           items.map((n) => (
             <div key={n.id} className="rounded-2xl border border-white/10 bg-white/5 overflow-hidden">
               {n.imageUrl ? (
-                <div className="relative w-full" style={{ paddingTop: "56.25%" }}>
-                  <Image src={n.imageUrl} alt="" fill className="object-cover" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
-                </div>
+                <div className="relative w-full overflow-hidden">
+  <img
+    src={n.imageUrl}
+    alt=""
+    className="w-full h-auto block object-cover"
+  />
+  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent pointer-events-none" />
+</div>
               ) : null}
 
               <div className="p-3">

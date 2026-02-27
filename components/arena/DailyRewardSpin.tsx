@@ -18,6 +18,7 @@ type ReelItem = {
   key: string;
   label: string;
   sub?: string;
+  icon?: string;
 };
 
 function prettyTimeLeft(ms: number) {
@@ -49,12 +50,12 @@ export default function DailyRewardSpin() {
   const reel = useMemo<ReelItem[]>(() => {
     // UI-лента как в кейсах. Результат выбирает сервер, это только визуал.
     const base: ReelItem[] = [
-      { key: "coins50", label: "+50 Coins" },
-      { key: "coins100", label: "+100 Coins" },
-      { key: "xp200", label: "+200 XP" },
-      { key: "prem6", label: "+6h Premium" },
-      { key: "badge", label: "Lucky Badge" },
-    ];
+  { key: "coins50", label: "+50 Coins", icon: "/arena/spin/coins-50.png" },
+  { key: "coins100", label: "+100 Coins", icon: "/arena/spin/coins-100.png" },
+  { key: "xp200", label: "+200 XP", icon: "/arena/spin/xp-200.png" },
+  { key: "prem6", label: "+6h Premium", icon: "/arena/spin/premium-6h.png" },
+  { key: "badge", label: "Lucky Badge", icon: "/arena/spin/badge-lucky.png" },
+];
 
     const out: ReelItem[] = [];
     for (let i = 0; i < 40; i++) out.push(base[i % base.length]);
@@ -153,6 +154,17 @@ export default function DailyRewardSpin() {
       </div>
 
       <div className="mt-5 relative overflow-hidden rounded-3xl border border-white/10 bg-black/35">
+  <img
+    src="/arena/spin/spin-bg.png"
+    alt=""
+    className="absolute inset-0 w-full h-full object-cover opacity-35"
+  />
+  <img
+    src="/arena/spin/spin-glow.png"
+    alt=""
+    className="absolute inset-0 w-full h-full object-cover opacity-45 pointer-events-none"
+  />
+  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
         <div className="absolute inset-y-0 left-1/2 w-[2px] bg-accent/90 z-10" />
         <div ref={containerRef} className="relative w-full overflow-hidden">
           <div
@@ -165,11 +177,16 @@ export default function DailyRewardSpin() {
             {reel.map((it, i) => (
               <div
                 key={`${it.key}-${i}`}
-                className="w-[140px] h-[86px] rounded-2xl border border-white/10 bg-white/5 flex flex-col items-center justify-center"
-              >
-                <div className="text-white font-extrabold text-sm">{it.label}</div>
-                <div className="text-white/45 text-[11px] mt-1">BeavBet Arena</div>
-              </div>
+               className="w-[140px] h-[86px] rounded-2xl border border-white/10 bg-white/5 flex items-center gap-3 px-3">
+  {it.icon ? (
+    <img src={it.icon} alt="" className="h-11 w-11 object-contain shrink-0" />
+  ) : null}
+
+  <div className="min-w-0">
+    <div className="text-white font-extrabold text-sm truncate">{it.label}</div>
+    <div className="text-white/45 text-[11px] mt-1">BeavBet Arena</div>
+  </div>
+</div>
             ))}
           </div>
         </div>

@@ -478,6 +478,7 @@ export function getDb() {
   ensureSchema(db);
 
   // Game aggregator sessions (session_id -> user_id mapping for callbacks)
+   // (ga_session_id -> user_id mapping for callbacks)
   db.exec(`
     CREATE TABLE IF NOT EXISTS ga_sessions (
       session_id TEXT PRIMARY KEY,
@@ -493,6 +494,25 @@ export function getDb() {
       created_at INTEGER NOT NULL,
       UNIQUE(streamer_slug, user_id)
     );
+
+    -- ✅ Admin-managed streamers / partners (cards on Arena)
+    CREATE TABLE IF NOT EXISTS arena_streamers (
+      id TEXT PRIMARY KEY,
+      type TEXT NOT NULL,               -- 'streamer' | 'partner'
+      slug TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,               -- badge label
+      title TEXT NOT NULL,              -- card title
+      photo TEXT NOT NULL,              -- url or public path
+      tagline TEXT,
+      socials_json TEXT,                -- JSON string
+      kick_channel TEXT,
+      kick_embed_url TEXT,
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_arena_streamers_type_active ON arena_streamers(type, active);
+    CREATE INDEX IF NOT EXISTS idx_arena_streamers_updated ON arena_streamers(updated_at DESC);
   `);
 
   global.__beavbet_db__ = db;

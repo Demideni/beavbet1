@@ -168,6 +168,14 @@ function ensureSchema(db: any) {
   // Lightweight migrations for older DBs
   ensureColumn(db, "users", "role", "role TEXT NOT NULL DEFAULT 'user'");
 
+  // Premium / rewards (Arena growth via subscriptions)
+ensureColumn(db, "users", "premium_until", "premium_until INTEGER");
+
+// Arena economy (non-cash, non-withdrawable)
+ensureColumn(db, "profiles", "arena_coins", "arena_coins INTEGER NOT NULL DEFAULT 0");
+ensureColumn(db, "profiles", "arena_xp", "arena_xp INTEGER NOT NULL DEFAULT 0");
+ensureColumn(db, "profiles", "badges_json", "badges_json TEXT");
+
   // Wallets: older code paths expect updated_at; keep it optional for backwards compatibility
   ensureColumn(db, "wallets", "updated_at", "updated_at INTEGER");
   // Arena needs lockable funds (available balance stays in wallets.balance)
@@ -428,6 +436,20 @@ function ensureSchema(db: any) {
     CREATE INDEX IF NOT EXISTS idx_arena_feed_events_actor ON arena_feed_events(actor_user_id, created_at DESC);
   `);
 
+  // Arena rewards (legal: non-cash; no direct market items)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS arena_rewards (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    type TEXT NOT NULL, -- welcome | daily
+    reward_type TEXT NOT NULL, -- coins | premium_hours | xp | badge
+    reward_value INTEGER,
+    meta TEXT,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_arena_rewards_user_created ON arena_rewards(user_id, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_arena_rewards_type_created ON arena_rewards(type, created_at DESC);
+`);
   
 
   // Profiles: extend with avatar (URL) for Arena/website

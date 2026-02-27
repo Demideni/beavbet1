@@ -10,6 +10,7 @@ import ArenaShell from "./ArenaShell";
 import { TournamentHero } from "@/components/arena/TournamentHero";
 import { featuredTournamentZava } from "@/components/arena/FeaturedTournamentData";
 import ArenaNewsPanel from "@/components/arena/ArenaNewsPanel";
+import DailyRewardSpin from "@/components/arena/DailyRewardSpin";
 
 type Duel = {
   id: string;
@@ -170,6 +171,11 @@ export default function ArenaClient() {
               />
             </div>
           </div>
+
+          {/* Daily reward spin (legal, no skins) */}
+<div className="mt-4">
+  <DailyRewardSpin />
+</div>
 
           {/* Matches */}
           <div className="mt-4 rounded-3xl border border-white/10 bg-black/30 p-4">

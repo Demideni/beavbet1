@@ -1,132 +1,150 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import ArenaShell from "../ArenaShell";
-import { cn } from "@/components/utils/cn";
-import { Search, UserPlus } from "lucide-react";
+import { useRouter } from "next/navigation";
 
-type FriendRow = {
-  userId: string;
-  nickname?: string | null;
+type FriendItem = {
+  id: string;
+  nickname: string;
   avatarUrl?: string | null;
-  status?: string | null; // accepted/pending etc
-  online?: boolean | null;
 };
 
-export default function FriendsClient() {
-  const [loading, setLoading] = useState(true);
-  const [q, setQ] = useState("");
-  const [rows, setRows] = useState<FriendRow[]>([]);
-  const [err, setErr] = useState<string | null>(null);
+function normalize(s: string) {
+  return (s || "").trim().toLowerCase();
+}
 
-  async function load() {
-    setLoading(true);
-    setErr(null);
-    try {
-      const r = await fetch("/api/arena/friends", { cache: "no-store" });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(j?.error || "LOAD_FAILED");
+function Avatar({ url, name }: { url?: string | null; name: string }) {
+  const letter = (name?.trim()?.[0] || "?").toUpperCase();
 
-      // ожидаем что API вернёт friends: []
-      const list = Array.isArray(j?.friends) ? j.friends : Array.isArray(j?.items) ? j.items : [];
-      setRows(list);
-    } catch (e: any) {
-      setErr(e?.message || "Ошибка загрузки");
-    } finally {
-      setLoading(false);
-    }
+  if (url) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return (
+      <img
+        src={url}
+        alt={name}
+        className="h-10 w-10 rounded-full object-cover"
+      />
+    );
   }
 
+  return (
+    <div className="h-10 w-10 rounded-full bg-white/10 flex items-center justify-center text-sm font-semibold">
+      {letter}
+    </div>
+  );
+}
+
+export default function FriendsClient() {
+  const router = useRouter();
+
+  const [friends, setFriends] = useState<FriendItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState("");
+
   useEffect(() => {
+    let alive = true;
+
+    async function load() {
+      try {
+        setLoading(true);
+        const res = await fetch("/api/arena/friends", { cache: "no-store" });
+        if (!res.ok) throw new Error(`friends fetch failed: ${res.status}`);
+        const data = (await res.json()) as { friends: FriendItem[] };
+
+        if (!alive) return;
+        setFriends(Array.isArray(data?.friends) ? data.friends : []);
+      } catch (e) {
+        if (!alive) return;
+        setFriends([]);
+      } finally {
+        if (!alive) return;
+        setLoading(false);
+      }
+    }
+
     load();
+    return () => {
+      alive = false;
+    };
   }, []);
 
   const filtered = useMemo(() => {
-    const s = q.trim().toLowerCase();
-    if (!s) return rows;
-    return rows.filter((r) => (r.nickname || "").toLowerCase().includes(s));
-  }, [q, rows]);
+    const q = normalize(query);
+    if (!q) return friends;
+    return friends.filter((f) => normalize(f.nickname).includes(q));
+  }, [friends, query]);
 
   return (
-    <ArenaShell>
-      <div className="mx-auto max-w-[1100px] px-3 md:px-6 py-6">
-        <div className="flex items-center justify-between gap-3">
-          <div className="text-white text-2xl font-extrabold">Друзья</div>
-          <button
-            className="h-11 px-4 rounded-2xl bg-white/8 border border-white/10 hover:bg-white/10 text-white font-semibold"
-            onClick={load}
-            disabled={loading}
-          >
-            {loading ? "…" : "Refresh"}
-          </button>
+    <div className="mx-auto w-full max-w-5xl px-4 py-4 md:py-6">
+      {/* Header */}
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="flex flex-col">
+          <h1 className="text-xl md:text-2xl font-bold">Друзья</h1>
+          <p className="text-sm text-white/60">
+            {loading ? "Загрузка…" : `${friends.length} друзей`}
+          </p>
         </div>
 
-        <div className="mt-3 rounded-3xl border border-white/10 bg-black/35 backdrop-blur-xl p-3">
-          <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-black/30 px-3 h-11">
-            <Search className="h-4 w-4 text-white/45" />
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Поиск"
-              className="flex-1 bg-transparent outline-none text-white/85 placeholder:text-white/35"
-            />
-            <div className="text-white/35 text-xs">{filtered.length}</div>
-          </div>
-
-          {err ? (
-            <div className="mt-3 rounded-2xl border border-red-400/20 bg-red-500/10 p-4 text-red-200 text-sm">
-              {err}
-            </div>
-          ) : null}
-
-          <div className="mt-3 grid gap-2">
-            {loading ? (
-              <div className="rounded-2xl border border-white/10 bg-black/25 p-4 text-white/60">Загрузка…</div>
-            ) : filtered.length === 0 ? (
-              <div className="rounded-2xl border border-white/10 bg-black/25 p-4 text-white/60">
-                Друзей пока нет.
-              </div>
-            ) : (
-              filtered.map((f) => (
-                <div key={f.userId} className="rounded-2xl border border-white/10 bg-black/25 p-3 flex items-center gap-3">
-                  <div className="h-11 w-11 rounded-2xl overflow-hidden border border-white/10 bg-black/30 shrink-0 relative">
-                    {f.avatarUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={f.avatarUrl} alt="avatar" className="h-full w-full object-cover" />
-                    ) : (
-                      <div className="h-full w-full grid place-items-center text-white/35 text-[10px]">NO</div>
-                    )}
-                    <span
-                      className={cn(
-                        "absolute bottom-1 right-1 h-2.5 w-2.5 rounded-full border border-black/60",
-                        f.online ? "bg-emerald-400" : "bg-white/25"
-                      )}
-                    />
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="text-white font-bold truncate">{f.nickname || "Player"}</div>
-                    <div className="text-white/45 text-xs truncate">{f.status || ""}</div>
-                  </div>
-
-                  <Link
-                    href={`/arena/room?id=${encodeURIComponent(f.userId)}`}
-                    className="h-10 px-4 rounded-2xl bg-white/8 border border-white/10 hover:bg-white/10 text-white font-semibold grid place-items-center"
-                  >
-                    Комната
-                  </Link>
-                </div>
-              ))
-            )}
-          </div>
-
-          <div className="mt-3 text-white/35 text-xs flex items-center gap-2">
-            <UserPlus className="h-4 w-4" />
-            Добавление друзей — через кнопку “Add friend” в комнате игрока (мы уже сделали).
-          </div>
+        {/* Search */}
+        <div className="w-[220px] md:w-[320px]">
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Поиск друзей"
+            className="w-full rounded-xl bg-black/35 border border-white/10 px-3 py-2 text-sm outline-none focus:border-orange-500/60"
+          />
         </div>
       </div>
-    </ArenaShell>
+
+      {/* List container */}
+      <div className="rounded-2xl border border-white/10 bg-black/30 overflow-hidden">
+        {/* Top bar like VK list header */}
+        <div className="px-4 py-3 border-b border-white/10 text-sm text-white/70">
+          Все друзья
+        </div>
+
+        {/* Content */}
+        {loading ? (
+          <div className="p-4 space-y-3">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div
+                key={i}
+                className="h-14 rounded-xl bg-white/5 animate-pulse"
+              />
+            ))}
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="p-6 text-sm text-white/60">
+            {query ? "Ничего не найдено." : "Список друзей пуст."}
+          </div>
+        ) : (
+          <div className="divide-y divide-white/10">
+            {filtered.map((f) => (
+              <button
+                key={f.id}
+                onClick={() => router.push(`/arena/player/${f.id}`)}
+                className="w-full text-left px-4 py-3 hover:bg-white/5 transition flex items-center gap-3"
+              >
+                <Avatar url={f.avatarUrl} name={f.nickname} />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm md:text-base font-semibold truncate">
+                    {f.nickname}
+                  </div>
+                  <div className="text-xs text-white/50 truncate">
+                    Открыть профиль
+                  </div>
+                </div>
+
+                {/* little chevron */}
+                <div className="text-white/35 text-lg leading-none">›</div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Mobile spacing / bottom safe area */}
+      <div className="h-6 md:h-10" />
+    </div>
   );
 }

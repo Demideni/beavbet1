@@ -1,5 +1,9 @@
 import FriendsClient from "./FriendsClient";
 
-export default function Page() {
+export const metadata = {
+  title: "Friends • BeavBet Arena",
+};
+
+export default function FriendsPage() {
   return <FriendsClient />;
 }

@@ -5,6 +5,7 @@ import ArenaShell from "../ArenaShell";
 import { cn } from "@/components/utils/cn";
 import DmModal from "@/components/arena/DmModal";
 import ImageUploadInline from "@/components/arena/ImageUploadInline";
+import { Pencil, X } from "lucide-react";
 
 type Room = {
   userId: string;
@@ -61,6 +62,7 @@ export default function RoomClient({ userId }: { userId?: string }) {
   const [postImage, setPostImage] = useState("");
 
   const [dmOpen, setDmOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   const isMe = useMemo(() => !!meId && !!room?.userId && meId === room.userId, [meId, room?.userId]);
 
@@ -70,7 +72,6 @@ export default function RoomClient({ userId }: { userId?: string }) {
       const qs = userId ? `?id=${encodeURIComponent(userId)}` : "";
       const r = await fetch(`/api/arena/room${qs}`, { cache: "no-store" });
       const j = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(j?.error || "Failed");
       setMeId(j?.meId ?? null);
       setRoom(j?.room ?? null);
       setProfile(j?.profile ?? null);
@@ -93,8 +94,6 @@ export default function RoomClient({ userId }: { userId?: string }) {
       } else {
         setFriendStatus("none");
       }
-    } catch {
-      // ignore
     } finally {
       setLoading(false);
     }
@@ -120,6 +119,7 @@ export default function RoomClient({ userId }: { userId?: string }) {
       alert(j?.error || "Save failed");
       return;
     }
+    setEditOpen(false);
     await loadAll();
   }
 
@@ -194,80 +194,59 @@ export default function RoomClient({ userId }: { userId?: string }) {
                   </div>
                 </div>
 
-                {!isMe && room?.userId && (
-                  <div className="flex gap-2">
+                {/* справа кнопки */}
+                <div className="flex gap-2">
+                  {isMe ? (
                     <button
                       type="button"
-                      className="rounded-2xl px-4 py-2 bg-white/8 border border-white/10 hover:bg-white/10 text-white text-sm font-semibold"
-                      onClick={() => setDmOpen(true)}
+                      className="rounded-2xl px-4 py-2 bg-white/8 border border-white/10 hover:bg-white/10 text-white text-sm font-semibold inline-flex items-center gap-2"
+                      onClick={() => setEditOpen(true)}
                     >
-                      Message
+                      <Pencil className="h-4 w-4" />
+                      Редактировать
                     </button>
-                    <button
-                      type="button"
-                      className={cn(
-                        "rounded-2xl px-4 py-2 border text-sm font-semibold",
-                        friendStatus === "accepted"
-                          ? "bg-emerald-500/20 border-emerald-400/30 text-emerald-200"
-                          : friendStatus === "pending_outgoing"
-                          ? "bg-yellow-500/15 border-yellow-400/25 text-yellow-100"
-                          : "bg-white/8 border-white/10 hover:bg-white/10 text-white"
-                      )}
-                      onClick={addFriend}
-                      disabled={friendStatus === "accepted" || friendStatus === "pending_outgoing"}
-                    >
-                      {friendStatus === "accepted" ? "Friends" : friendStatus === "pending_outgoing" ? "Request sent" : "Add friend"}
-                    </button>
-                  </div>
-                )}
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        className="rounded-2xl px-4 py-2 bg-white/8 border border-white/10 hover:bg-white/10 text-white text-sm font-semibold"
+                        onClick={() => setDmOpen(true)}
+                      >
+                        Message
+                      </button>
+                      <button
+                        type="button"
+                        className={cn(
+                          "rounded-2xl px-4 py-2 border text-sm font-semibold",
+                          friendStatus === "accepted"
+                            ? "bg-emerald-500/20 border-emerald-400/30 text-emerald-200"
+                            : friendStatus === "pending_outgoing"
+                            ? "bg-yellow-500/15 border-yellow-400/25 text-yellow-100"
+                            : "bg-white/8 border-white/10 hover:bg-white/10 text-white"
+                        )}
+                        onClick={addFriend}
+                        disabled={friendStatus === "accepted" || friendStatus === "pending_outgoing"}
+                      >
+                        {friendStatus === "accepted" ? "Friends" : friendStatus === "pending_outgoing" ? "Request sent" : "Add friend"}
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
           </div>
 
+          {/* Контент: слева новый пост (только для меня), справа лента */}
           <div className="p-4 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
             <div className="lg:col-span-4">
-              <div className="rounded-3xl border border-white/10 bg-black/30 p-4 md:p-5">
-                <div className="text-white font-extrabold tracking-tight">Комната</div>
-                <div className="mt-1 text-white/55 text-xs">Фон / аватар / описание</div>
-
-                {!isMe ? (
-                  <div className="mt-4 text-white/55 text-sm">Настройки доступны только владельцу комнаты.</div>
-                ) : (
-                  <div className="mt-4 grid gap-3">
-                    <ImageUploadInline
-                      label="Фон комнаты"
-                      value={editBg}
-                      onChange={setEditBg}
-                      help="Файл сохранится как /api/arena/uploads/..."
-                      showUrl
-                    />
-                    <ImageUploadInline
-                      label="Аватар комнаты"
-                      value={editAvatar}
-                      onChange={setEditAvatar}
-                      help="Отдельный от аватара профиля"
-                      showUrl
-                    />
-                    <Field label="Bio" value={editBio} onChange={setEditBio} placeholder="Коротко о себе..." textarea />
-                    <button
-                      type="button"
-                      onClick={saveRoom}
-                      className="rounded-2xl px-4 py-2 bg-accent text-black font-extrabold hover:brightness-110"
-                    >
-                      Сохранить
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {isMe && (
-                <div className="mt-6 rounded-3xl border border-white/10 bg-black/30 p-4 md:p-5">
+              {isMe ? (
+                <div className="rounded-3xl border border-white/10 bg-black/30 p-4 md:p-5">
                   <div className="text-white font-extrabold tracking-tight">Новый пост</div>
                   <div className="mt-1 text-white/55 text-xs">Текст + опционально фото (upload)</div>
 
                   <div className="mt-4 grid gap-3">
                     <Field label="Text" value={postText} onChange={setPostText} placeholder="Что нового?" textarea />
-                    <ImageUploadInline label="Фото (optional)" value={postImage} onChange={setPostImage} help="Можно оставить пустым" showUrl />
+                    <ImageUploadInline label="Фото (optional)" value={postImage} onChange={setPostImage} help="Можно оставить пустым" />
                     <button
                       type="button"
                       onClick={createPost}
@@ -276,6 +255,10 @@ export default function RoomClient({ userId }: { userId?: string }) {
                       Опубликовать
                     </button>
                   </div>
+                </div>
+              ) : (
+                <div className="rounded-3xl border border-white/10 bg-black/30 p-4 md:p-5 text-white/60">
+                  {loading ? "Загрузка…" : "Посты игрока"}
                 </div>
               )}
             </div>
@@ -318,6 +301,41 @@ export default function RoomClient({ userId }: { userId?: string }) {
         {!isMe && room?.userId && (
           <DmModal open={dmOpen} onClose={() => setDmOpen(false)} withUserId={room.userId} withNick={profile?.nickname || null} />
         )}
+
+        {/* ✅ Modal: Редактировать (фон/аватар/био) */}
+        {editOpen && isMe ? (
+          <div className="fixed inset-0 z-[120] bg-black/70 backdrop-blur-sm grid place-items-center p-4">
+            <div className="w-full max-w-[720px] rounded-3xl border border-white/10 bg-black/60 p-4 md:p-5">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-white font-extrabold">Редактировать комнату</div>
+                  <div className="text-white/55 text-xs mt-0.5">Фон • Аватар • Bio</div>
+                </div>
+                <button
+                  type="button"
+                  className="h-10 px-3 rounded-2xl bg-white/8 border border-white/10 hover:bg-white/10 text-white/85 inline-flex items-center gap-2"
+                  onClick={() => setEditOpen(false)}
+                >
+                  <X className="h-4 w-4" /> Close
+                </button>
+              </div>
+
+              <div className="mt-4 grid gap-3">
+                <ImageUploadInline label="Фон комнаты" value={editBg} onChange={setEditBg} />
+                <ImageUploadInline label="Аватар комнаты" value={editAvatar} onChange={setEditAvatar} />
+                <Field label="Bio" value={editBio} onChange={setEditBio} placeholder="Коротко о себе..." textarea />
+
+                <button
+                  type="button"
+                  onClick={saveRoom}
+                  className="h-11 rounded-2xl bg-accent text-black font-extrabold hover:brightness-110"
+                >
+                  Сохранить
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
     </ArenaShell>
   );

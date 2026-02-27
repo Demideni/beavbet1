@@ -45,13 +45,12 @@ const arenaItems: Array<{
     icon: <Newspaper className="h-[22px] w-[22px]" />,
     isActive: (p) => p.startsWith("/arena/feed"),
   },
-  {
-    href: "/arena/profile?tab=messages",
-    label: "Сообщения",
-    icon: <MessageCircle className="h-[22px] w-[22px]" />,
-    // активируем и на /arena/profile (любая вкладка), чтобы подсвечивалось
-    isActive: (p) => p.startsWith("/arena/profile"),
-  },
+ {
+  href: "/arena/messages",
+  label: "Сообщения",
+  icon: <MessageCircle className="h-[22px] w-[22px]" />,
+  isActive: (p) => p.startsWith("/arena/messages"),
+},
   {
     href: "/arena/room",
     label: "Моя комната",

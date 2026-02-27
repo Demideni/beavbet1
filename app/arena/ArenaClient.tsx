@@ -3,12 +3,13 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { Crosshair, Wallet, Users, ArrowRight } from "lucide-react";
+import { Crosshair, ArrowRight } from "lucide-react";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import { cn } from "@/components/utils/cn";
 import ArenaShell from "./ArenaShell";
 import { TournamentHero } from "@/components/arena/TournamentHero";
 import { featuredTournamentZava } from "@/components/arena/FeaturedTournamentData";
+import ArenaNewsPanel from "@/components/arena/ArenaNewsPanel";
 
 type Duel = {
   id: string;
@@ -30,15 +31,6 @@ type Tournament = {
   players: number;
   maxPlayers: number;
   status: "open" | "live" | "done";
-};
-
-type Activity = {
-  id: string;
-  kind: "duel_open" | "duel_active" | "duel_done";
-  at: string;
-  stake: number;
-  currency: string;
-  winner_nick?: string;
 };
 
 function prettyTime(ts: string) {
@@ -65,7 +57,6 @@ export default function ArenaClient() {
   const [openDuels, setOpenDuels] = useState<Duel[]>([]);
   const [myDuels, setMyDuels] = useState<Duel[]>([]);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
-  const [activity, setActivity] = useState<Activity[]>([]);
   const [myRating, setMyRating] = useState(1000);
   const [ratingName, setRatingName] = useState("Silver");
 
@@ -79,7 +70,6 @@ export default function ArenaClient() {
         setOpenDuels(Array.isArray(json?.openDuels) ? json.openDuels : []);
         setMyDuels(Array.isArray(json?.myDuels) ? json.myDuels : []);
         setTournaments(Array.isArray(json?.tournaments) ? json.tournaments : []);
-        setActivity(Array.isArray(json?.activity) ? json.activity : []);
         if (typeof json?.myRating === "number") setMyRating(json.myRating);
         if (typeof json?.ratingName === "string") setRatingName(json.ratingName);
       } catch {
@@ -157,8 +147,8 @@ export default function ArenaClient() {
             </div>
           </div>
 
-          {/* Main tiles (оставляем как было по размеру) */}
-          <div className="mt-4 rounded-3xl border border-white/10 bg-black/30 p-4">
+          {/* Main tiles (убрали общую рамку) */}
+          <div className="mt-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <FaceTile
                 title="Матчмейкинг"
@@ -225,7 +215,7 @@ export default function ArenaClient() {
             </div>
           </div>
 
-          {/* Tournaments (featured переносим сюда вниз) */}
+          {/* Tournaments */}
           <div id="tournaments" className="mt-4 rounded-3xl border border-white/10 bg-black/30 p-4">
             <div className="text-white font-extrabold text-lg">Турниры</div>
             <div className="text-white/60 text-sm mt-1">Входной взнос формирует призовой фонд.</div>
@@ -288,86 +278,9 @@ export default function ArenaClient() {
           </div>
         </main>
 
-        {/* Right sidebar */}
+        {/* Right sidebar: Новости арены (admin posts) */}
         <aside className="min-w-0">
-          <div className="rounded-3xl border border-white/10 bg-black/30 p-4">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-2xl bg-white/7 border border-white/10 grid place-items-center">
-                <Wallet className="h-5 w-5 text-white" />
-              </div>
-              <div className="min-w-0">
-                <Link href="/arena/room" className="...">
-  <div className="text-white font-bold">Моя комната</div>
-  <div className="text-white/50 text-xs">Профиль • Посты • Фон</div>
-</Link>
-              </div>
-            </div>
-
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <Link href="/payments" className="rounded-2xl bg-white/5 border border-white/10 hover:bg-white/7 px-3 py-3">
-                <div className="text-white font-extrabold">Wallet</div>
-                <div className="text-white/60 text-sm mt-1">Deposit / Withdraw</div>
-              </Link>
-              <Link href="/arena/profile" className="rounded-2xl bg-white/5 border border-white/10 hover:bg-white/7 px-3 py-3">
-                <div className="text-white font-extrabold">Profile</div>
-                <div className="text-white/60 text-sm mt-1">Friends / Messages</div>
-              </Link>
-            </div>
-          </div>
-
-          <div className="mt-4 rounded-3xl border border-white/10 bg-black/30 p-4">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-2xl bg-white/7 border border-white/10 grid place-items-center">
-                <Users className="h-5 w-5 text-white" />
-              </div>
-              <div className="min-w-0">
-                <div className="text-white font-extrabold truncate">{t("arena.activity")}</div>
-                <div className="text-white/60 text-sm">{t("arena.activity.subtitle")}</div>
-              </div>
-            </div>
-
-            <div className="mt-4 grid gap-2">
-              {loading ? (
-                <div className="text-white/60">{t("common.loading")}</div>
-              ) : activity.length === 0 ? (
-                <div className="text-white/60">{t("arena.noActivity")}</div>
-              ) : (
-                activity.slice(0, 10).map((a) => (
-                  <div key={a.id} className="rounded-2xl bg-white/5 border border-white/10 px-4 py-3">
-                    <div className="text-white/85 text-sm font-semibold">
-                      {a.kind === "duel_done" ? (
-                        <>
-                          Победа: <span className="text-white font-extrabold">{a.winner_nick || "Player"}</span>
-                        </>
-                      ) : a.kind === "duel_active" ? (
-                        <>Дуэль началась</>
-                      ) : (
-                        <>Новая дуэль</>
-                      )}
-                    </div>
-                    <div className="text-white/60 text-sm mt-1">
-                      {a.stake} {a.currency} • {prettyTime(a.at)}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
-          <div className="mt-4 rounded-3xl border border-white/10 bg-black/30 p-4">
-            <div className="text-white font-extrabold">Quick</div>
-            <div className="mt-3 grid gap-2">
-              <Link href="/arena/duels/cs2" className="rounded-2xl bg-white/5 border border-white/10 hover:bg-white/7 px-4 py-3">
-                Дуэли <ArrowRight className="inline h-4 w-4 ml-1" />
-              </Link>
-              <Link href="/arena/tournaments" className="rounded-2xl bg-white/5 border border-white/10 hover:bg-white/7 px-4 py-3">
-                Турниры <ArrowRight className="inline h-4 w-4 ml-1" />
-              </Link>
-              <Link href="/arena/leaderboard" className="rounded-2xl bg-white/5 border border-white/10 hover:bg-white/7 px-4 py-3">
-                Лига <ArrowRight className="inline h-4 w-4 ml-1" />
-              </Link>
-            </div>
-          </div>
+          <ArenaNewsPanel />
         </aside>
       </div>
     </ArenaShell>
@@ -394,7 +307,7 @@ function FaceTile({
 
   const content = (
     <>
-      {/* 🔥 Glow layer */}
+      {/* Glow layer */}
       <div
         className="pointer-events-none absolute -inset-1 rounded-[28px] opacity-0 group-hover:opacity-100 transition duration-500 blur-2xl
         bg-[radial-gradient(circle_at_20%_30%,rgba(255,70,60,0.55),transparent_55%),

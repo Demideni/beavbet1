@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { getDb } from "@/lib/db";
+import { isAdminUser } from "@/lib/admin";
 
 export async function GET() {
   const session = await getSessionUser();
@@ -26,6 +27,7 @@ export async function GET() {
       balance: wallet?.balance || 0,
       lockedBalance: wallet?.locked_balance || 0,
       totalBalance: Number(((wallet?.balance || 0) + (wallet?.locked_balance || 0)).toFixed(2)),
+      isAdmin: isAdminUser(session.id, session.email),
     },
   });
 }

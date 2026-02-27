@@ -393,6 +393,17 @@ function ensureSchema(db: any) {
     );
     CREATE INDEX IF NOT EXISTS idx_arena_room_posts_user_created ON arena_room_posts(user_id, created_at DESC);
 
+        -- ✅ НОВОЕ: Новости арены (только админ-посты)
+    CREATE TABLE IF NOT EXISTS arena_news_posts (
+      id TEXT PRIMARY KEY,
+      admin_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      text TEXT NOT NULL,
+      image_url TEXT,
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_arena_news_posts_created ON arena_news_posts(created_at DESC);
+
         -- ✅ НОВОЕ: Подписки (follow)
     CREATE TABLE IF NOT EXISTS arena_follows (
       follower_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

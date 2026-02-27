@@ -10,7 +10,14 @@ import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
 import { usePathname } from "next/navigation";
 
 type MeUser =
-  | { id: string; email: string; nickname: string | null; currency?: string; balance?: number }
+  | {
+      id: string;
+      email: string;
+      nickname: string | null;
+      currency?: string;
+      balance?: number;
+      isAdmin?: boolean;
+    }
   | null;
 
 export function Topbar() {
@@ -208,49 +215,12 @@ export function Topbar() {
 
           <div className="flex items-center gap-2 ml-auto">
             {user ? (
-              <>
-                {balanceText ? (
-                  <Link
-                    href="/payments"
-                    className="inline-flex items-center px-3 py-2 rounded-2xl bg-white/5 border border-white/10 text-sm text-white/85 hover:bg-white/8"
-                    aria-label={t("topbar.balance")}
-                  >
-                    {balanceText}
-                  </Link>
-                ) : null}
-
-                <button
-                  onClick={() => {
-                    if (incomingFriends > 0) window.location.href = "/arena/profile?tab=friends";
-                    else window.location.href = "/arena/profile?tab=messages";
-                  }}
-                  className="relative inline-flex items-center justify-center size-11 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/8"
-                  aria-label="Notifications"
-                >
-                  <Bell className="size-5 text-white/85" />
-                  {incomingFriends + unreadDm > 0 ? (
-                    <span className="absolute -top-1 -right-1 h-5 min-w-5 px-1 rounded-full bg-accent text-black text-xs font-extrabold flex items-center justify-center">
-                      {incomingFriends + unreadDm}
-                    </span>
-                  ) : null}
-                </button>
-
-                <Link
-                  href="/account"
-                  className="inline-flex items-center justify-center size-11 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/8"
-                  aria-label={t("topbar.cabinet")}
-                >
-                  <Settings className="size-5 text-white/85" />
-                </Link>
-
-                <Link
-                  href="/arena/profile"
-                  className="inline-flex items-center justify-center size-11 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/8"
-                  aria-label={t("topbar.profile")}
-                >
-                  <span className="text-white font-extrabold">{initials}</span>
-                </Link>
-              </>
+              <Link
+                href="/arena/premium"
+                className="inline-flex items-center justify-center h-11 px-5 rounded-2xl bg-accent text-black font-extrabold hover:bg-accent/90"
+              >
+                Оформить Premium
+              </Link>
             ) : (
               <Link href="/auth" className="px-4 py-2 rounded-2xl bg-white/10 hover:bg-white/15 text-white font-semibold">
                 {t("topbar.login")}

@@ -1,5 +1,9 @@
 import MessagesClient from "./MessagesClient";
 
-export default function Page() {
+export const metadata = {
+  title: "Messages • BeavBet Arena",
+};
+
+export default function MessagesPage() {
   return <MessagesClient />;
 }

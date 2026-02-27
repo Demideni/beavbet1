@@ -53,7 +53,7 @@ export default function FriendsClient() {
 
         if (!alive) return;
         setFriends(Array.isArray(data?.friends) ? data.friends : []);
-      } catch (e) {
+      } catch {
         if (!alive) return;
         setFriends([]);
       } finally {
@@ -75,76 +75,81 @@ export default function FriendsClient() {
   }, [friends, query]);
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-4 md:py-6">
-      {/* Header */}
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <div className="flex flex-col">
-          <h1 className="text-xl md:text-2xl font-bold">Друзья</h1>
-          <p className="text-sm text-white/60">
-            {loading ? "Загрузка…" : `${friends.length} друзей`}
-          </p>
-        </div>
-
-        {/* Search */}
-        <div className="w-[220px] md:w-[320px]">
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Поиск друзей"
-            className="w-full rounded-xl bg-black/35 border border-white/10 px-3 py-2 text-sm outline-none focus:border-orange-500/60"
-          />
-        </div>
+    <div className="relative min-h-[calc(100vh-24px)]">
+      {/* ✅ ФОН КАК В АРЕНЕ (темный + красный) */}
+      <div className="pointer-events-none absolute inset-0 -z-10">
+        <div className="absolute inset-0 bg-[#070A0F]" />
+        {/* красное свечение как в арене */}
+        <div className="absolute -top-40 left-1/2 h-[520px] w-[900px] -translate-x-1/2 rounded-full bg-red-600/20 blur-[120px]" />
+        <div className="absolute top-40 left-1/3 h-[420px] w-[720px] -translate-x-1/2 rounded-full bg-red-500/10 blur-[120px]" />
+        {/* затемнение */}
+        <div className="absolute inset-0 bg-black/35" />
       </div>
 
-      {/* List container */}
-      <div className="rounded-2xl border border-white/10 bg-black/30 overflow-hidden">
-        {/* Top bar like VK list header */}
-        <div className="px-4 py-3 border-b border-white/10 text-sm text-white/70">
-          Все друзья
+      <div className="mx-auto w-full max-w-5xl px-4 py-4 md:py-6">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div className="flex flex-col">
+            <h1 className="text-xl md:text-2xl font-bold">Друзья</h1>
+            <p className="text-sm text-white/60">
+              {loading ? "Загрузка…" : `${friends.length} друзей`}
+            </p>
+          </div>
+
+          <div className="w-[220px] md:w-[320px]">
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Поиск друзей"
+              className="w-full rounded-xl bg-black/35 border border-white/10 px-3 py-2 text-sm outline-none focus:border-orange-500/60"
+            />
+          </div>
         </div>
 
-        {/* Content */}
-        {loading ? (
-          <div className="p-4 space-y-3">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <div
-                key={i}
-                className="h-14 rounded-xl bg-white/5 animate-pulse"
-              />
-            ))}
+        <div className="rounded-2xl border border-white/10 bg-black/30 overflow-hidden">
+          <div className="px-4 py-3 border-b border-white/10 text-sm text-white/70">
+            Все друзья
           </div>
-        ) : filtered.length === 0 ? (
-          <div className="p-6 text-sm text-white/60">
-            {query ? "Ничего не найдено." : "Список друзей пуст."}
-          </div>
-        ) : (
-          <div className="divide-y divide-white/10">
-            {filtered.map((f) => (
-              <button
-                key={f.id}
-                onClick={() => router.push(`/arena/player/${f.id}`)}
-                className="w-full text-left px-4 py-3 hover:bg-white/5 transition flex items-center gap-3"
-              >
-                <Avatar url={f.avatarUrl} name={f.nickname} />
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm md:text-base font-semibold truncate">
-                    {f.nickname}
-                  </div>
-                  <div className="text-xs text-white/50 truncate">
-                    Открыть профиль
-                  </div>
-                </div>
 
-                {/* little chevron */}
-                <div className="text-white/35 text-lg leading-none">›</div>
-              </button>
-            ))}
-          </div>
-        )}
+          {loading ? (
+            <div className="p-4 space-y-3">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="h-14 rounded-xl bg-white/5 animate-pulse"
+                />
+              ))}
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="p-6 text-sm text-white/60">
+              {query ? "Ничего не найдено." : "Список друзей пуст."}
+            </div>
+          ) : (
+            <div className="divide-y divide-white/10">
+              {filtered.map((f) => (
+                <button
+                  key={f.id}
+                  onClick={() => router.push(`/arena/player/${f.id}`)}
+                  className="w-full text-left px-4 py-3 hover:bg-white/5 transition flex items-center gap-3"
+                >
+                  <Avatar url={f.avatarUrl} name={f.nickname} />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm md:text-base font-semibold truncate">
+                      {f.nickname}
+                    </div>
+                    <div className="text-xs text-white/50 truncate">
+                      Открыть профиль
+                    </div>
+                  </div>
+
+                  <div className="text-white/35 text-lg leading-none">›</div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="h-6 md:h-10" />
       </div>
-
-      {/* Mobile spacing / bottom safe area */}
-      <div className="h-6 md:h-10" />
     </div>
   );
 }

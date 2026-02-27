@@ -13,6 +13,9 @@ export default async function ArenaProfilePage({
   // старый таб друзей -> новая страница друзей
   if (sp.tab === "friends") {
     redirect("/arena/friends");
+    if (sp.tab === "messages") {
+  redirect("/arena/messages");
+}
   }
 
   // остальной профиль как был

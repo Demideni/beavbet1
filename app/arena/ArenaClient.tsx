@@ -11,6 +11,7 @@ import { TournamentHero } from "@/components/arena/TournamentHero";
 import { featuredTournamentZava } from "@/components/arena/FeaturedTournamentData";
 import ArenaNewsPanel from "@/components/arena/ArenaNewsPanel";
 import DailyRewardSpin from "@/components/arena/DailyRewardSpin";
+import MobileTilesCarousel from "@/components/arena/MobileTilesCarousel";
 
 type Duel = {
   id: string;
@@ -148,29 +149,57 @@ export default function ArenaClient() {
             </div>
           </div>
 
-          {/* Main tiles (убрали общую рамку) */}
-          <div className="mt-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <FaceTile
-                title="Матчмейкинг"
-                subtitle={loading ? "…" : `Открытых дуэлей: ${openDuels.length}`}
-                href="/arena/duels/cs2"
-                bgSrc="/arena/cards/open-duels.png"
-              />
-              <FaceTile
-                title="Турниры"
-                subtitle={loading ? "…" : `Сегодня: €${todayPool.toFixed(0)}`}
-                href="#tournaments"
-                bgSrc="/arena/cards/tournadments.png"
-              />
-              <FaceTile
-                title="Лига"
-                subtitle={`${t("arena.beavrank")}: ${myRating} • ${ratingName}`}
-                href="/arena/leaderboard"
-                bgSrc="/arena/cards/beavrank.png"
-              />
-            </div>
-          </div>
+          {/* Main tiles */}
+<div className="mt-4">
+  {/* Mobile: carousel */}
+  <MobileTilesCarousel
+    tiles={[
+      {
+        key: "mm",
+        title: "Матчмейкинг",
+        subtitle: loading ? "…" : `Открытых дуэлей: ${openDuels.length}`,
+        href: "/arena/duels/cs2",
+        bgSrc: "/arena/cards/open-duels.png",
+      },
+      {
+        key: "tours",
+        title: "Турниры",
+        subtitle: loading ? "…" : `Сегодня: €${todayPool.toFixed(0)}`,
+        href: "#tournaments",
+        bgSrc: "/arena/cards/tournadments.png",
+      },
+      {
+        key: "league",
+        title: "Лига",
+        subtitle: `${t("arena.beavrank")}: ${myRating} • ${ratingName}`,
+        href: "/arena/leaderboard",
+        bgSrc: "/arena/cards/beavrank.png",
+      },
+    ]}
+  />
+
+  {/* Desktop/tablet: grid */}
+  <div className="hidden md:grid grid-cols-3 gap-3">
+    <FaceTile
+      title="Матчмейкинг"
+      subtitle={loading ? "…" : `Открытых дуэлей: ${openDuels.length}`}
+      href="/arena/duels/cs2"
+      bgSrc="/arena/cards/open-duels.png"
+    />
+    <FaceTile
+      title="Турниры"
+      subtitle={loading ? "…" : `Сегодня: €${todayPool.toFixed(0)}`}
+      href="#tournaments"
+      bgSrc="/arena/cards/tournadments.png"
+    />
+    <FaceTile
+      title="Лига"
+      subtitle={`${t("arena.beavrank")}: ${myRating} • ${ratingName}`}
+      href="/arena/leaderboard"
+      bgSrc="/arena/cards/beavrank.png"
+    />
+  </div>
+</div>
 
           {/* Daily reward spin (legal, no skins) */}
 <div className="mt-4">

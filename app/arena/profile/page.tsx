@@ -1,16 +1,20 @@
 import { redirect } from "next/navigation";
+import ArenaProfileClient from "./ArenaProfileClient";
 
-export default function ArenaProfilePage({
+type SearchParams = Promise<{ tab?: string }>;
+
+export default async function ArenaProfilePage({
   searchParams,
 }: {
-  searchParams?: { tab?: string };
+  searchParams?: SearchParams;
 }) {
-  if (searchParams?.tab === "friends") {
+  const sp = (await searchParams) ?? {};
+
+  // старый таб друзей -> новая страница друзей
+  if (sp.tab === "friends") {
     redirect("/arena/friends");
   }
 
-  // если у тебя в профиле уже есть client-компонент, оставь его тут как было.
-  // Например:
-  // return <ArenaProfileClient />;
-  redirect("/arena/profile?tab=messages");
+  // остальной профиль как был
+  return <ArenaProfileClient />;
 }

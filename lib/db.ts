@@ -169,12 +169,12 @@ function ensureSchema(db: any) {
   ensureColumn(db, "users", "role", "role TEXT NOT NULL DEFAULT 'user'");
 
   // Premium / rewards (Arena growth via subscriptions)
-  ensureColumn(db, "users", "premium_until", "premium_until INTEGER");
+ensureColumn(db, "users", "premium_until", "premium_until INTEGER");
 
-  // Arena economy (non-cash, non-withdrawable)
-  ensureColumn(db, "profiles", "arena_coins", "arena_coins INTEGER NOT NULL DEFAULT 0");
-  ensureColumn(db, "profiles", "arena_xp", "arena_xp INTEGER NOT NULL DEFAULT 0");
-  ensureColumn(db, "profiles", "badges_json", "badges_json TEXT");
+// Arena economy (non-cash, non-withdrawable)
+ensureColumn(db, "profiles", "arena_coins", "arena_coins INTEGER NOT NULL DEFAULT 0");
+ensureColumn(db, "profiles", "arena_xp", "arena_xp INTEGER NOT NULL DEFAULT 0");
+ensureColumn(db, "profiles", "badges_json", "badges_json TEXT");
 
   // Wallets: older code paths expect updated_at; keep it optional for backwards compatibility
   ensureColumn(db, "wallets", "updated_at", "updated_at INTEGER");
@@ -300,37 +300,160 @@ function ensureSchema(db: any) {
     );
     CREATE INDEX IF NOT EXISTS idx_arena_duel_players_duel ON arena_duel_players(duel_id);
 
-    CREATE TABLE IF NOT EXISTS arena_ratings (
-      user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-      dam_rank REAL NOT NULL DEFAULT 250,
-      matches INTEGER NOT NULL DEFAULT 0,
-      wins INTEGER NOT NULL DEFAULT 0,
-      losses INTEGER NOT NULL DEFAULT 0,
-      updated_at INTEGER NOT NULL
-    );
+ CREATE TABLE IF NOT EXISTS arena_ratings (
+  user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  dam_rank REAL NOT NULL DEFAULT 250,
+  matches INTEGER NOT NULL DEFAULT 0,
+  wins INTEGER NOT NULL DEFAULT 0,
+  losses INTEGER NOT NULL DEFAULT 0,
+  updated_at INTEGER NOT NULL
+);
     CREATE INDEX IF NOT EXISTS idx_arena_ratings_rank ON arena_ratings(dam_rank);
-  `);
 
-  // Arena rewards (legal: non-cash; no direct market items)
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS arena_rewards (
+    CREATE TABLE IF NOT EXISTS arena_duel_reports (
+      id TEXT PRIMARY KEY,
+      duel_id TEXT NOT NULL REFERENCES arena_duels(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      result TEXT NOT NULL, -- win | lose
+      created_at INTEGER NOT NULL,
+      UNIQUE(duel_id, user_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_arena_duel_reports_duel ON arena_duel_reports(duel_id);
+
+    -- Arena global chat (MVP)
+    CREATE TABLE IF NOT EXISTS arena_chat_messages (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      type TEXT NOT NULL, -- welcome | daily
-      reward_type TEXT NOT NULL, -- coins | premium_hours | xp | badge
-      reward_value INTEGER,
+      nickname TEXT,
+      message TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_arena_chat_created ON arena_chat_messages(created_at);
+
+    -- Arena social: friends + direct messages (MVP)
+    CREATE TABLE IF NOT EXISTS arena_friends (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      friend_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      status TEXT NOT NULL, -- pending | accepted
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      PRIMARY KEY (user_id, friend_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_arena_friends_user ON arena_friends(user_id, status, updated_at DESC);
+
+    CREATE TABLE IF NOT EXISTS arena_dm_threads (
+      id TEXT PRIMARY KEY,
+      user1_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      user2_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      UNIQUE(user1_id, user2_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_arena_dm_threads_u1 ON arena_dm_threads(user1_id, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_arena_dm_threads_u2 ON arena_dm_threads(user2_id, updated_at DESC);
+
+    CREATE TABLE IF NOT EXISTS arena_dm_messages (
+      id TEXT PRIMARY KEY,
+      thread_id TEXT NOT NULL REFERENCES arena_dm_threads(id) ON DELETE CASCADE,
+      sender_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      message TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_arena_dm_msg_thread_created ON arena_dm_messages(thread_id, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS arena_dm_reads (
+      thread_id TEXT NOT NULL REFERENCES arena_dm_threads(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      last_read_at INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (thread_id, user_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_arena_dm_reads_user ON arena_dm_reads(user_id, last_read_at DESC);
+
+    CREATE TABLE IF NOT EXISTS arena_gifts (
+      id TEXT PRIMARY KEY,
+      from_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      to_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      amount REAL NOT NULL,
+      currency TEXT NOT NULL,
+      note TEXT,
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_arena_gifts_to ON arena_gifts(to_user_id, created_at DESC);
+
+    -- ✅ НОВОЕ: Комнаты игроков
+    CREATE TABLE IF NOT EXISTS arena_rooms (
+      user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      background_url TEXT,
+      avatar_url TEXT,
+      bio TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_arena_rooms_updated ON arena_rooms(updated_at DESC);
+
+    -- ✅ НОВОЕ: Лента комнаты
+    CREATE TABLE IF NOT EXISTS arena_room_posts (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      text TEXT,
+      image_url TEXT,
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_arena_room_posts_user_created ON arena_room_posts(user_id, created_at DESC);
+
+        -- ✅ НОВОЕ: Новости арены (только админ-посты)
+    CREATE TABLE IF NOT EXISTS arena_news_posts (
+      id TEXT PRIMARY KEY,
+      admin_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      text TEXT NOT NULL,
+      image_url TEXT,
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_arena_news_posts_created ON arena_news_posts(created_at DESC);
+
+        -- ✅ НОВОЕ: Подписки (follow)
+    CREATE TABLE IF NOT EXISTS arena_follows (
+      follower_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      followee_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at INTEGER NOT NULL,
+      PRIMARY KEY (follower_id, followee_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_arena_follows_follower ON arena_follows(follower_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_arena_follows_followee ON arena_follows(followee_id, created_at DESC);
+
+    -- ✅ НОВОЕ: События для общей ленты (activity feed)
+    CREATE TABLE IF NOT EXISTS arena_feed_events (
+      id TEXT PRIMARY KEY,
+      kind TEXT NOT NULL, -- profile_update | room_update | post_create | follow
+      actor_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      target_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+      ref_id TEXT,
       meta TEXT,
       created_at INTEGER NOT NULL
     );
-    CREATE INDEX IF NOT EXISTS idx_arena_rewards_user_created ON arena_rewards(user_id, created_at DESC);
-    CREATE INDEX IF NOT EXISTS idx_arena_rewards_type_created ON arena_rewards(type, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_arena_feed_events_created ON arena_feed_events(created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_arena_feed_events_actor ON arena_feed_events(actor_user_id, created_at DESC);
   `);
+
+  // Arena rewards (legal: non-cash; no direct market items)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS arena_rewards (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    type TEXT NOT NULL, -- welcome | daily
+    reward_type TEXT NOT NULL, -- coins | premium_hours | xp | badge
+    reward_value INTEGER,
+    meta TEXT,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_arena_rewards_user_created ON arena_rewards(user_id, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_arena_rewards_type_created ON arena_rewards(type, created_at DESC);
+`);
+  
 
   // Profiles: extend with avatar (URL) for Arena/website
   ensureColumn(db, "profiles", "avatar_url", "avatar_url TEXT");
-
-  // Arena tournaments: optional BeavRank gate for prize / league tournaments
-  ensureColumn(db, "arena_tournaments", "min_beavrank", "min_beavrank REAL NOT NULL DEFAULT 0");
 
   // Arena matches: add newer columns for CS2 (and other games) matchmaking/launch info.
   ensureColumn(db, "arena_matches", "game", "game TEXT");
@@ -376,8 +499,50 @@ export function getDb() {
   const db = new Database(DB_PATH);
   ensureSchema(db);
 
-  return (global.__beavbet_db__ = db);
+  // Game aggregator sessions (session_id -> user_id mapping for callbacks)
+   // (ga_session_id -> user_id mapping for callbacks)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS ga_sessions (
+      session_id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+
+    -- Streamer teams (community)
+    CREATE TABLE IF NOT EXISTS streamer_team_members (
+      id TEXT PRIMARY KEY,
+      streamer_slug TEXT NOT NULL,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at INTEGER NOT NULL,
+      UNIQUE(streamer_slug, user_id)
+    );
+
+    -- ✅ Admin-managed streamers / partners (cards on Arena)
+    CREATE TABLE IF NOT EXISTS arena_streamers (
+      id TEXT PRIMARY KEY,
+      type TEXT NOT NULL,               -- 'streamer' | 'partner'
+      slug TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,               -- badge label
+      title TEXT NOT NULL,              -- card title
+      photo TEXT NOT NULL,              -- url or public path
+      tagline TEXT,
+      socials_json TEXT,                -- JSON string
+      kick_channel TEXT,
+      kick_embed_url TEXT,
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_arena_streamers_type_active ON arena_streamers(type, active);
+    CREATE INDEX IF NOT EXISTS idx_arena_streamers_updated ON arena_streamers(updated_at DESC);
+  `);
+
+  global.__beavbet_db__ = db;
+  return db;
 }
+
+// Backwards-compatible exports used by some routes
+export const initDb = getDb;
 
 export function uuid() {
   return randomUUID();

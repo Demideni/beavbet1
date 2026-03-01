@@ -1,19 +1,29 @@
-import { NextResponse } from "next/server";
-import { getSessionUser } from "@/lib/auth";
-import { reportDuelResult } from "@/lib/arenaDuels";
+import { NextRequest, NextResponse } from "next/server";
+import { reportDuelResult } from "@/lib/arena/duels/cs2";
 
-export async function POST(req: Request) {
-  const user = await getSessionUser();
-  if (!user) return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const { duelId, userId, result } = body;
 
-  const body = await req.json().catch(() => ({}));
-  const duelId = String(body?.duelId || "");
-  const result = String(body?.result || "");
-  if (!duelId || (result !== "win" && result !== "lose")) {
-    return NextResponse.json({ ok: false, error: "BAD_REQUEST" }, { status: 400 });
+    if (!duelId || !userId || !result) {
+      return NextResponse.json(
+        { ok: false, error: "BAD_REQUEST" },
+        { status: 400 }
+      );
+    }
+
+    // ✅ новый правильный вызов: один аргумент-объект
+    const r = reportDuelResult({ duelId, userId, result });
+
+    if (!r.ok) return NextResponse.json(r, { status: 400 });
+
+    return NextResponse.json(r);
+  } catch (error) {
+    console.error("DUEL_REPORT_ERROR:", error);
+    return NextResponse.json(
+      { ok: false, error: "SERVER_ERROR" },
+      { status: 500 }
+    );
   }
-
-  const r = reportDuelResult(duelId, user.id, result as any);
-  if (!r.ok) return NextResponse.json(r, { status: 400 });
-  return NextResponse.json(r);
 }

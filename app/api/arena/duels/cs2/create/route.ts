@@ -10,7 +10,7 @@ export async function POST(req: Request) {
   const teamSize = Number(body?.teamSize || 1);
   const map = typeof body?.map === "string" ? body.map : undefined;
 
-  const r = createCs2Duel(user.id, 0, "EUR", { teamSize, map }); // ✅ stake всегда 0
+const r = createCs2Duel({ userId: user.id, stake: 0, currency: "EUR", teamSize, map }); // ✅ stake всегда 0
   if (!r.ok) return NextResponse.json(r, { status: 400 });
 
   return NextResponse.json(r);

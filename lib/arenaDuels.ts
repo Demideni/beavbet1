@@ -146,8 +146,7 @@ function ensureRating(db: any, userId: string) {
   const r = db.prepare("SELECT user_id FROM arena_ratings WHERE user_id = ?").get(userId) as { user_id: string } | undefined;
   if (!r) {
     db.prepare(
-      // ✅ BeavRank старт: 250
-      "INSERT INTO arena_ratings (user_id, dam_rank, matches, wins, losses, updated_at) VALUES (?, 250, 0, 0, 0, ?)"
+      "INSERT INTO arena_ratings (user_id, dam_rank, matches, wins, losses, updated_at) VALUES (?, 1000, 0, 0, 0, ?)"
     ).run(userId, now);
   }
 }
@@ -155,7 +154,7 @@ function ensureRating(db: any, userId: string) {
 export function getDamRank(db: any, userId: string) {
   ensureRating(db, userId);
   return (db.prepare("SELECT dam_rank, matches, wins, losses FROM arena_ratings WHERE user_id=?").get(userId) ??
-    { dam_rank: 250, matches: 0, wins: 0, losses: 0 }) as { dam_rank: number; matches: number; wins: number; losses: number };
+    { dam_rank: 1000, matches: 0, wins: 0, losses: 0 }) as { dam_rank: number; matches: number; wins: number; losses: number };
 }
 
 /**
@@ -219,234 +218,361 @@ function getDuelPlayers(db: any, duelId: string) {
   return db.prepare("SELECT * FROM arena_duel_players WHERE duel_id=? ORDER BY team, joined_at").all(duelId) as DuelPlayerRow[];
 }
 
-function getNick(db: any, userId: string | null | undefined) {
-  if (!userId) return null;
-  const p = db.prepare("SELECT nickname FROM profiles WHERE user_id=?").get(userId) as { nickname?: string } | undefined;
-  return p?.nickname || null;
+function teamsFill(players: DuelPlayerRow[]) {
+  const t1 = players.filter((p) => p.team === 1);
+  const t2 = players.filter((p) => p.team === 2);
+  return { t1, t2 };
 }
 
-function teamsFill(players: DuelPlayerRow[]) {
-  const t1 = players.filter((p) => Number(p.team) === 1);
-  const t2 = players.filter((p) => Number(p.team) === 2);
-  return { t1, t2 };
+
+function getNick(db: any, userId: string | null | undefined) {
+  if (!userId) return null;
+  const r = db.prepare("SELECT nickname FROM profiles WHERE user_id=?").get(userId) as { nickname?: string } | undefined;
+  return r?.nickname || null;
+}
+
+export function listCs2Duels(userId: string) {
+  const db = getDb();
+  tickCs2Duels(db);
+
+  const duels = db
+    .prepare(
+      `SELECT * FROM arena_duels
+       WHERE game='cs2'
+       ORDER BY created_at DESC
+       LIMIT 100`
+    )
+    .all() as DuelRow[];
+
+  const enriched = duels.map((d) => {
+    const players = getDuelPlayers(db, d.id);
+    const { t1, t2 } = teamsFill(players);
+    const me = players.find((p) => p.user_id === userId);
+    const me_team = me?.team ?? (d.p1_user_id === userId ? 1 : d.p2_user_id === userId ? 2 : null);
+    const me_is_p1 = me_team === 1;
+    return {
+      ...d,
+      p1_nick: getNick(db, d.p1_user_id),
+      p2_nick: getNick(db, d.p2_user_id),
+      players,
+      team1_count: t1.length,
+      team2_count: t2.length,
+      me_team,
+      me_is_p1,
+    };
+  });
+
+  const myRating = getDamRank(db, userId);
+
+  return { ok: true as const, duels: enriched, myRating, ratingName: ratingNameFromElo(myRating.dam_rank) };
+}
+
+export function createCs2Duel(
+  userId: string,
+  stake: number,
+  currency: string,
+  opts?: { teamSize?: number; map?: string | null }
+) {
+  const db = getDb();
+
+    const access = assertCanStartMatch(userId);
+  if (!access.ok) return { ok: false as const, error: access.error, access };
+
+  // keep timeouts consistent even if user never opened the list page
+  tickCs2Duels(db);
+  const s = 0; // ✅ ставок нет вообще
+
+  const cur = String(currency || "EUR").toUpperCase();
+  const teamSize = Math.max(1, Math.min(5, Number(opts?.teamSize || 1) || 1));
+
+  const requestedMap = String(opts?.map || "").trim();
+  const map = !requestedMap || requestedMap === "random" ? pickCs2Map() : isValidCs2Map(requestedMap) ? requestedMap : null;
+  if (!map) return { ok: false as const, error: "BAD_MAP" };
+
+  // FACEIT-like UX: if there's an existing matching open duel from another user,
+  // join it instead of creating a new one.
+  {
+    const now = Date.now();
+    const recentCutoff = now - 30 * 60 * 1000;
+    const candidate = db
+      .prepare(
+        `SELECT id
+         FROM arena_duels
+         WHERE game='cs2'
+           AND status='open'
+           AND p1_user_id <> ?
+           AND team_size = ?
+           AND stake = ?
+           AND currency = ?
+           AND map = ?
+           AND created_at >= ?
+         ORDER BY created_at ASC
+         LIMIT 1`
+      )
+      .get(userId, teamSize, s, cur, map, recentCutoff) as { id: string } | undefined;
+
+    if (candidate?.id) {
+      const jr = joinCs2Duel(userId, candidate.id, 2);
+      if (jr.ok) return { ok: true as const, duelId: candidate.id, matched: true as const };
+      // If join fails (e.g. insufficient funds/team full), fall back to creating.
+    }
+  }
+
+  // Only one active/open duel per creator.
+  const existing = db
+    .prepare(
+      `SELECT id FROM arena_duels
+       WHERE p1_user_id=? AND game='cs2' AND status NOT IN ('done','cancelled')
+       LIMIT 1`
+    )
+    .get(userId) as { id: string } | undefined;
+  if (existing) return { ok: false as const, error: "ALREADY_HAS_DUEL", duelId: existing.id };
+
+  const id = randomUUID();
+  const now = Date.now();
+  const rake = 0.15;
+  const mode = `${teamSize}v${teamSize}`;
+  const matchToken = genPassword(18);
+
+  const tx = db.transaction(() => {
+    const deb = debitBalance(db, userId, cur, s, id);
+    if (!deb.ok) return deb;
+
+    db.prepare(
+      `INSERT INTO arena_duels
+       (id, game, mode, team_size, stake, currency, rake, status, map, server, server_password, join_link, started_at, ended_at,
+        p1_user_id, p2_user_id, winner_user_id, winner_team, p1_ready, p2_ready, ready_deadline, live_state, match_token, created_at, updated_at)
+       VALUES (?, 'cs2', ?, ?, ?, ?, ?, 'open', ?, NULL, NULL, NULL, NULL, NULL,
+        ?, NULL, NULL, NULL, 0, 0, NULL, 'lobby', ?, ?, ?)`
+    ).run(id, mode, teamSize, s, cur, rake, map, userId, matchToken, now, now);
+
+    db.prepare(
+      `INSERT INTO arena_duel_players (duel_id, user_id, team, is_captain, ready, joined_at)
+       VALUES (?, ?, 1, 1, 0, ?)`
+    ).run(id, userId, now);
+
+    return { ok: true as const, duelId: id };
+  });
+
+  return tx();
+}
+
+export function joinCs2Duel(userId: string, duelId: string, preferredTeam?: number) {
+  const db = getDb();
+    const access = assertCanStartMatch(userId);
+  if (!access.ok) return { ok: false as const, error: access.error, access };
+  const now = Date.now();
+  tickCs2Duels(db);
+
+  const envHost = process.env.ARENA_CS2_HOST;
+  const envPort = process.env.ARENA_CS2_PORT;
+  const singleServer = envHost && envPort ? `${envHost}:${envPort}` : null;
+  const servers = parseServers(process.env.ARENA_CS2_SERVERS);
+  const serverPool = servers.length ? servers : singleServer ? [singleServer] : [];
+
+  const tx = db.transaction(() => {
+    const d = db.prepare("SELECT * FROM arena_duels WHERE id = ?").get(duelId) as DuelRow | undefined;
+    if (!d) return { ok: false as const, error: "NOT_FOUND" };
+    if (d.status !== "open") return { ok: false as const, error: "NOT_OPEN" };
+
+    // Already joined?
+    const already = db
+      .prepare("SELECT * FROM arena_duel_players WHERE duel_id=? AND user_id=?")
+      .get(duelId, userId) as DuelPlayerRow | undefined;
+    if (already) return { ok: true as const, duel: d };
+
+    if (userId === d.p1_user_id) return { ok: false as const, error: "CANNOT_JOIN_SELF" };
+
+    const teamSize = Number(d.team_size || 1);
+    const players = getDuelPlayers(db, duelId);
+    const { t1, t2 } = teamsFill(players);
+
+    let team = Number(preferredTeam || 2);
+    if (team !== 1 && team !== 2) team = 2;
+
+    // If team full, try the other team
+    const countForTeam = team === 1 ? t1.length : t2.length;
+    if (countForTeam >= teamSize) {
+      team = team === 1 ? 2 : 1;
+    }
+    const countForTeam2 = team === 1 ? t1.length : t2.length;
+    if (countForTeam2 >= teamSize) return { ok: false as const, error: "TEAM_FULL" };
+
+    // Debit stake from joiner
+    const deb = debitBalance(db, userId, d.currency, Number(d.stake), duelId);
+    if (!deb.ok) return deb;
+
+    db.prepare(
+      `INSERT INTO arena_duel_players (duel_id, user_id, team, is_captain, ready, joined_at)
+       VALUES (?, ?, ?, 0, 0, ?)`
+    ).run(duelId, userId, team, now);
+
+    // For backward-compat 1v1 set p2_user_id if still empty and joiner is on team 2.
+    if (teamSize === 1 && !d.p2_user_id && team === 2) {
+      db.prepare("UPDATE arena_duels SET p2_user_id=?, updated_at=? WHERE id=?").run(userId, now, duelId);
+    }
+
+    const playersAfter = getDuelPlayers(db, duelId);
+    const { t1: t1a, t2: t2a } = teamsFill(playersAfter);
+
+    const full = t1a.length >= teamSize && t2a.length >= teamSize;
+
+    let updated = d;
+    if (full) {
+      const server = serverPool.length ? serverPool[Math.floor(Math.random() * serverPool.length)] : null;
+      const pass = genPassword(8);
+      const link = server ? steamJoinLink(server, pass) : null;
+
+      const readyDeadline = now + 60_000;
+
+      db.prepare(
+        `UPDATE arena_duels
+         SET status='active', server=?, server_password=?, join_link=?, started_at=?, ready_deadline=?, live_state='readycheck', updated_at=?
+         WHERE id=?`
+      ).run(server, pass, link, now, readyDeadline, now, duelId);
+
+      // Best-effort RCON to set pass + map
+      const rconPassword = process.env.ARENA_CS2_RCON_PASSWORD;
+      if (server && rconPassword) {
+        const [host, portStr] = server.split(":");
+        const port = Number(portStr || "27015");
+        try {
+          rconExec({ host, port, password: rconPassword }, `sv_password "${pass}"`);
+          rconExec({ host, port, password: rconPassword }, `changelevel ${d.map || "de_mirage"}`);
+          rconExec({ host, port, password: rconPassword }, "mp_restartgame 1");
+        } catch {
+          // ignore
+        }
+      }
+
+      updated = db.prepare("SELECT * FROM arena_duels WHERE id=?").get(duelId) as DuelRow;
+    }
+
+    return { ok: true as const, duel: updated };
+  });
+
+  return tx();
+}
+
+export function setDuelReady(duelId: string, userId: string) {
+  const db = getDb();
+  const now = Date.now();
+  const tx = db.transaction(() => {
+    tickCs2Duels(db);
+
+    const d = db.prepare("SELECT * FROM arena_duels WHERE id=?").get(duelId) as DuelRow | undefined;
+    if (!d) return { ok: false as const, error: "NOT_FOUND" };
+    if (d.status !== "active") return { ok: false as const, error: "NOT_ACTIVE" };
+
+    const p = db.prepare("SELECT * FROM arena_duel_players WHERE duel_id=? AND user_id=?").get(duelId, userId) as
+      | DuelPlayerRow
+      | undefined;
+    if (!p) return { ok: false as const, error: "FORBIDDEN" };
+    if (p.ready) return { ok: true as const, ready: true };
+
+    db.prepare("UPDATE arena_duel_players SET ready=1 WHERE duel_id=? AND user_id=?").run(duelId, userId);
+
+    // keep legacy columns for 1v1 UI
+    if (Number(d.team_size || 1) === 1) {
+      if (userId === d.p1_user_id) db.prepare("UPDATE arena_duels SET p1_ready=1, updated_at=? WHERE id=?").run(now, duelId);
+      if (userId === d.p2_user_id) db.prepare("UPDATE arena_duels SET p2_ready=1, updated_at=? WHERE id=?").run(now, duelId);
+    }
+
+    const players = getDuelPlayers(db, duelId);
+    const required = Number(d.team_size || 1) * 2;
+    const readyCount = players.reduce((sum, x) => sum + (x.ready ? 1 : 0), 0);
+
+    if (readyCount >= required && d.live_state === "readycheck") {
+      db.prepare("UPDATE arena_duels SET live_state='ingame', updated_at=? WHERE id=?").run(now, duelId);
+    }
+
+    const updated = db.prepare("SELECT * FROM arena_duels WHERE id=?").get(duelId) as DuelRow;
+    return { ok: true as const, duel: updated };
+  });
+
+  return tx();
+}
+
+export function reportDuelResult(userId: string, duelId: string, result: "win" | "lose") {
+  const db = getDb();
+  const now = Date.now();
+  const tx = db.transaction(() => {
+    tickCs2Duels(db);
+
+    const d = db.prepare("SELECT * FROM arena_duels WHERE id=?").get(duelId) as DuelRow | undefined;
+    if (!d) return { ok: false as const, error: "NOT_FOUND" };
+    if (d.status !== "active") return { ok: false as const, error: "NOT_ACTIVE" };
+
+    const p = db.prepare("SELECT * FROM arena_duel_players WHERE duel_id=? AND user_id=?").get(duelId, userId) as
+      | DuelPlayerRow
+      | undefined;
+    if (!p) return { ok: false as const, error: "FORBIDDEN" };
+
+    // Upsert report
+    const id = `${duelId}:${userId}`;
+    db.prepare(
+      `INSERT INTO arena_duel_reports (id, duel_id, user_id, result, created_at)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET result=excluded.result, created_at=excluded.created_at`
+    ).run(id, duelId, userId, result, now);
+
+    // Determine winner team by majority of captain reports (or any two opposing reports)
+    const teamSize = Number(d.team_size || 1);
+    const players = getDuelPlayers(db, duelId);
+    const { t1, t2 } = teamsFill(players);
+
+    const reports = db
+      .prepare("SELECT user_id, result FROM arena_duel_reports WHERE duel_id=?")
+      .all(duelId) as { user_id: string; result: "win" | "lose" }[];
+
+    const byUser = new Map(reports.map((r) => [r.user_id, r.result]));
+    const cap1 = t1.find((x) => x.is_captain)?.user_id;
+    const cap2 = t2.find((x) => x.is_captain)?.user_id;
+
+    function inferTeamWin(fromUser: string, res: "win" | "lose") {
+      const pl = players.find((x) => x.user_id === fromUser);
+      if (!pl) return null;
+      const winTeam = res === "win" ? pl.team : pl.team === 1 ? 2 : 1;
+      return winTeam;
+    }
+
+    let inferred: number | null = null;
+    if (cap1 && cap2 && byUser.has(cap1) && byUser.has(cap2)) {
+      const w1 = inferTeamWin(cap1, byUser.get(cap1)!);
+      const w2 = inferTeamWin(cap2, byUser.get(cap2)!);
+      if (w1 && w2 && w1 === w2) inferred = w1;
+    }
+
+    // If 1v1 and both reported (any users), also allow
+    if (!inferred && teamSize === 1 && players.length >= 2) {
+      const u1 = players[0]?.user_id;
+      const u2 = players[1]?.user_id;
+      if (u1 && u2 && byUser.has(u1) && byUser.has(u2)) {
+        const w1 = inferTeamWin(u1, byUser.get(u1)!);
+        const w2 = inferTeamWin(u2, byUser.get(u2)!);
+        if (w1 && w2 && w1 === w2) inferred = w1;
+      }
+    }
+
+    if (inferred) {
+      // pick a representative winner user in that team (captain preferred)
+      const rep = (inferred === 1 ? t1 : t2).find((x) => x.is_captain)?.user_id || (inferred === 1 ? t1 : t2)[0]?.user_id;
+      if (rep) return finalizeDuel(duelId, rep, "reports");
+    }
+
+    // mark reported state
+    db.prepare("UPDATE arena_duels SET status='reported', updated_at=? WHERE id=? AND status='active'").run(now, duelId);
+
+    return { ok: true as const, status: "reported" as const };
+  });
+
+  return tx();
 }
 
 function eloExpected(rA: number, rB: number) {
   return 1 / (1 + Math.pow(10, (rB - rA) / 400));
 }
 
-export function listCs2Duels(userId?: string | null) {
-  const db = getDb();
-  tickCs2Duels(db);
-
-  const rows = db
-    .prepare(
-      `SELECT * FROM arena_duels
-       WHERE game='cs2' AND status IN ('open','active','reported','pending_review')
-       ORDER BY created_at DESC
-       LIMIT 100`
-    )
-    .all() as DuelRow[];
-
-  const out = rows.map((d) => {
-    const players = getDuelPlayers(db, d.id);
-    const nicks = players.map((p) => ({ ...p, nickname: getNick(db, p.user_id) }));
-    const mine = userId ? players.some((p) => p.user_id === userId) : false;
-    return { ...d, players: nicks, mine };
-  });
-
-  return { ok: true as const, duels: out };
-}
-
-export function createCs2Duel(input: { userId: string; stake: number; currency?: string; teamSize?: number; map?: string }) {
-  const db = getDb();
-  tickCs2Duels(db);
-
-  const userId = input.userId;
-  const stake = Number(input.stake || 0);
-  const currency = String(input.currency || "EUR").toUpperCase();
-  const teamSize = Math.max(1, Math.min(5, Number(input.teamSize || 1)));
-
-  if (!stake || stake <= 0) return { ok: false as const, error: "BAD_STAKE" };
-  if (!Number.isFinite(stake)) return { ok: false as const, error: "BAD_STAKE" };
-
-  assertCanStartMatch(userId);
-
-  const existing = db
-    .prepare(
-      `SELECT id FROM arena_duels
-       WHERE status IN ('open','active','reported','pending_review')
-         AND (p1_user_id=? OR p2_user_id=? OR EXISTS(SELECT 1 FROM arena_duel_players p WHERE p.duel_id=arena_duels.id AND p.user_id=?))
-       LIMIT 1`
-    )
-    .get(userId, userId, userId) as { id: string } | undefined;
-
-  if (existing?.id) return { ok: false as const, error: "ALREADY_HAS_DUEL", duelId: existing.id };
-
-  const duelId = randomUUID();
-  const now = Date.now();
-
-  const tx = db.transaction(() => {
-    const pay = debitBalance(db, userId, currency, stake, duelId);
-    if (!pay.ok) return pay;
-
-    const map = input.map && isValidCs2Map(input.map) ? input.map : pickCs2Map();
-
-    db.prepare(
-      `INSERT INTO arena_duels
-       (id, game, mode, team_size, stake, currency, rake, status, map, created_at, updated_at, p1_user_id)
-       VALUES (?, 'cs2', '1v1', ?, ?, ?, 0.15, 'open', ?, ?, ?, ?)`
-    ).run(duelId, teamSize, stake, currency, map, now, now, userId);
-
-    db.prepare(
-      `INSERT INTO arena_duel_players (duel_id, user_id, team, is_captain, ready, joined_at)
-       VALUES (?, ?, 1, 1, 0, ?)`
-    ).run(duelId, userId, now);
-
-    return { ok: true as const, duelId };
-  });
-
-  return tx();
-}
-
-export function joinCs2Duel(input: { duelId: string; userId: string }) {
-  const db = getDb();
-  tickCs2Duels(db);
-
-  const duelId = input.duelId;
-  const userId = input.userId;
-
-  const d = db.prepare("SELECT * FROM arena_duels WHERE id=?").get(duelId) as DuelRow | undefined;
-  if (!d) return { ok: false as const, error: "NOT_FOUND" };
-  if (d.status !== "open") return { ok: false as const, error: "NOT_OPEN" };
-  if (d.p1_user_id === userId) return { ok: false as const, error: "CANT_JOIN_OWN" };
-
-  assertCanStartMatch(userId);
-
-  const already = db.prepare("SELECT 1 as x FROM arena_duel_players WHERE duel_id=? AND user_id=?").get(duelId, userId) as
-    | { x: number }
-    | undefined;
-  if (already?.x) return { ok: true as const, duelId };
-
-  const tx = db.transaction(() => {
-    const pay = debitBalance(db, userId, d.currency, Number(d.stake), duelId);
-    if (!pay.ok) return pay;
-
-    const now = Date.now();
-
-    db.prepare(
-      `INSERT INTO arena_duel_players (duel_id, user_id, team, is_captain, ready, joined_at)
-       VALUES (?, ?, 2, 1, 0, ?)`
-    ).run(duelId, userId, now);
-
-    db.prepare(`UPDATE arena_duels SET status='active', p2_user_id=?, updated_at=?, live_state='readycheck', ready_deadline=? WHERE id=?`)
-      .run(userId, now, now, now + 60_000, duelId);
-
-    return { ok: true as const, duelId };
-  });
-
-  return tx();
-}
-
-export function setDuelReady(input: { duelId: string; userId: string; ready: boolean }) {
-  const db = getDb();
-  tickCs2Duels(db);
-
-  const now = Date.now();
-  const duelId = input.duelId;
-  const userId = input.userId;
-
-  const d = db.prepare("SELECT * FROM arena_duels WHERE id=?").get(duelId) as DuelRow | undefined;
-  if (!d) return { ok: false as const, error: "NOT_FOUND" };
-  if (d.status !== "active") return { ok: false as const, error: "NOT_ACTIVE" };
-
-  const p = db.prepare("SELECT * FROM arena_duel_players WHERE duel_id=? AND user_id=?").get(duelId, userId) as DuelPlayerRow | undefined;
-  if (!p) return { ok: false as const, error: "NOT_IN_MATCH" };
-
-  db.prepare("UPDATE arena_duel_players SET ready=? WHERE duel_id=? AND user_id=?").run(input.ready ? 1 : 0, duelId, userId);
-
-  const players = getDuelPlayers(db, duelId);
-  const required = Number(d.team_size || 1) * 2;
-  const readyCount = players.reduce((sum, x) => sum + (x.ready ? 1 : 0), 0);
-
-  if (readyCount >= required) {
-    const servers = parseServers(process.env.CS2_SERVERS);
-    const server = servers[Math.floor(Math.random() * Math.max(1, servers.length))] || null;
-    const password = genPassword(10);
-
-    const joinLink = server ? steamJoinLink(server, password) : null;
-
-    db.prepare(
-      `UPDATE arena_duels
-       SET live_state='ingame', started_at=?, server=?, server_password=?, join_link=?, match_token=?, updated_at=?
-       WHERE id=?`
-    ).run(now, server, password, joinLink, randomUUID(), now, duelId);
-
-    // optional: kick off server config via RCON (if you have it wired)
-try {
-  if (server) {
-    const [host, portStr] = server.split(":");
-    const port = Number(portStr || 27015);
-
-    // rconExec принимает ОДНУ команду строкой.
-    // Поэтому шлём две команды по очереди.
-    void rconExec(
-      { host, port, password, timeoutMs: 1800 },
-      `sv_password "${password}"`
-    ).then(() =>
-      rconExec(
-        { host, port, password, timeoutMs: 1800 },
-        `changelevel ${d.map || "de_mirage"}`
-      )
-    );
-  }
-} catch {}
-  }
-
-  return { ok: true as const };
-}
-
-export function reportDuelResult(input: { duelId: string; userId: string; result: "win" | "lose" }) {
-  const db = getDb();
-  tickCs2Duels(db);
-
-  const now = Date.now();
-  const duelId = input.duelId;
-  const userId = input.userId;
-
-  const d = db.prepare("SELECT * FROM arena_duels WHERE id=?").get(duelId) as DuelRow | undefined;
-  if (!d) return { ok: false as const, error: "NOT_FOUND" };
-  if (!["active", "reported", "pending_review"].includes(d.status)) return { ok: false as const, error: "BAD_STATUS" };
-
-  const p = db.prepare("SELECT * FROM arena_duel_players WHERE duel_id=? AND user_id=?").get(duelId, userId) as DuelPlayerRow | undefined;
-  if (!p) return { ok: false as const, error: "NOT_IN_MATCH" };
-
-  db.prepare(
-    `INSERT OR REPLACE INTO arena_match_reports (id, match_id, user_id, result, created_at)
-     VALUES (?, ?, ?, ?, ?)`
-  ).run(randomUUID(), duelId, userId, input.result, now);
-
-  const reports = db.prepare("SELECT user_id, result FROM arena_match_reports WHERE match_id=?").all(duelId) as Array<{ user_id: string; result: string }>;
-  if (reports.length < 2) {
-    db.prepare("UPDATE arena_duels SET status='reported', updated_at=? WHERE id=?").run(now, duelId);
-    return { ok: true as const, status: "reported" as const };
-  }
-
-  const winnerReport = reports.find((r) => r.result === "win");
-  if (!winnerReport) {
-    db.prepare("UPDATE arena_duels SET status='pending_review', updated_at=? WHERE id=?").run(now, duelId);
-    return { ok: true as const, status: "pending_review" as const };
-  }
-
-  return finalizeDuel(duelId, winnerReport.user_id, "reports");
-}
-
-/**
- * ✅ BeavRank update rules:
- * - win  : +2
- * - loss : -1.5
- * - draw : +1
- */
 function updateTeamRatings(db: any, duelId: string, winnerTeam: number) {
   const now = Date.now();
   const players = getDuelPlayers(db, duelId);
@@ -455,40 +581,35 @@ function updateTeamRatings(db: any, duelId: string, winnerTeam: number) {
 
   for (const p of players) ensureRating(db, p.user_id);
 
-  const WIN = 2;
-  const LOSS = -1.5;
-  const DRAW = 1;
+  const r1 = t1.map((p) => getDamRank(db, p.user_id).dam_rank);
+  const r2 = t2.map((p) => getDamRank(db, p.user_id).dam_rank);
+  const avg1 = r1.reduce((a, b) => a + b, 0) / r1.length;
+  const avg2 = r2.reduce((a, b) => a + b, 0) / r2.length;
 
-  function applyDelta(userId: string, delta: number, isWin: boolean, isLoss: boolean) {
+  const K = 32;
+
+  function apply(userId: string, score: number, expected: number) {
+    const cur = getDamRank(db, userId).dam_rank;
+    const next = Math.round(cur + K * (score - expected));
     const row = getDamRank(db, userId);
-    const cur = Number(row.dam_rank || 0);
-
-    // Keep 0.1 precision so -1.5 works cleanly.
-    const next = Math.max(0, Math.round((cur + delta) * 10) / 10);
-
     db.prepare(
       `UPDATE arena_ratings
        SET dam_rank=?, matches=matches+1, wins=wins+?, losses=losses+?, updated_at=?
        WHERE user_id=?`
-    ).run(next, isWin ? 1 : 0, isLoss ? 1 : 0, now, userId);
+    ).run(next, score ? 1 : 0, score ? 0 : 1, now, userId);
+    return { before: cur, after: next, delta: next - cur, ...row };
   }
 
-  const isDraw = !winnerTeam || (winnerTeam !== 1 && winnerTeam !== 2);
-
+  // Update each player relative to team averages
   for (const p of t1) {
-    if (isDraw) applyDelta(p.user_id, DRAW, false, false);
-    else {
-      const won = winnerTeam === 1;
-      applyDelta(p.user_id, won ? WIN : LOSS, won, !won);
-    }
+    const expected = eloExpected(getDamRank(db, p.user_id).dam_rank, avg2);
+    const score = winnerTeam === 1 ? 1 : 0;
+    apply(p.user_id, score, expected);
   }
-
   for (const p of t2) {
-    if (isDraw) applyDelta(p.user_id, DRAW, false, false);
-    else {
-      const won = winnerTeam === 2;
-      applyDelta(p.user_id, won ? WIN : LOSS, won, !won);
-    }
+    const expected = eloExpected(getDamRank(db, p.user_id).dam_rank, avg1);
+    const score = winnerTeam === 2 ? 1 : 0;
+    apply(p.user_id, score, expected);
   }
 }
 
@@ -573,7 +694,7 @@ export function getArenaProfile(userId: string, limit = 30) {
       nickname: nick,
       avatarUrl,
       elo: r.dam_rank,
-      division: ratingNameFromElo(Number(r.dam_rank || 250)),
+      division: ratingNameFromElo(r.dam_rank),
       matches: r.matches,
       wins: r.wins,
       losses: r.losses,
@@ -583,67 +704,88 @@ export function getArenaProfile(userId: string, limit = 30) {
   };
 }
 
-export function getArenaLeaderboard(limit = 100) {
+export function getArenaLeaderboard(limit = 50) {
   const db = getDb();
-  const rows = db
+  const top = db
     .prepare(
-      `SELECT r.user_id, r.dam_rank, r.matches, r.wins, r.losses,
-              p.nickname, p.avatar_url
+      `SELECT r.user_id, r.dam_rank AS elo, r.matches, r.wins, r.losses, r.updated_at
        FROM arena_ratings r
-       LEFT JOIN profiles p ON p.user_id = r.user_id
        ORDER BY r.dam_rank DESC
        LIMIT ?`
     )
     .all(limit) as any[];
 
-  return {
-    ok: true as const,
-    leaderboard: rows.map((x) => ({
-      userId: x.user_id,
-      nickname: x.nickname || "Player",
-      avatarUrl: x.avatar_url || null,
-      elo: x.dam_rank,
-      division: ratingNameFromElo(Number(x.dam_rank ?? 250)),
-      matches: x.matches,
-      wins: x.wins,
-      losses: x.losses,
-      winrate: x.matches ? Math.round((x.wins / x.matches) * 100) : 0,
-    })),
-  };
+  const rows = top.map((x) => ({
+    ...x,
+    nickname: getNick(db, x.user_id),
+    division: ratingNameFromElo(Number(x.elo || 1000)),
+    winrate: x.matches ? Math.round((Number(x.wins || 0) / Number(x.matches || 0)) * 100) : 0,
+  }));
+
+  return { ok: true as const, rows };
 }
 
-export function getArenaActivity(limit = 30) {
+export function getArenaActivity(limit = 25) {
   const db = getDb();
-  const rows = db
+  const duels = db
     .prepare(
-      `SELECT d.id, d.game, d.stake, d.currency, d.status, d.map, d.updated_at, d.ended_at,
-              d.p1_user_id, d.p2_user_id, d.winner_user_id
-       FROM arena_duels d
-       ORDER BY COALESCE(d.ended_at, d.updated_at) DESC
+      `SELECT id, game, stake, currency, status, p1_user_id, p2_user_id, winner_user_id,
+              COALESCE(ended_at, updated_at) AS at
+       FROM arena_duels
+       ORDER BY COALESCE(ended_at, updated_at) DESC
        LIMIT ?`
     )
     .all(limit) as any[];
 
+  const items = duels.map((d) => {
+    const kind = d.status === "done" ? "duel_done" : d.status === "active" ? "duel_active" : "duel_open";
+    return {
+      id: d.id,
+      kind,
+      game: d.game,
+      stake: Number(d.stake || 0),
+      currency: d.currency,
+      p1_nick: getNick(db, d.p1_user_id),
+      p2_nick: getNick(db, d.p2_user_id),
+      winner_nick: getNick(db, d.winner_user_id),
+      at: Number(d.at || Date.now()),
+    };
+  });
+
+  return { ok: true as const, items };
+}
+
+export function getCs2DuelView(userId: string, duelId: string) {
+  const db = getDb();
+  tickCs2Duels(db);
+
+  const d = db.prepare("SELECT * FROM arena_duels WHERE id=? AND game='cs2'").get(duelId) as DuelRow | undefined;
+  if (!d) return { ok: false as const, error: "NOT_FOUND" };
+
+  const players = getDuelPlayers(db, duelId).map((p) => ({
+    ...p,
+    nickname: getNick(db, p.user_id),
+  }));
+
+  const me = players.find((p) => p.user_id === userId);
+  const me_team = me?.team ?? (d.p1_user_id === userId ? 1 : d.p2_user_id === userId ? 2 : null);
+  const me_ready = Boolean(me?.ready ?? (me_team === 1 ? d.p1_ready : me_team === 2 ? d.p2_ready : 0));
+
+  ensureRating(db, userId);
+  const r = getDamRank(db, userId);
+
   return {
     ok: true as const,
-    activity: rows.map((d) => ({
+    duel: {
       ...d,
       p1_nick: getNick(db, d.p1_user_id),
       p2_nick: getNick(db, d.p2_user_id),
       winner_nick: getNick(db, d.winner_user_id),
-    })),
+      me_team,
+      me_ready,
+      myRating: r.dam_rank,
+      ratingName: ratingNameFromElo(r.dam_rank),
+    },
+    players,
   };
-}
-
-export function getCs2DuelView(duelId: string, viewerUserId?: string | null) {
-  const db = getDb();
-  tickCs2Duels(db);
-
-  const d = db.prepare("SELECT * FROM arena_duels WHERE id=?").get(duelId) as DuelRow | undefined;
-  if (!d) return { ok: false as const, error: "NOT_FOUND" };
-
-  const players = getDuelPlayers(db, duelId).map((p) => ({ ...p, nickname: getNick(db, p.user_id) }));
-  const mine = viewerUserId ? players.some((p) => p.user_id === viewerUserId) : false;
-
-  return { ok: true as const, duel: { ...d, players, mine } };
 }

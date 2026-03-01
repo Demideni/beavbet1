@@ -17,14 +17,6 @@ type Profile = {
   nickname: string | null;
   elo: number;
   division: string;
-  beav?: {
-    points: number;
-    label: string;
-    nextLabel: string | null;
-    progress: number;
-    min: number;
-    max: number;
-  };
   matches: number;
   wins: number;
   losses: number;
@@ -126,27 +118,7 @@ export default function ArenaProfileClient() {
                         BeavRank
                       </span>
                     </div>
-                    <div className="text-white font-extrabold text-xl mt-1">
-                      {Number(profile.elo).toFixed(1)}
-                      <span className="ml-2 text-white/70 text-sm font-semibold">{profile.division}</span>
-                    </div>
-
-                    {profile.beav ? (
-                      <div className="mt-2">
-                        <div className="flex items-center justify-between text-[11px] text-white/55">
-                          <span>{profile.beav.label}</span>
-                          <span>
-                            {profile.beav.nextLabel ? `→ ${profile.beav.nextLabel}` : "Max"}
-                          </span>
-                        </div>
-                        <div className="mt-1 h-2 rounded-full bg-white/10 overflow-hidden">
-                          <div className="h-full bg-accent" style={{ width: `${Math.round(profile.beav.progress * 100)}%` }} />
-                        </div>
-                        <div className="mt-1 text-[11px] text-white/45">
-                          {profile.beav.min}–{profile.beav.max === Infinity ? "∞" : profile.beav.max} • {Math.round(profile.beav.progress * 100)}%
-                        </div>
-                      </div>
-                    ) : null}
+                    <div className="text-white font-extrabold text-xl mt-1">{profile.elo}</div>
                   </div>
                   <div className="h-12 w-12 rounded-2xl bg-white/6 border border-white/10 flex items-center justify-center">
                     <Flame className="h-5 w-5 text-white" />
@@ -255,7 +227,7 @@ export default function ArenaProfileClient() {
                       <th className="text-left font-semibold py-2">Date</th>
                       <th className="text-left font-semibold py-2">Game</th>
                       <th className="text-left font-semibold py-2">Match</th>
-
+                      
                       <th className="text-left font-semibold py-2">Result</th>
                       <th className="text-left font-semibold py-2">Open</th>
                     </tr>
@@ -281,7 +253,7 @@ export default function ArenaProfileClient() {
                           <td className="py-3 text-white/85">
                             {h.p1_nick || "P1"} <span className="text-white/35">vs</span> {h.p2_nick || "P2"}
                           </td>
-
+                          
                           <td className="py-3">
                             <span className="inline-flex items-center rounded-full border border-white/12 bg-white/6 px-3 py-1 text-white/85">
                               {String(h.status).toUpperCase()}

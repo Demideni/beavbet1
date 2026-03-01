@@ -300,14 +300,14 @@ ensureColumn(db, "profiles", "badges_json", "badges_json TEXT");
     );
     CREATE INDEX IF NOT EXISTS idx_arena_duel_players_duel ON arena_duel_players(duel_id);
 
- CREATE TABLE IF NOT EXISTS arena_ratings (
-  user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-  dam_rank REAL NOT NULL DEFAULT 250,
-  matches INTEGER NOT NULL DEFAULT 0,
-  wins INTEGER NOT NULL DEFAULT 0,
-  losses INTEGER NOT NULL DEFAULT 0,
-  updated_at INTEGER NOT NULL
-);
+    CREATE TABLE IF NOT EXISTS arena_ratings (
+      user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      dam_rank INTEGER NOT NULL DEFAULT 1000,
+      matches INTEGER NOT NULL DEFAULT 0,
+      wins INTEGER NOT NULL DEFAULT 0,
+      losses INTEGER NOT NULL DEFAULT 0,
+      updated_at INTEGER NOT NULL
+    );
     CREATE INDEX IF NOT EXISTS idx_arena_ratings_rank ON arena_ratings(dam_rank);
 
     CREATE TABLE IF NOT EXISTS arena_duel_reports (

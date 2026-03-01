@@ -1,30 +1,17 @@
-import { NextRequest, NextResponse } from "next/server";
-import { joinCs2Duel } from "@/lib/arena/duels/cs2";
+import { NextResponse } from "next/server";
+import { getSessionUser } from "@/lib/auth";
+import { joinCs2Duel } from "@/lib/arenaDuels";
 
-export async function POST(req: NextRequest) {
-  try {
-    const body = await req.json();
-    const { duelId, userId } = body;
+export async function POST(req: Request) {
+  const user = await getSessionUser();
+  if (!user) return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });
 
-    if (!duelId || !userId) {
-      return NextResponse.json(
-        { ok: false, error: "BAD_REQUEST" },
-        { status: 400 }
-      );
-    }
+  const body = await req.json().catch(() => ({}));
+  const duelId = String(body?.duelId || "");
+  const team = body?.team != null ? Number(body.team) : undefined;
+  if (!duelId) return NextResponse.json({ ok: false, error: "BAD_REQUEST" }, { status: 400 });
 
-    const result = joinCs2Duel({ duelId, userId });
-
-    if (!result.ok) {
-      return NextResponse.json(result, { status: 400 });
-    }
-
-    return NextResponse.json(result);
-  } catch (error) {
-    console.error("JOIN_DUEL_ERROR:", error);
-    return NextResponse.json(
-      { ok: false, error: "SERVER_ERROR" },
-      { status: 500 }
-    );
-  }
+  const r = joinCs2Duel(user.id, duelId, team);
+  if (!r.ok) return NextResponse.json(r, { status: 400 });
+  return NextResponse.json(r);
 }

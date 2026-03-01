@@ -25,8 +25,7 @@ export type BeavRankMeta = {
  * Each tier (except Elite) has 3 divisions: III (low), II, I (high).
  */
 export function getBeavRankMeta(pointsRaw: number): BeavRankMeta {
-  // We allow fractional deltas (e.g. -1.5 for a loss), so keep one decimal.
-  const points = Number.isFinite(pointsRaw) ? Math.max(0, Math.round(pointsRaw * 10) / 10) : 0;
+  const points = Number.isFinite(pointsRaw) ? Math.max(0, Math.round(pointsRaw)) : 0;
 
   const tiers: Array<{ tier: BeavRankTier; min: number; max: number | null }> = [
     { tier: "Bronze", min: 0, max: 1000 },

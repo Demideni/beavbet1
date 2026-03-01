@@ -50,19 +50,34 @@ export async function POST(req: Request) {
     "INSERT INTO profiles (user_id, nickname, currency, created_at) VALUES (?, ?, ?, ?)"
   ).run(id, email.split("@")[0], "EUR", now);
 
-  // ✅ BeavRank старт при регистрации
-  try {
-    db.prepare(
-      "INSERT OR IGNORE INTO arena_ratings (user_id, dam_rank, matches, wins, losses, updated_at) VALUES (?, 250, 0, 0, 0, ?)"
-    ).run(id, now);
-  } catch {
-    // table may not exist yet in some old dev DBs; ensureRating() will backfill later
-  }
-
   // Create default wallet
   db.prepare(
     "INSERT INTO wallets (id, user_id, currency, balance, created_at) VALUES (?, ?, ?, ?, ?)"
   ).run(randomUUID(), id, "EUR", 0, now);
+
+  // ✅ Welcome reward (legal): 7 days Premium + 100 Arena Coins + Founding badge
+const premiumUntil = now + 7 * 24 * 60 * 60 * 1000;
+db.prepare("UPDATE users SET premium_until = ? WHERE id = ?").run(premiumUntil, id);
+
+db.prepare("UPDATE profiles SET arena_coins = COALESCE(arena_coins, 0) + 100 WHERE user_id = ?").run(id);
+
+db.prepare("UPDATE profiles SET badges_json = ? WHERE user_id = ? AND (badges_json IS NULL OR badges_json = '')").run(
+  JSON.stringify(["founding-player"]),
+  id
+);
+
+// Log rewards
+db.prepare(
+  "INSERT INTO arena_rewards (id, user_id, type, reward_type, reward_value, meta, created_at) VALUES (?, ?, 'welcome', 'premium_hours', ?, ?, ?)"
+).run(randomUUID(), id, 7 * 24, JSON.stringify({ days: 7 }), now);
+
+db.prepare(
+  "INSERT INTO arena_rewards (id, user_id, type, reward_type, reward_value, meta, created_at) VALUES (?, ?, 'welcome', 'coins', ?, NULL, ?)"
+).run(randomUUID(), id, 100, now);
+
+db.prepare(
+  "INSERT INTO arena_rewards (id, user_id, type, reward_type, reward_value, meta, created_at) VALUES (?, ?, 'welcome', 'badge', 1, ?, ?)"
+).run(randomUUID(), id, JSON.stringify({ badge: "founding-player" }), now);
 
   // Attach affiliate referral (either from cookie ?ref=, or promo field)
   const store = await cookies();

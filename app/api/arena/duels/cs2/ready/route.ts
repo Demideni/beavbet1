@@ -1,31 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { setDuelReady } from "@/lib/arena/duels/cs2";
+import { getSessionUser } from "@/lib/auth";
+import { setDuelReady } from "@/lib/arenaDuels";
 
 export async function POST(req: NextRequest) {
-  try {
-    const body = await req.json();
-    const { duelId, userId } = body;
+  const user = await getSessionUser();
+  if (!user) return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });
 
-    if (!duelId || !userId) {
-      return NextResponse.json(
-        { ok: false, error: "BAD_REQUEST" },
-        { status: 400 }
-      );
-    }
+  const body = await req.json().catch(() => ({}));
+  const duelId = String(body?.duelId || "");
 
-    // ✅ правильный новый вызов: один аргумент-объект
-    const r = setDuelReady({ duelId, userId });
+  if (!duelId) return NextResponse.json({ ok: false, error: "BAD_REQUEST" }, { status: 400 });
 
-    if (!r.ok) {
-      return NextResponse.json(r, { status: 400 });
-    }
-
-    return NextResponse.json({ ok: true });
-  } catch (error) {
-    console.error("DUEL_READY_ERROR:", error);
-    return NextResponse.json(
-      { ok: false, error: "SERVER_ERROR" },
-      { status: 500 }
-    );
-  }
+  const r = setDuelReady(duelId, user.id);
+  if (!r.ok) return NextResponse.json(r, { status: 400 });
+  return NextResponse.json({ ok: true });
 }

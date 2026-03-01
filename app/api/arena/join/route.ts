@@ -4,7 +4,6 @@ import { getDb } from "@/lib/db";
 import { getTournament, getTournamentPlayersCount, startTournamentIfFull } from "@/lib/arena";
 import { lockFunds } from "@/lib/wallet";
 import { randomUUID } from "node:crypto";
-import { getDamRank } from "@/lib/arenaDuels";
 
 export async function POST(req: Request) {
   const user = await getSessionUser();
@@ -17,16 +16,6 @@ export async function POST(req: Request) {
   const t = getTournament(tournamentId);
   if (!t) return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
   if (t.status !== "open") return NextResponse.json({ ok: false, error: "NOT_OPEN" }, { status: 400 });
-
-  // Optional BeavRank gate for prize/league tournaments
-  const minBeavRank = Number((t as any).min_beavrank ?? 0);
-  if (minBeavRank > 0) {
-    const dbRank = getDb();
-    const r = getDamRank(dbRank, user.id);
-    if (Number(r?.dam_rank ?? 0) < minBeavRank) {
-      return NextResponse.json({ ok: false, error: "BEAVRANK_TOO_LOW", minBeavRank }, { status: 403 });
-    }
-  }
 
   const db = getDb();
   const already = db
